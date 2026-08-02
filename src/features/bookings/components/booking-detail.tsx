@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, MessageSquare, Send } from "lucide-react";
+import { Check } from "lucide-react";
 import { BookingsApi, bookingKeys } from "@/features/bookings/api";
+import { ChatPanel } from "@/features/bookings/components/chat-panel";
 import {
   BOOKING_HAPPY_PATH,
   BOOKING_TERMINAL_STATES,
@@ -12,11 +12,7 @@ import {
 import { BookingStateBadge } from "@/shared/components/booking-state-badge";
 import { formatMoneyCents, formatPct } from "@/shared/utils/money";
 import { formatIsoDate } from "@/shared/utils/dates";
-import {
-  EmptyState,
-  ErrorState,
-  LoadingState,
-} from "@/shared/components/states";
+import { ErrorState, LoadingState } from "@/shared/components/states";
 import { Button } from "@/shared/components/ui/button";
 import {
   Card,
@@ -24,7 +20,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/shared/components/ui/card";
-import { Input } from "@/shared/components/ui/input";
 import { cn } from "@/lib/utils";
 
 export function BookingDetail({ bookingId }: { bookingId: string }) {
@@ -79,7 +74,7 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
         <CancelSection booking={booking} />
       </div>
 
-      <ChatPanel bookingId={bookingId} />
+      <ChatPanel booking={booking} />
     </div>
   );
 }
@@ -213,86 +208,3 @@ function CancelSection({ booking }: { booking: Booking }) {
   );
 }
 
-/** In-app chat with the agency (1 thread per booking). Skeleton: list +
- *  composer wired to the messages endpoints; realtime lands later. */
-function ChatPanel({ bookingId }: { bookingId: string }) {
-  const [body, setBody] = useState("");
-  const qc = useQueryClient();
-
-  const query = useQuery({
-    queryKey: bookingKeys.messages(bookingId),
-    queryFn: () => BookingsApi.listMessages(bookingId),
-  });
-
-  const send = useMutation({
-    mutationFn: () => BookingsApi.sendMessage(bookingId, body.trim()),
-    onSuccess: () => {
-      setBody("");
-      qc.invalidateQueries({ queryKey: bookingKeys.messages(bookingId) });
-    },
-  });
-
-  return (
-    <Card className="flex h-fit flex-col lg:sticky lg:top-20">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <MessageSquare className="h-4 w-4" />
-          Chat with the agency
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        <div className="max-h-80 space-y-2 overflow-y-auto">
-          {query.isLoading ? (
-            <LoadingState label="Loading messages…" className="py-6" />
-          ) : query.isError ? (
-            <p className="text-sm text-muted-foreground">
-              Messages could not be loaded.
-            </p>
-          ) : (query.data?.length ?? 0) === 0 ? (
-            <EmptyState
-              title="No messages yet"
-              description="Say hi — coordinate pickup details here."
-              className="py-6"
-            />
-          ) : (
-            query.data!.map((m) => (
-              <div
-                key={m.id}
-                className={cn(
-                  "max-w-[85%] rounded-lg px-3 py-2 text-sm",
-                  m.senderRole === "customer"
-                    ? "ml-auto bg-primary text-primary-foreground"
-                    : "bg-muted",
-                )}
-              >
-                {m.body}
-              </div>
-            ))
-          )}
-        </div>
-
-        <form
-          className="flex gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (body.trim()) send.mutate();
-          }}
-        >
-          <Input
-            placeholder="Write a message…"
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-          />
-          <Button
-            type="submit"
-            size="icon"
-            disabled={!body.trim() || send.isPending}
-            aria-label="Send message"
-          >
-            <Send className="h-4 w-4" />
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
-  );
-}
