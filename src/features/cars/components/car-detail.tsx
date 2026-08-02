@@ -21,6 +21,10 @@ import {
   paymentMethodKeys,
 } from "@/features/payments/api";
 import { VerificationApi, verificationKeys } from "@/features/verification/api";
+import {
+  AddressAutocomplete,
+  type PickedAddress,
+} from "@/shared/components/address-autocomplete";
 import { carGallery } from "@/features/cars/photos";
 import { useAuthStore } from "@/shared/auth/store";
 import type { CarDetail as CarDetailShape, PickupType } from "@/shared/types/domain";
@@ -297,20 +301,48 @@ function BookingPanel({
   const [to, setTo] = useState(initialTo ?? "");
   const [pickup, setPickup] = useState<PickupType>("branch_pickup");
   const [zoneId, setZoneId] = useState<string>("");
+  const [deliveryAddr, setDeliveryAddr] = useState<PickedAddress | null>(null);
+  const [deliveryReference, setDeliveryReference] = useState("");
 
   const zones = car.deliveryZones;
+  // Address-based delivery when the branch enables it; else legacy zones (if any).
+  const addressDelivery = car.branch.deliveryEnabled;
+  const deliveryAvailable = addressDelivery || zones.length > 0;
 
-  const quoteReady = !!from && !!to && (pickup === "branch_pickup" || !!zoneId);
+  const deliveryReady = addressDelivery ? !!deliveryAddr : !!zoneId;
+  const quoteReady =
+    !!from && !!to && (pickup === "branch_pickup" || deliveryReady);
+
+  // Delivery params for the server (a geocoded address takes precedence).
+  const deliveryParams =
+    pickup === "delivery"
+      ? addressDelivery && deliveryAddr
+        ? {
+            deliveryAddress: deliveryAddr.formattedAddress,
+            deliveryLat: deliveryAddr.lat,
+            deliveryLng: deliveryAddr.lng,
+            deliveryReference: deliveryReference.trim() || undefined,
+          }
+        : { deliveryZoneId: zoneId }
+      : {};
 
   const quoteQuery = useQuery({
-    queryKey: carKeys.quote(car.id, from, to, pickup, zoneId || undefined),
+    queryKey: carKeys.quote(
+      car.id,
+      from,
+      to,
+      pickup,
+      addressDelivery
+        ? `${deliveryAddr?.lat ?? ""},${deliveryAddr?.lng ?? ""}`
+        : zoneId || undefined,
+    ),
     queryFn: () =>
       BookingsApi.quote({
         carId: car.id,
         start: from,
         end: to,
         pickupType: pickup,
-        deliveryZoneId: pickup === "delivery" ? zoneId : undefined,
+        ...deliveryParams,
       }),
     enabled: quoteReady,
   });
@@ -322,7 +354,7 @@ function BookingPanel({
         start: from,
         end: to,
         pickupType: pickup,
-        deliveryZoneId: pickup === "delivery" ? zoneId : undefined,
+        ...deliveryParams,
       }),
     onSuccess: (booking) => router.push(`/account/bookings/${booking.id}`),
   });
@@ -390,11 +422,13 @@ function BookingPanel({
               type="radio"
               name="pickup"
               checked={pickup === "delivery"}
-              disabled={zones.length === 0}
+              disabled={!deliveryAvailable}
               onChange={() => setPickup("delivery")}
             />
-            Delivery (airport / hotel zone — extra fee)
-            {zones.length === 0 ? (
+            {addressDelivery
+              ? "Deliver to my address (extra fee)"
+              : "Delivery (airport / hotel zone — extra fee)"}
+            {!deliveryAvailable ? (
               <span className="text-xs text-muted-foreground">
                 (not offered)
               </span>
@@ -403,21 +437,52 @@ function BookingPanel({
         </fieldset>
 
         {pickup === "delivery" ? (
-          <div className="space-y-1.5">
-            <Label htmlFor="bp-zone">Delivery zone</Label>
-            <Select
-              id="bp-zone"
-              value={zoneId}
-              onChange={(e) => setZoneId(e.target.value)}
-            >
-              <option value="">Select a zone</option>
-              {zones.map((z) => (
-                <option key={z.id} value={z.id}>
-                  {z.name} (+{formatMoneyCents(z.feeCents)})
-                </option>
-              ))}
-            </Select>
-          </div>
+          addressDelivery ? (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="bp-address">Delivery address</Label>
+                <AddressAutocomplete
+                  id="bp-address"
+                  onSelect={setDeliveryAddr}
+                  onClear={() => setDeliveryAddr(null)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Fee from {formatMoneyCents(car.branch.deliveryBaseFeeCents)} +{" "}
+                  {formatMoneyCents(car.branch.deliveryPerKmCents)}/km
+                  {car.branch.deliveryMaxKm
+                    ? ` · within ${car.branch.deliveryMaxKm} km`
+                    : ""}
+                  .
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="bp-ref">Reference (optional)</Label>
+                <Input
+                  id="bp-ref"
+                  placeholder="e.g. blue gate, ring twice"
+                  value={deliveryReference}
+                  maxLength={300}
+                  onChange={(e) => setDeliveryReference(e.target.value)}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <Label htmlFor="bp-zone">Delivery zone</Label>
+              <Select
+                id="bp-zone"
+                value={zoneId}
+                onChange={(e) => setZoneId(e.target.value)}
+              >
+                <option value="">Select a zone</option>
+                {zones.map((z) => (
+                  <option key={z.id} value={z.id}>
+                    {z.name} (+{formatMoneyCents(z.feeCents)})
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )
         ) : null}
 
         {/* Server-side quote — rendered verbatim, never computed here. */}
@@ -462,7 +527,13 @@ function BookingPanel({
           ) : null
         ) : (
           <p className="text-sm text-muted-foreground">
-            Choose dates{pickup === "delivery" ? " and a zone" : ""} to see
+            Choose dates
+            {pickup === "delivery"
+              ? addressDelivery
+                ? " and a delivery address"
+                : " and a zone"
+              : ""}{" "}
+            to see
             the total.
           </p>
         )}

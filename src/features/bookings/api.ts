@@ -48,8 +48,13 @@ export interface QuoteInput {
   start: string; // YYYY-MM-DD
   end: string; // YYYY-MM-DD, half-open [start, end)
   pickupType?: PickupType;
-  /** Required when pickupType === "delivery". */
+  /** Delivery: EITHER a predefined zone… */
   deliveryZoneId?: string;
+  /** …OR a geocoded address (Google Places) — the server computes the fee. */
+  deliveryAddress?: string;
+  deliveryLat?: number;
+  deliveryLng?: number;
+  deliveryReference?: string;
 }
 
 export type RequestBookingInput = QuoteInput;

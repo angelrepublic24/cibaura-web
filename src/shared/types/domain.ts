@@ -220,7 +220,13 @@ export interface CarDetail extends Car {
     id: string;
     name: string;
     city: CityRef;
-    /** Exact street address is PRIVATE — revealed on the booking after payment. */
+    /** Exact street address + coordinates are PRIVATE — never on the car page.
+     *  Delivery fee is computed server-side; the client only learns whether
+     *  delivery is offered + the fee parameters (for display). */
+    deliveryEnabled: boolean;
+    deliveryBaseFeeCents: number;
+    deliveryPerKmCents: number;
+    deliveryMaxKm: number | null;
   };
   /** Active delivery zones of the car's branch (id/name/fee only). */
   deliveryZones: { id: string; name: string; feeCents: number }[];
@@ -279,6 +285,10 @@ export interface BookingPickup {
   deliveryZoneId?: string;
   /** Snapshot of the zone name at request time; delivery only. */
   deliveryZoneName?: string;
+  /** Door-to-door delivery: the customer's address + reference + distance. */
+  deliveryAddress?: string;
+  deliveryReference?: string;
+  deliveryDistanceKm?: number;
   /** 0 for branch pickup. */
   deliveryFeeCents: number;
   /** Branch's exact address — present only once paid AND branch pickup. */

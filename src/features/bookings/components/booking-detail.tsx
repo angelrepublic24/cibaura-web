@@ -53,9 +53,20 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
               {formatIsoDate(booking.period.start)} →{" "}
               {formatIsoDate(booking.period.end)} ·{" "}
               {booking.pickup.type === "delivery"
-                ? `Delivery: ${booking.pickup.deliveryZoneName ?? "zone"}`
+                ? booking.pickup.deliveryAddress
+                  ? "Door-to-door delivery"
+                  : `Delivery: ${booking.pickup.deliveryZoneName ?? "zone"}`
                 : "Branch pickup"}
             </p>
+            {booking.pickup.type === "delivery" &&
+            booking.pickup.deliveryAddress ? (
+              <p className="text-sm font-medium text-foreground">
+                Deliver to: {booking.pickup.deliveryAddress}
+                {booking.pickup.deliveryReference
+                  ? ` (${booking.pickup.deliveryReference})`
+                  : ""}
+              </p>
+            ) : null}
             {booking.pickup.type !== "delivery" &&
             booking.pickup.branchAddress ? (
               <p className="text-sm font-medium text-foreground">
