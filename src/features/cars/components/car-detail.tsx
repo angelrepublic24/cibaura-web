@@ -16,6 +16,10 @@ import {
 } from "lucide-react";
 import { CarsApi, carKeys } from "@/features/cars/api";
 import { BookingsApi } from "@/features/bookings/api";
+import {
+  PaymentMethodsApi,
+  paymentMethodKeys,
+} from "@/features/payments/api";
 import { carGallery } from "@/features/cars/photos";
 import { useAuthStore } from "@/shared/auth/store";
 import type { CarDetail as CarDetailShape, PickupType } from "@/shared/types/domain";
@@ -264,6 +268,15 @@ function BookingPanel({
   const router = useRouter();
   const status = useAuthStore((s) => s.status);
 
+  // A card is required to book (the request places a hold on it). Gate the
+  // request button on the customer having a saved payment method.
+  const cardsQuery = useQuery({
+    queryKey: paymentMethodKeys.mine(),
+    queryFn: PaymentMethodsApi.findMine,
+    enabled: status === "authenticated",
+  });
+  const hasCard = (cardsQuery.data?.length ?? 0) > 0;
+
   const [from, setFrom] = useState(initialFrom ?? "");
   const [to, setTo] = useState(initialTo ?? "");
   const [pickup, setPickup] = useState<PickupType>("branch_pickup");
@@ -430,15 +443,7 @@ function BookingPanel({
           </p>
         )}
 
-        {status === "authenticated" ? (
-          <Button
-            className="w-full"
-            disabled={!quoteReady || quoteQuery.isLoading || requestMutation.isPending}
-            onClick={() => requestMutation.mutate()}
-          >
-            {requestMutation.isPending ? "Sending request…" : "Request to book"}
-          </Button>
-        ) : (
+        {status !== "authenticated" ? (
           <Button
             className="w-full"
             variant="outline"
@@ -453,6 +458,27 @@ function BookingPanel({
             }
           >
             Log in to request
+          </Button>
+        ) : !hasCard && !cardsQuery.isLoading ? (
+          <Button
+            className="w-full"
+            variant="outline"
+            onClick={() => router.push("/account/payment-methods")}
+          >
+            Add a payment method to book
+          </Button>
+        ) : (
+          <Button
+            className="w-full"
+            disabled={
+              !quoteReady ||
+              quoteQuery.isLoading ||
+              cardsQuery.isLoading ||
+              requestMutation.isPending
+            }
+            onClick={() => requestMutation.mutate()}
+          >
+            {requestMutation.isPending ? "Sending request…" : "Request to book"}
           </Button>
         )}
 
