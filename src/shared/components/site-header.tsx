@@ -38,7 +38,11 @@ export function SiteHeader() {
                 <Link href="/agency" className={linkCls}>
                   Agency
                 </Link>
-              ) : null}
+              ) : (
+                <Link href="/become-agency" className={linkCls}>
+                  List your cars
+                </Link>
+              )}
               {hasRole("platform_admin") ? (
                 <Link href="/admin" className={linkCls}>
                   Admin

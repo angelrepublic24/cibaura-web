@@ -53,6 +53,55 @@ export const agencyProfileKeys = {
     ["agency-profile", slug, "cars", filters] as const,
 };
 
+// ── Application & KYC (ADR-0004) ─────────────────────────────────────────────
+
+export type AgencyDocumentType = "business_registration" | "owner_id" | "other";
+
+export interface AgencyDocument {
+  id: string;
+  type: string;
+  filename: string;
+  contentType: string;
+  uploadedAt: string;
+}
+
+export interface AgencyKyc {
+  legalName: string | null;
+  taxId: string | null;
+  ownerName: string | null;
+  ownerIdNumber: string | null;
+  phone: string | null;
+  address: string | null;
+}
+
+export interface AgencyApplication {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  verificationStatus: AgencyVerificationStatus;
+  verificationReason: string | null;
+  kyc: AgencyKyc;
+  documents: AgencyDocument[];
+  documentCount: number;
+  createdAt: string;
+}
+
+export interface ApplyAgencyInput {
+  name: string;
+  description?: string;
+  legalName: string;
+  taxId: string;
+  ownerName: string;
+  ownerIdNumber: string;
+  phone: string;
+  address: string;
+}
+
+export const applyKeys = {
+  myDocuments: () => ["agency-apply", "my-documents"] as const,
+};
+
 export const AgenciesApi = {
   async profile(slug: string): Promise<AgencyPublicProfile> {
     const res = await Api.get(`/agencies/${slug}`);
@@ -85,6 +134,29 @@ export const AgenciesApi = {
         pageSize: filters.pageSize,
       },
     });
+    return res.data;
+  },
+
+  // ── Application & KYC ──
+
+  async apply(input: ApplyAgencyInput): Promise<AgencyApplication> {
+    const res = await Api.post("/agencies/apply", input);
+    return res.data;
+  },
+
+  async uploadDocument(
+    file: File,
+    type: AgencyDocumentType,
+  ): Promise<AgencyDocument> {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("type", type);
+    const res = await Api.post("/agencies/documents", form);
+    return res.data;
+  },
+
+  async myDocuments(): Promise<AgencyDocument[]> {
+    const res = await Api.get("/agencies/my-documents");
     return res.data;
   },
 };

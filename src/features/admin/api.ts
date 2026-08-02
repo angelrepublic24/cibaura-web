@@ -6,6 +6,7 @@ import type {
   Country,
   PlatformConfig,
 } from "@/shared/types/domain";
+import type { AgencyApplication } from "@/features/agencies/api";
 
 /**
  * Platform admin API module (platform_admin only).
@@ -31,6 +32,9 @@ export const adminKeys = {
   models: (makeId: string) => ["admin", "catalog", "models", makeId] as const,
   countries: () => ["admin", "geo", "countries"] as const,
   cities: () => ["admin", "geo", "cities"] as const,
+  applications: (status?: string) =>
+    ["admin", "applications", status ?? "pending"] as const,
+  application: (id: string) => ["admin", "applications", id] as const,
 };
 
 export const AdminApi = {
@@ -84,6 +88,42 @@ export const AdminApi = {
     slug?: string;
   }): Promise<City> {
     const res = await Api.post("/geo/cities", input);
+    return res.data;
+  },
+
+  // ── Agency applications / KYC review (ADR-0004) ──────────────────────────
+
+  async listApplications(status?: string): Promise<AgencyApplication[]> {
+    const res = await Api.get("/agencies/applications", { params: { status } });
+    return res.data;
+  },
+
+  async getApplication(id: string): Promise<AgencyApplication> {
+    const res = await Api.get(`/agencies/applications/${id}`);
+    return res.data;
+  },
+
+  async verifyApplication(id: string): Promise<AgencyApplication> {
+    const res = await Api.patch(`/agencies/applications/${id}/verify`, {});
+    return res.data;
+  },
+
+  async rejectApplication(
+    id: string,
+    reason: string,
+  ): Promise<AgencyApplication> {
+    const res = await Api.patch(`/agencies/applications/${id}/reject`, {
+      reason,
+    });
+    return res.data;
+  },
+
+  /** Fetch a document's bytes (with auth) as a Blob to view/download. */
+  async downloadDocument(agencyId: string, docId: string): Promise<Blob> {
+    const res = await Api.get(
+      `/agencies/applications/${agencyId}/documents/${docId}`,
+      { responseType: "blob" },
+    );
     return res.data;
   },
 };

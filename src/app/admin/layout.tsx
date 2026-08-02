@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Percent, Library, MapPin } from "lucide-react";
+import { Percent, Library, MapPin, ClipboardCheck } from "lucide-react";
 import { RoleGuard } from "@/shared/auth/guard";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +10,11 @@ const NAV = [
   { href: "/admin", label: "Commission", icon: Percent },
   { href: "/admin/catalog", label: "Catalog", icon: Library },
   { href: "/admin/geo", label: "Geo", icon: MapPin },
+  {
+    href: "/admin/agency-applications",
+    label: "Applications",
+    icon: ClipboardCheck,
+  },
 ];
 
 /** /admin route group — platform admins only. */
