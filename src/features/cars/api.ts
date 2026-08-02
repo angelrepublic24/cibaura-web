@@ -57,7 +57,8 @@ export const CarsApi = {
   async search(city: string, filters: CarSearchFilters): Promise<Paginated<Car>> {
     const res = await Api.get("/cars/search", {
       params: {
-        city, // slug (e.g. "santiago") — resolved to cityId server-side
+        // "all" (or empty) = search every city → omit the param entirely.
+        city: city && city !== "all" ? city : undefined,
         start: filters.from,
         end: filters.to,
         make: filters.make, // catalog slug (e.g. "toyota")

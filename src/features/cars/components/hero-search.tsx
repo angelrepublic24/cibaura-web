@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
  */
 export function HeroSearch() {
   const router = useRouter();
-  const [city, setCity] = useState("");
+  const [city, setCity] = useState("all");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [category, setCategory] = useState<string | undefined>(undefined);
@@ -33,8 +33,8 @@ export function HeroSearch() {
   });
 
   // Dates are first-class: the results search is a server-side availability
-  // anti-join and REQUIRES a range, so we ask for it here before navigating.
-  const canSearch = !!city && !!from && !!to && to > from;
+  // anti-join and REQUIRES a range. City is OPTIONAL — "all" searches everywhere.
+  const canSearch = !!from && !!to && to > from;
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -60,10 +60,10 @@ export function HeroSearch() {
               value={city}
               onChange={(e) => setCity(e.target.value)}
             >
-              <option value="">
+              <option value="all">
                 {citiesQuery.isError
-                  ? "Could not load cities — is the API running?"
-                  : "Select a city"}
+                  ? "Could not load cities — searching everywhere"
+                  : "All cities"}
               </option>
               {(citiesQuery.data ?? []).map((c) => (
                 <option key={c.id} value={c.slug}>

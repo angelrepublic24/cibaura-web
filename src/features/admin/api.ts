@@ -66,7 +66,7 @@ export const AdminApi = {
     return res.data;
   },
 
-  // ── Geo (read-only catalog) ──────────────────────────────────────────────
+  // ── Geo (read = public; city creation = admin-gated) ─────────────────────
 
   async listCountries(): Promise<Country[]> {
     const res = await Api.get("/geo/countries");
@@ -75,6 +75,15 @@ export const AdminApi = {
 
   async listCities(): Promise<City[]> {
     const res = await Api.get("/geo/cities");
+    return res.data;
+  },
+
+  async createCity(input: {
+    countryId: string;
+    name: string;
+    slug?: string;
+  }): Promise<City> {
+    const res = await Api.post("/geo/cities", input);
     return res.data;
   },
 };

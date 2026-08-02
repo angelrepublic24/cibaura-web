@@ -77,7 +77,7 @@ export function CarSearchResults({
             Available cars
           </p>
           <h1 className="font-display mt-1 text-3xl capitalize text-foreground">
-            {city}
+            {city === "all" ? "All cities" : city}
           </h1>
         </div>
         <div className="text-right">
