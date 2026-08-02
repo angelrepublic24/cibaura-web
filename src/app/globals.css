@@ -1,0 +1,146 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------ *
+ * Cibaura design system — CIBAURA BRAND (warm premium minimalist).
+ *
+ * Palette straight from the brand sheet: copper (#B8734E) as the one
+ * confident accent, gold (#D2B48C) and olive (#6B705C) as supporting
+ * brand tones, cream (#E8DCC2) for warm surfaces / text-on-dark, and
+ * navy (#0D1117) for the brand's dark moments (footer, hero panels,
+ * the logo tile). Light-first & airy — the car is the hero.
+ *
+ * All colors are declared as CSS variables and mapped into the Tailwind
+ * v4 theme via `@theme inline`, so `bg-background`, `text-foreground`,
+ * `bg-primary`, `bg-navy`, `text-cream`, `bg-gold`, etc. all resolve here.
+ * Change a value once, it updates everywhere.
+ * ------------------------------------------------------------------ */
+:root {
+  /* Surfaces */
+  --background: #faf7f1; /* warm cream paper (derived from #E8DCC2) */
+  --surface: #ffffff; /* cards sit slightly brighter than the page */
+  --foreground: #14181f; /* navy ink (brand #0D1117, lifted for text) */
+
+  /* Warm stone neutrals (chosen, not pure gray) */
+  --muted: #f2efe9; /* subtle fills, chips, hovers */
+  --muted-foreground: #6e6a62; /* secondary text (warm stone) */
+  --border: #e7e2d9; /* hairline borders, warm */
+  --border-strong: #d9d3c8; /* emphasized dividers */
+
+  /* Accent — the one confident brand color (copper) */
+  --primary: #b8734e;
+  --primary-hover: #a2603a;
+  --primary-foreground: #ffffff;
+  --accent-soft: #f5e9dd; /* tinted copper background */
+  --accent-soft-foreground: #8a4e2e;
+
+  /* Supporting brand tones */
+  --gold: #d2b48c; /* secondary — highlights, subtle fills */
+  --gold-soft: #f4ead8;
+  --olive: #6b705c; /* tertiary — quiet chips, muted marks */
+  --olive-soft: #ecede7;
+
+  /* Brand dark surface — footer, hero panels, the logo tile */
+  --navy: #0d1117;
+  --navy-foreground: #e8dcc2; /* cream text on navy */
+  --cream: #e8dcc2;
+
+  /* Focus ring follows the accent */
+  --ring: #b8734e;
+
+  /* Feedback */
+  --destructive: #dc2626;
+  --success: #15803d;
+  --success-soft: #e7f4ec;
+  --warning: #b45309;
+  --warning-soft: #fbf1e3;
+
+  /* Elevation — soft, low, warm-tinted shadows */
+  --shadow-sm: 0 1px 2px rgba(13, 17, 23, 0.04), 0 1px 3px rgba(13, 17, 23, 0.06);
+  --shadow-md: 0 4px 12px rgba(13, 17, 23, 0.06), 0 2px 4px rgba(13, 17, 23, 0.05);
+  --shadow-lg: 0 12px 32px rgba(13, 17, 23, 0.10), 0 4px 8px rgba(13, 17, 23, 0.06);
+
+  /* Radius scale — generous, modern */
+  --radius: 0.875rem; /* 14px — default card/control roundness */
+  --radius-sm: 0.5rem;
+  --radius-lg: 1.25rem;
+
+  /* Display font: an elegant system serif so headings read as editorial.
+     System stack = zero network fetch (keeps the build gate green). */
+  --font-display: ui-serif, Georgia, "Times New Roman", "Playfair Display",
+    serif;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-soft-foreground: var(--accent-soft-foreground);
+  --color-gold: var(--gold);
+  --color-gold-soft: var(--gold-soft);
+  --color-olive: var(--olive);
+  --color-olive-soft: var(--olive-soft);
+  --color-navy: var(--navy);
+  --color-navy-foreground: var(--navy-foreground);
+  --color-cream: var(--cream);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+
+  --radius-sm: var(--radius-sm);
+  --radius-DEFAULT: var(--radius);
+  --radius-lg: var(--radius-lg);
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
+  --font-sans: var(--font-geist-sans);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-geist-mono);
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  /* Generous default rhythm for the airy, whitespace-forward feel. */
+  line-height: 1.6;
+  letter-spacing: -0.006em;
+}
+
+/* Editorial display headings — the type-pairing distinction. Applied via
+   the `.font-display` utility on hero/section headings. */
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  font-weight: 500;
+}
+
+/* A soft, warm selection tint that matches the accent. */
+::selection {
+  background: var(--accent-soft);
+  color: var(--accent-soft-foreground);
+}
+
+/* Consistent, visible keyboard focus everywhere (accessibility). */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
