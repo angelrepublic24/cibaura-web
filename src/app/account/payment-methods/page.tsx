@@ -1,11 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CreditCard, Trash2 } from "lucide-react";
 import {
   PaymentMethodsApi,
   paymentMethodKeys,
 } from "@/features/payments/api";
+import { AddCardForm } from "@/features/payments/components/add-card-form";
+import { stripeConfigured } from "@/features/payments/stripe";
 import {
   EmptyState,
   ErrorState,
@@ -21,6 +24,7 @@ import { Card, CardContent } from "@/shared/components/ui/card";
  */
 export default function PaymentMethodsPage() {
   const qc = useQueryClient();
+  const [showAdd, setShowAdd] = useState(false);
 
   const query = useQuery({
     queryKey: paymentMethodKeys.mine(),
@@ -50,10 +54,24 @@ export default function PaymentMethodsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Saved cards</h2>
-        <Button disabled title="Gateway tokenization UI lands with the payments iteration">
-          Add card
-        </Button>
+        {stripeConfigured ? (
+          <Button
+            variant={showAdd ? "outline" : "default"}
+            onClick={() => setShowAdd((v) => !v)}
+          >
+            {showAdd ? "Close" : "Add card"}
+          </Button>
+        ) : (
+          <Button
+            disabled
+            title="Set NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY to enable card entry"
+          >
+            Add card
+          </Button>
+        )}
       </div>
+
+      {showAdd ? <AddCardForm onDone={() => setShowAdd(false)} /> : null}
 
       {methods.length === 0 ? (
         <EmptyState
