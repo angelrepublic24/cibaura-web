@@ -22,6 +22,26 @@ export function todayIso(): string {
   return toIsoDate(new Date());
 }
 
+/**
+ * The platform's business timezone — must match the backend
+ * (common/utils/business-date.ts). Licence-expiry gates compare date-only
+ * values, so the client must anchor "today" on the SAME calendar day the
+ * authoritative server uses, not the device-local day (which diverges from the
+ * server near midnight in UTC-negative markets like the DR).
+ */
+export const BUSINESS_TIMEZONE = "America/Santo_Domingo";
+
+/** Today as YYYY-MM-DD in the business timezone (mirrors the server). */
+export function businessTodayIso(timeZone: string = BUSINESS_TIMEZONE): string {
+  // en-CA renders as YYYY-MM-DD; `timeZone` resolves the wall-clock date there.
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
 /** Current month as YYYY-MM (used by availability queries). */
 export function currentMonth(): string {
   return todayIso().slice(0, 7);

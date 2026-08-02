@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 
 const NAV = [
   { href: "/account", label: "Bookings" },
+  { href: "/account/verification", label: "Identity" },
   { href: "/account/payment-methods", label: "Payment methods" },
   { href: "/account/profile", label: "Profile" },
 ];

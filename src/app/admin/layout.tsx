@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Percent, Library, MapPin, ClipboardCheck } from "lucide-react";
+import { Percent, Library, MapPin, ClipboardCheck, UserCheck } from "lucide-react";
 import { RoleGuard } from "@/shared/auth/guard";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +14,11 @@ const NAV = [
     href: "/admin/agency-applications",
     label: "Applications",
     icon: ClipboardCheck,
+  },
+  {
+    href: "/admin/verification",
+    label: "Customer KYC",
+    icon: UserCheck,
   },
 ];
 

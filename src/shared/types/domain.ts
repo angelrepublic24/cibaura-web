@@ -367,6 +367,76 @@ export interface OccupancyEntry {
   note?: string;
 }
 
+// ----------------------------------------------- customer identity (KYC/ADR-0004)
+
+/**
+ * Customer identity verification status. `unverified` = never submitted; the
+ * booking gate only lets `verified` customers rent. Distinct from
+ * `AgencyVerificationStatus` (no "unverified" there — an application always exists).
+ */
+export type CustomerVerificationStatus =
+  | "unverified"
+  | "pending"
+  | "verified"
+  | "rejected";
+
+/** The four required identity photos (front/back of ID + driver's licence). */
+export const CUSTOMER_DOCUMENT_TYPES = [
+  "id_front",
+  "id_back",
+  "license_front",
+  "license_back",
+] as const;
+export type CustomerDocumentType = (typeof CUSTOMER_DOCUMENT_TYPES)[number];
+
+export interface CustomerDocument {
+  id: string;
+  /** id_front | id_back | license_front | license_back */
+  type: string;
+  filename: string;
+  contentType: string;
+  uploadedAt: string;
+}
+
+/**
+ * The customer's own verification view — drives the account page and the
+ * booking gate. The licence flags are server-computed against "today":
+ *  - `licenseExpired`     → already past expiry (blocks + auto-rejects on submit)
+ *  - `licenseExpiresSoon` → within the 30-day alert window (warn, still valid)
+ *  - `daysUntilExpiry`    → negative when expired, null when no licence on file
+ */
+export interface CustomerVerification {
+  status: CustomerVerificationStatus;
+  licenseNumber: string | null;
+  licenseExpiry: string | null; // YYYY-MM-DD
+  rejectionReason: string | null;
+  licenseExpired: boolean;
+  licenseExpiresSoon: boolean;
+  daysUntilExpiry: number | null;
+}
+
+/** `GET /verification/me` — the customer's status plus their uploaded photos. */
+export interface CustomerVerificationWithDocuments {
+  verification: CustomerVerification;
+  documents: CustomerDocument[];
+}
+
+/** Admin review view of one customer's verification (never the file bytes). */
+export interface CustomerVerificationAdmin {
+  userId: string;
+  name: string;
+  email: string;
+  status: CustomerVerificationStatus;
+  licenseNumber: string | null;
+  licenseExpiry: string | null;
+  licenseExpired: boolean;
+  rejectionReason: string | null;
+  reviewedAt: string | null;
+  documents: CustomerDocument[];
+  documentCount: number;
+  createdAt: string;
+}
+
 // ------------------------------------------------------------------- money
 
 export type PaymentStatus = "authorized" | "captured" | "voided" | "refunded";

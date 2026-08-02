@@ -20,6 +20,7 @@ import {
   PaymentMethodsApi,
   paymentMethodKeys,
 } from "@/features/payments/api";
+import { VerificationApi, verificationKeys } from "@/features/verification/api";
 import { carGallery } from "@/features/cars/photos";
 import { useAuthStore } from "@/shared/auth/store";
 import type { CarDetail as CarDetailShape, PickupType } from "@/shared/types/domain";
@@ -281,6 +282,17 @@ function BookingPanel({
   });
   const hasCard = (cardsQuery.data?.length ?? 0) > 0;
 
+  // Identity gate: only a VERIFIED customer with a valid licence can rent.
+  // The server enforces it (assertCanRent); we read `/verification/me` to show
+  // the right CTA up front instead of letting the request 403.
+  const verifQuery = useQuery({
+    queryKey: verificationKeys.me(),
+    queryFn: VerificationApi.me,
+    enabled: status === "authenticated",
+  });
+  const verification = verifQuery.data?.verification;
+  const isVerified = verification?.status === "verified";
+
   const [from, setFrom] = useState(initialFrom ?? "");
   const [to, setTo] = useState(initialTo ?? "");
   const [pickup, setPickup] = useState<PickupType>("branch_pickup");
@@ -316,6 +328,14 @@ function BookingPanel({
   });
 
   const quote = quoteQuery.data;
+
+  // A verified customer whose licence expires before the chosen return date is
+  // blocked server-side (assertCanRent). Warn + disable proactively.
+  const licenceExpiresBeforeReturn =
+    isVerified &&
+    !!verification?.licenseExpiry &&
+    !!to &&
+    verification.licenseExpiry < to;
 
   return (
     <Card className="h-fit lg:sticky lg:top-24">
@@ -447,6 +467,16 @@ function BookingPanel({
           </p>
         )}
 
+        {/* Proactive licence-window warning (server blocks it too). */}
+        {licenceExpiresBeforeReturn ? (
+          <p className="flex items-start gap-2 rounded-[var(--radius-sm)] border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            Your driver&apos;s licence expires on{" "}
+            {formatIsoDate(verification!.licenseExpiry!)}, before this rental
+            ends. Renew your licence or choose an earlier return date.
+          </p>
+        ) : null}
+
         {status !== "authenticated" ? (
           <Button
             className="w-full"
@@ -463,7 +493,19 @@ function BookingPanel({
           >
             Log in to request
           </Button>
-        ) : !hasCard && !cardsQuery.isLoading ? (
+        ) : verifQuery.isLoading || cardsQuery.isLoading ? (
+          <Button className="w-full" disabled>
+            Checking eligibility…
+          </Button>
+        ) : !isVerified ? (
+          <Button
+            className="w-full"
+            variant="outline"
+            onClick={() => router.push("/account/verification")}
+          >
+            Verify your identity to book
+          </Button>
+        ) : !hasCard ? (
           <Button
             className="w-full"
             variant="outline"
@@ -477,7 +519,7 @@ function BookingPanel({
             disabled={
               !quoteReady ||
               quoteQuery.isLoading ||
-              cardsQuery.isLoading ||
+              licenceExpiresBeforeReturn ||
               requestMutation.isPending
             }
             onClick={() => requestMutation.mutate()}
@@ -485,6 +527,13 @@ function BookingPanel({
             {requestMutation.isPending ? "Sending request…" : "Request to book"}
           </Button>
         )}
+
+        {status !== "authenticated" ? null : !isVerified &&
+          !verifQuery.isLoading ? (
+          <p className="text-xs text-muted-foreground">
+            A one-time identity check is required before your first booking.
+          </p>
+        ) : null}
 
         {requestMutation.isError ? (
           <p className="text-sm text-red-600">{requestMutation.error.message}</p>
