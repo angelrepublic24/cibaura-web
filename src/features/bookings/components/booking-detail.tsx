@@ -61,6 +61,12 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
                 ? `Delivery: ${booking.pickup.deliveryZoneName ?? "zone"}`
                 : "Branch pickup"}
             </p>
+            {booking.pickup.type !== "delivery" &&
+            booking.pickup.branchAddress ? (
+              <p className="text-sm font-medium text-foreground">
+                Pickup address: {booking.pickup.branchAddress}
+              </p>
+            ) : null}
             <p className="text-sm text-muted-foreground">{booking.agency.name}</p>
           </div>
           <BookingStateBadge state={booking.state} />

@@ -220,7 +220,7 @@ export interface CarDetail extends Car {
     id: string;
     name: string;
     city: CityRef;
-    address: string;
+    /** Exact street address is PRIVATE — revealed on the booking after payment. */
   };
   /** Active delivery zones of the car's branch (id/name/fee only). */
   deliveryZones: { id: string; name: string; feeCents: number }[];
@@ -281,6 +281,8 @@ export interface BookingPickup {
   deliveryZoneName?: string;
   /** 0 for branch pickup. */
   deliveryFeeCents: number;
+  /** Branch's exact address — present only once paid AND branch pickup. */
+  branchAddress?: string;
 }
 
 /**

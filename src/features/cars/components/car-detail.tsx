@@ -127,7 +127,11 @@ export function CarDetail({
             <span className="font-medium text-foreground">
               {car.branch.name}
             </span>{" "}
-            — {car.branch.address}, {car.branch.city.name}
+            — {car.branch.city.name}
+            <br />
+            <span className="text-xs">
+              The exact pickup address is shared once your booking is confirmed.
+            </span>
           </span>
         </div>
 
