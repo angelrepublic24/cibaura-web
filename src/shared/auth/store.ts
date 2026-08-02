@@ -8,6 +8,7 @@ import {
   setAccessToken,
   setUserMarker,
 } from "@/shared/auth/token";
+import { clearQueryCache } from "@/shared/providers/query-client-registry";
 
 /**
  * Client-side session store (zustand). Hydrated by the `useMe` query in
@@ -32,6 +33,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   status: "unknown",
 
   signIn: (user, accessToken) => {
+    // Drop any prior account's cached queries BEFORE the new session's queries
+    // run, so a shared browser never bleeds the previous user's data (and useMe
+    // can't overwrite the fresh user from a stale /users/me cache).
+    clearQueryCache();
     if (accessToken) setAccessToken(accessToken);
     setUserMarker(user.id);
     set({ user, status: "authenticated" });
@@ -43,6 +48,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   signOut: () => {
     clearAccessToken();
     clearUserMarker();
+    clearQueryCache(); // wipe user-scoped caches (bookings, wallet, verification…)
     set({ user: null, status: "guest" });
   },
 

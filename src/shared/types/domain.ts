@@ -484,7 +484,7 @@ export interface MessageThread {
 export interface Message {
   id: string;
   threadId: string;
-  senderId: string;
+  /** 'customer' or 'agency'. The raw sender user id is NOT exposed by the API. */
   senderRole: "customer" | "agency";
   body: string;
   createdAt: string;

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { setActiveQueryClient } from "@/shared/providers/query-client-registry";
 
 /**
  * App-wide React Query defaults (mirrors Beusun's provider):
@@ -36,6 +37,9 @@ export default function QueryProvider({
   // exactly once per browser session — but not at module scope (which
   // would leak between SSR renders in some hosts).
   const [client] = useState(makeQueryClient);
+
+  // Expose the client so the auth store can clear it on login/logout.
+  useEffect(() => setActiveQueryClient(client), [client]);
 
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }

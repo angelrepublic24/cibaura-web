@@ -8,7 +8,11 @@
  * `days * rate` in the frontend, stop: request a quote from the backend.
  */
 
-const DEFAULT_CURRENCY = "DOP"; // v1 market: Dominican Republic
+// Must match the backend's default Pricing/booking currency (USD). Per-unit
+// prices (car cards, fleet list, zone fees) carry no currency of their own, so
+// defaulting to anything else mixes symbols with the server-computed totals on
+// the same screen.
+const DEFAULT_CURRENCY = "USD";
 const LOCALE_BY_CURRENCY: Record<string, string> = {
   DOP: "es-DO",
   USD: "en-US",
