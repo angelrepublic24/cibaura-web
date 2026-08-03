@@ -15,8 +15,10 @@ import {
   agencyProfileKeys,
   type AgencyCarsFilters,
   type AgencyCarsSort,
+  type Review,
 } from "@/features/agencies/api";
 import { CarCard } from "@/features/cars/components/car-card";
+import { StarRating } from "@/shared/components/star-rating";
 import {
   CAR_CATEGORIES,
   CAR_COLORS,
@@ -74,6 +76,8 @@ export function AgencyProfile({ slug }: { slug: string }) {
         cities={agency.cities}
         branchCount={agency.branchCount}
         carCount={agency.carCount}
+        ratingAvg={agency.ratingAvg}
+        reviewCount={agency.reviewCount}
       />
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[280px_1fr]">
@@ -87,6 +91,8 @@ export function AgencyProfile({ slug }: { slug: string }) {
           <AgencyCarsGrid slug={slug} filters={filters} onApply={setFilters} />
         </section>
       </div>
+
+      <AgencyReviews slug={slug} reviewCount={agency.reviewCount} />
     </div>
   );
 }
@@ -101,6 +107,8 @@ function AgencyHeader({
   cities,
   branchCount,
   carCount,
+  ratingAvg,
+  reviewCount,
 }: {
   name: string;
   description?: string;
@@ -109,6 +117,8 @@ function AgencyHeader({
   cities: { id: string; name: string }[];
   branchCount: number;
   carCount: number;
+  ratingAvg: number;
+  reviewCount: number;
 }) {
   return (
     <header className="overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface shadow-sm">
@@ -134,6 +144,9 @@ function AgencyHeader({
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="font-display text-3xl text-foreground">{name}</h1>
               <VerificationBadge status={verificationStatus} />
+            </div>
+            <div className="mt-1.5">
+              <StarRating rating={ratingAvg} count={reviewCount} />
             </div>
           </div>
         </div>
@@ -489,5 +502,127 @@ function AgencyCarsGrid({
         </>
       )}
     </div>
+  );
+}
+
+// ----------------------------------------------------------------- reviews
+
+function AgencyReviews({
+  slug,
+  reviewCount,
+}: {
+  slug: string;
+  reviewCount: number;
+}) {
+  const [page, setPage] = useState(1);
+
+  const query = useQuery({
+    queryKey: agencyProfileKeys.reviews(slug, page),
+    queryFn: () => AgenciesApi.reviews(slug, page),
+  });
+
+  // No reviews at all: skip the whole section rather than show an empty shell.
+  if (reviewCount === 0 && !query.isLoading) {
+    return null;
+  }
+
+  const total = query.data?.total ?? reviewCount;
+  const pageSize = query.data?.pageSize ?? 10;
+  const hasNext = page * pageSize < total;
+
+  return (
+    <section className="mt-12 border-t border-border pt-8">
+      <h2 className="font-display text-2xl text-foreground">
+        Reviews
+        {total > 0 ? (
+          <span className="ml-2 text-base font-normal text-muted-foreground">
+            ({total})
+          </span>
+        ) : null}
+      </h2>
+
+      <div className="mt-5">
+        {query.isLoading ? (
+          <div className="space-y-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div
+                key={i}
+                className="rounded-[var(--radius)] border border-border bg-surface p-4 shadow-sm"
+              >
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="mt-3 h-4 w-full" />
+                <Skeleton className="mt-2 h-4 w-2/3" />
+              </div>
+            ))}
+          </div>
+        ) : query.isError ? (
+          <ErrorState
+            title="Could not load reviews"
+            message={query.error.message}
+            onRetry={() => query.refetch()}
+          />
+        ) : (query.data?.items.length ?? 0) === 0 ? (
+          <p className="text-sm text-muted-foreground">No reviews yet.</p>
+        ) : (
+          <>
+            <ul className="space-y-4">
+              {query.data!.items.map((review) => (
+                <ReviewCard key={review.id} review={review} />
+              ))}
+            </ul>
+
+            {(page > 1 || hasNext) && (
+              <div className="mt-6 flex items-center justify-center gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Page {page}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!hasNext}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function ReviewCard({ review }: { review: Review }) {
+  const date = new Date(review.createdAt).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+  return (
+    <li className="rounded-[var(--radius)] border border-border bg-surface p-4 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-foreground">
+            {review.reviewerName}
+          </span>
+          <StarRating rating={review.rating} showValue={false} size={14} />
+        </div>
+        <span className="text-xs text-muted-foreground">{date}</span>
+      </div>
+      {review.comment ? (
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          {review.comment}
+        </p>
+      ) : null}
+    </li>
   );
 }

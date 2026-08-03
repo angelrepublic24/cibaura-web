@@ -72,6 +72,9 @@ export default function RootLayout({
                   <Link href="/cars/santiago" className="hover:text-cream">
                     Browse cars
                   </Link>
+                  <Link href="/agencies" className="hover:text-cream">
+                    Agencies
+                  </Link>
                   <Link href="/become-agency" className="hover:text-cream">
                     Become an agency
                   </Link>

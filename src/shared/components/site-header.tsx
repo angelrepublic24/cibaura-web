@@ -5,6 +5,7 @@ import { useMe } from "@/features/auth/hooks";
 import { useAuthStore } from "@/shared/auth/store";
 import { Button } from "@/shared/components/ui/button";
 import { Logo } from "@/shared/components/logo";
+import { cn } from "@/lib/utils";
 
 /**
  * Global header: brand, primary nav and session-aware actions.
@@ -29,6 +30,9 @@ export function SiteHeader() {
         </Link>
 
         <nav className="flex items-center gap-1">
+          <Link href="/agencies" className={cn(linkCls, "hidden sm:inline-flex")}>
+            Agencies
+          </Link>
           {status === "authenticated" && user ? (
             <>
               <Link href="/account" className={linkCls}>

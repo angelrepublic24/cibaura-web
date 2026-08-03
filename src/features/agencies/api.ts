@@ -26,6 +26,17 @@ export interface AgencyPublicProfile {
   cities: { id: string; name: string }[];
   branchCount: number;
   carCount: number;
+  /** Average star rating (0 when no reviews) + how many. */
+  ratingAvg: number;
+  reviewCount: number;
+}
+
+export interface Review {
+  id: string;
+  rating: number;
+  comment: string | null;
+  reviewerName: string;
+  createdAt: string;
 }
 
 export type AgencyCarsSort = "price_asc" | "price_desc" | "year_desc";
@@ -48,9 +59,15 @@ export interface AgencyCarsFilters {
 
 export const agencyProfileKeys = {
   all: ["agency-profile"] as const,
+  directory: (city: string | undefined, page: number) =>
+    ["agency-directory", city ?? "all", page] as const,
   profile: (slug: string) => ["agency-profile", slug] as const,
   cars: (slug: string, filters: AgencyCarsFilters) =>
     ["agency-profile", slug, "cars", filters] as const,
+  reviews: (slug: string, page: number) =>
+    ["agency-profile", slug, "reviews", page] as const,
+  reviewForBooking: (bookingId: string) =>
+    ["review", "booking", bookingId] as const,
 };
 
 // ── Application & KYC (ADR-0004) ─────────────────────────────────────────────
@@ -157,6 +174,42 @@ export const AgenciesApi = {
 
   async myDocuments(): Promise<AgencyDocument[]> {
     const res = await Api.get("/agencies/my-documents");
+    return res.data;
+  },
+
+  // ── Directory & reviews ──
+
+  async directory(
+    opts: { city?: string; page?: number } = {},
+  ): Promise<Paginated<AgencyPublicProfile>> {
+    const res = await Api.get("/agencies", {
+      params: { city: opts.city || undefined, page: opts.page },
+    });
+    return res.data;
+  },
+
+  async reviews(
+    slug: string,
+    page = 1,
+  ): Promise<Paginated<Review>> {
+    const res = await Api.get(`/agencies/${slug}/reviews`, {
+      params: { page },
+    });
+    return res.data;
+  },
+
+  /** The caller's own review for a booking (null → they can still rate it). */
+  async reviewForBooking(bookingId: string): Promise<Review | null> {
+    const res = await Api.get(`/bookings/${bookingId}/review`);
+    return res.data;
+  },
+
+  async createReview(input: {
+    bookingId: string;
+    rating: number;
+    comment?: string;
+  }): Promise<Review> {
+    const res = await Api.post("/reviews", input);
     return res.data;
   },
 };

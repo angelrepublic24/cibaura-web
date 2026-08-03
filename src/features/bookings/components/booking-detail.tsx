@@ -1,15 +1,18 @@
 "use client";
 
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check } from "lucide-react";
 import { BookingsApi, bookingKeys } from "@/features/bookings/api";
 import { ChatPanel } from "@/features/bookings/components/chat-panel";
+import { AgenciesApi, agencyProfileKeys } from "@/features/agencies/api";
 import {
   BOOKING_HAPPY_PATH,
   BOOKING_TERMINAL_STATES,
   type Booking,
 } from "@/shared/types/domain";
 import { BookingStateBadge } from "@/shared/components/booking-state-badge";
+import { StarPicker, StarRating } from "@/shared/components/star-rating";
 import { formatMoneyCents, formatPct } from "@/shared/utils/money";
 import { formatIsoDate } from "@/shared/utils/dates";
 import { ErrorState, LoadingState } from "@/shared/components/states";
@@ -20,6 +23,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/shared/components/ui/card";
+import { Textarea } from "@/shared/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 export function BookingDetail({ bookingId }: { bookingId: string }) {
@@ -81,6 +85,8 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
         <StateTimeline booking={booking} />
 
         <PricingCard booking={booking} />
+
+        <ReviewSection booking={booking} />
 
         <CancelSection booking={booking} />
       </div>
@@ -180,6 +186,106 @@ function PricingCard({ booking }: { booking: Booking }) {
         <p className="mt-2 text-xs text-muted-foreground">
           Snapshot frozen at request time — computed by the server.
         </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Rate-your-rental card. Shown only once a booking has actually completed
+ * (returned or settled) — the same gate the backend enforces. If the customer
+ * already left a review, it renders read-only; otherwise a star picker + note.
+ */
+function ReviewSection({ booking }: { booking: Booking }) {
+  const qc = useQueryClient();
+  const completed = booking.state === "returned" || booking.state === "settled";
+
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState("");
+
+  const reviewQuery = useQuery({
+    queryKey: agencyProfileKeys.reviewForBooking(booking.id),
+    queryFn: () => AgenciesApi.reviewForBooking(booking.id),
+    enabled: completed,
+  });
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      AgenciesApi.createReview({
+        bookingId: booking.id,
+        rating,
+        comment: comment.trim() || undefined,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({
+        queryKey: agencyProfileKeys.reviewForBooking(booking.id),
+      });
+      // The agency's aggregate rating + its reviews list are now stale.
+      qc.invalidateQueries({ queryKey: agencyProfileKeys.all });
+    },
+  });
+
+  if (!completed) return null;
+
+  const existing = reviewQuery.data;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Your review</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {reviewQuery.isLoading ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : existing ? (
+          <div className="space-y-2">
+            <StarRating rating={existing.rating} showValue={false} />
+            {existing.comment ? (
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                {existing.comment}
+              </p>
+            ) : null}
+            <p className="text-xs text-muted-foreground">
+              Thanks for rating {booking.agency.name}.
+            </p>
+          </div>
+        ) : (
+          <form
+            className="space-y-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (rating >= 1) mutation.mutate();
+            }}
+          >
+            <p className="text-sm text-muted-foreground">
+              How was your rental with {booking.agency.name}?
+            </p>
+            <StarPicker value={rating} onChange={setRating} />
+            <Textarea
+              placeholder="Share a few words about your experience (optional)."
+              maxLength={1000}
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+            />
+            <div className="flex items-center gap-3">
+              <Button
+                type="submit"
+                size="sm"
+                disabled={rating < 1 || mutation.isPending}
+              >
+                {mutation.isPending ? "Submitting…" : "Submit review"}
+              </Button>
+              {rating < 1 ? (
+                <span className="text-xs text-muted-foreground">
+                  Pick a rating to submit.
+                </span>
+              ) : null}
+            </div>
+            {mutation.isError ? (
+              <p className="text-sm text-red-600">{mutation.error.message}</p>
+            ) : null}
+          </form>
+        )}
       </CardContent>
     </Card>
   );
