@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useMe } from "@/features/auth/hooks";
 import { useAuthStore } from "@/shared/auth/store";
 import { UserMenu } from "@/shared/components/user-menu";
+import { NotificationBell } from "@/shared/components/notification-bell";
 import { Logo } from "@/shared/components/logo";
 import { cn } from "@/lib/utils";
 
@@ -51,7 +52,10 @@ export function SiteHeader() {
                   Agencies
                 </Link>
               ) : null}
-              <UserMenu />
+              <div className="flex items-center gap-2">
+                <NotificationBell />
+                <UserMenu />
+              </div>
             </>
           ) : (
             <>
