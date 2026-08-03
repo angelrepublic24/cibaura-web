@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
   BadgeCheck,
@@ -17,14 +18,11 @@ import {
   type AgencyCarsSort,
   type Review,
 } from "@/features/agencies/api";
+import { agencyCarFiltersToSearchParams } from "@/features/agencies/filters";
 import { CarCard } from "@/features/cars/components/car-card";
+import { CarFiltersPanel } from "@/features/cars/components/car-filters-panel";
 import { StarRating } from "@/shared/components/star-rating";
-import {
-  CAR_CATEGORIES,
-  CAR_COLORS,
-  TRANSMISSIONS,
-  type AgencyVerificationStatus,
-} from "@/shared/types/domain";
+import { type AgencyVerificationStatus } from "@/shared/types/domain";
 import {
   EmptyState,
   ErrorState,
@@ -32,7 +30,6 @@ import {
 } from "@/shared/components/states";
 import { Button } from "@/shared/components/ui/button";
 import { Badge } from "@/shared/components/ui/badge";
-import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
 import { Skeleton } from "@/shared/components/ui/skeleton";
@@ -43,13 +40,36 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
  * state and committed to the query; the query key is derived from
  * (slug, filters), so every change is its own cache entry.
  */
-export function AgencyProfile({ slug }: { slug: string }) {
-  const [filters, setFilters] = useState<AgencyCarsFilters>({});
+export function AgencyProfile({
+  slug,
+  filters,
+}: {
+  slug: string;
+  filters: AgencyCarsFilters;
+}) {
+  const router = useRouter();
 
   const profileQuery = useQuery({
     queryKey: agencyProfileKeys.profile(slug),
     queryFn: () => AgenciesApi.profile(slug),
   });
+
+  // URL is the source of truth — a filter change rewrites the query string and
+  // the grid's TanStack key is derived from `filters` (back/forward re-search).
+  function applyFilters(next: AgencyCarsFilters) {
+    const qs = agencyCarFiltersToSearchParams({
+      ...next,
+      page: undefined,
+    }).toString();
+    router.replace(
+      `/agencies/${encodeURIComponent(slug)}${qs ? `?${qs}` : ""}`,
+    );
+  }
+
+  function goToPage(page: number) {
+    const qs = agencyCarFiltersToSearchParams({ ...filters, page }).toString();
+    router.replace(`/agencies/${encodeURIComponent(slug)}?${qs}`);
+  }
 
   if (profileQuery.isLoading) {
     return <LoadingState label="Loading agency…" />;
@@ -82,13 +102,19 @@ export function AgencyProfile({ slug }: { slug: string }) {
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[280px_1fr]">
         <aside>
-          <AgencyFilters
+          {/* The SAME faceted filter panel as the car search. */}
+          <CarFiltersPanel
             filters={filters}
-            onApply={setFilters}
+            onApply={(f) => applyFilters({ ...f, sort: filters.sort })}
           />
         </aside>
         <section>
-          <AgencyCarsGrid slug={slug} filters={filters} onApply={setFilters} />
+          <AgencyCarsGrid
+            slug={slug}
+            filters={filters}
+            onApply={applyFilters}
+            onPage={goToPage}
+          />
         </section>
       </div>
 
@@ -208,179 +234,18 @@ const SORTS: { value: AgencyCarsSort; label: string }[] = [
   { value: "year_desc", label: "Newest first" },
 ];
 
-function AgencyFilters({
-  filters,
-  onApply,
-}: {
-  filters: AgencyCarsFilters;
-  onApply: (next: AgencyCarsFilters) => void;
-}) {
-  const [draft, setDraft] = useState<AgencyCarsFilters>(filters);
-
-  useEffect(() => {
-    setDraft(filters);
-  }, [filters]);
-
-  function set<K extends keyof AgencyCarsFilters>(
-    key: K,
-    value: AgencyCarsFilters[K],
-  ) {
-    setDraft((d) => ({ ...d, [key]: value }));
-  }
-
-  return (
-    <form
-      className="space-y-4 rounded-[var(--radius)] border border-border bg-surface p-5 shadow-sm lg:sticky lg:top-24"
-      onSubmit={(e) => {
-        e.preventDefault();
-        onApply({ ...draft, page: undefined });
-      }}
-    >
-      <h2 className="text-base font-semibold text-foreground">
-        Filter this agency
-      </h2>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="af-category">Category</Label>
-        <Select
-          id="af-category"
-          value={draft.category ?? ""}
-          onChange={(e) => set("category", e.target.value || undefined)}
-        >
-          <option value="">Any category</option>
-          {CAR_CATEGORIES.map((c) => (
-            <option key={c} value={c} className="capitalize">
-              {c}
-            </option>
-          ))}
-        </Select>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="af-make">Make</Label>
-          <Input
-            id="af-make"
-            placeholder="Toyota"
-            value={draft.make ?? ""}
-            onChange={(e) => set("make", e.target.value || undefined)}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="af-model">Model</Label>
-          <Input
-            id="af-model"
-            placeholder="Corolla"
-            value={draft.model ?? ""}
-            onChange={(e) => set("model", e.target.value || undefined)}
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="af-color">Color</Label>
-          <Select
-            id="af-color"
-            value={draft.color ?? ""}
-            onChange={(e) => set("color", e.target.value || undefined)}
-          >
-            <option value="">Any</option>
-            {CAR_COLORS.map((c) => (
-              <option key={c} value={c} className="capitalize">
-                {c}
-              </option>
-            ))}
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="af-transmission">Transmission</Label>
-          <Select
-            id="af-transmission"
-            value={draft.transmission ?? ""}
-            onChange={(e) => set("transmission", e.target.value || undefined)}
-          >
-            <option value="">Any</option>
-            {TRANSMISSIONS.map((t) => (
-              <option key={t} value={t} className="capitalize">
-                {t}
-              </option>
-            ))}
-          </Select>
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="af-year">Year (from)</Label>
-        <Input
-          id="af-year"
-          type="number"
-          inputMode="numeric"
-          placeholder="2020"
-          value={draft.year ?? ""}
-          onChange={(e) =>
-            set("year", e.target.value ? Number(e.target.value) : undefined)
-          }
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="af-price-min">Price min</Label>
-          <Input
-            id="af-price-min"
-            type="number"
-            inputMode="numeric"
-            placeholder="0"
-            value={draft.priceMin ?? ""}
-            onChange={(e) =>
-              set(
-                "priceMin",
-                e.target.value ? Number(e.target.value) : undefined,
-              )
-            }
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="af-price-max">Price max</Label>
-          <Input
-            id="af-price-max"
-            type="number"
-            inputMode="numeric"
-            placeholder="200"
-            value={draft.priceMax ?? ""}
-            onChange={(e) =>
-              set(
-                "priceMax",
-                e.target.value ? Number(e.target.value) : undefined,
-              )
-            }
-          />
-        </div>
-      </div>
-
-      <div className="flex gap-2 pt-1">
-        <Button type="submit" className="flex-1">
-          Apply
-        </Button>
-        <Button type="button" variant="outline" onClick={() => onApply({})}>
-          Clear
-        </Button>
-      </div>
-    </form>
-  );
-}
-
 // --------------------------------------------------------------- cars grid
 
 function AgencyCarsGrid({
   slug,
   filters,
   onApply,
+  onPage,
 }: {
   slug: string;
   filters: AgencyCarsFilters;
   onApply: (next: AgencyCarsFilters) => void;
+  onPage: (page: number) => void;
 }) {
   const query = useQuery({
     queryKey: agencyProfileKeys.cars(slug, filters),
@@ -484,7 +349,7 @@ function AgencyCarsGrid({
                 variant="outline"
                 size="sm"
                 disabled={page <= 1}
-                onClick={() => onApply({ ...filters, page: page - 1 })}
+                onClick={() => onPage(page - 1)}
               >
                 Previous
               </Button>
@@ -493,7 +358,7 @@ function AgencyCarsGrid({
                 variant="outline"
                 size="sm"
                 disabled={!hasNext}
-                onClick={() => onApply({ ...filters, page: page + 1 })}
+                onClick={() => onPage(page + 1)}
               >
                 Next
               </Button>

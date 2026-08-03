@@ -83,14 +83,14 @@ export function CarFiltersPanel({
 
   return (
     <form
-      className="overflow-hidden rounded-[var(--radius)] border border-border bg-surface shadow-sm lg:sticky lg:top-24"
+      className="flex flex-col overflow-hidden rounded-[var(--radius)] border border-border bg-surface shadow-sm lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)]"
       onSubmit={(e) => {
         e.preventDefault();
         onApply(draft);
       }}
     >
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+      {/* Header (stays put while the facets scroll inside the panel). */}
+      <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-3.5">
         <div className="flex items-center gap-2">
           <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
           <h2 className="text-sm font-semibold text-foreground">Filters</h2>
@@ -111,7 +111,7 @@ export function CarFiltersPanel({
         ) : null}
       </div>
 
-      <div className="space-y-6 p-5">
+      <div className="space-y-6 p-5 lg:min-h-0 lg:overflow-y-auto">
         {/* ── Vehicle (primary, cascading) ── */}
         <div className="space-y-4">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -290,8 +290,8 @@ export function CarFiltersPanel({
         </div>
       </div>
 
-      {/* Sticky action bar */}
-      <div className="border-t border-border bg-surface p-4">
+      {/* Action bar — always visible at the panel's foot, never scrolls away. */}
+      <div className="shrink-0 border-t border-border bg-surface p-4">
         <Button type="submit" className="w-full">
           Apply filters
         </Button>

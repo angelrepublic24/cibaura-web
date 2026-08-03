@@ -1,0 +1,292 @@
+"use client";
+
+import Link from "next/link";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { Building2, Car as CarIcon, MapPin, SlidersHorizontal } from "lucide-react";
+import {
+  AgenciesApi,
+  agencyProfileKeys,
+  type AgencyDirectoryFilters,
+  type AgencyDirectorySort,
+} from "@/features/agencies/api";
+import { agencyDirectoryFiltersToSearchParams } from "@/features/agencies/filters";
+import { CatalogApi, catalogKeys } from "@/features/catalog/api";
+import { StarRating } from "@/shared/components/star-rating";
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from "@/shared/components/states";
+import { Button } from "@/shared/components/ui/button";
+import { Card, CardContent } from "@/shared/components/ui/card";
+import { Label } from "@/shared/components/ui/label";
+import { Select } from "@/shared/components/ui/select";
+
+/**
+ * Public agency directory. Same faceted shell as the car search — a left filter
+ * panel + a results grid + pagination, with the URL as the single source of
+ * truth (router.replace on every change; the TanStack key derives from filters).
+ */
+const SORTS: { value: AgencyDirectorySort; label: string }[] = [
+  { value: "top_rated", label: "Top rated" },
+  { value: "most_reviews", label: "Most reviews" },
+  { value: "name", label: "Name (A–Z)" },
+];
+
+export function AgencyDirectory({
+  filters,
+}: {
+  filters: AgencyDirectoryFilters;
+}) {
+  const router = useRouter();
+
+  const citiesQuery = useQuery({
+    queryKey: catalogKeys.cities(),
+    queryFn: CatalogApi.listCities,
+  });
+
+  const query = useQuery({
+    queryKey: agencyProfileKeys.directory(filters),
+    queryFn: () => AgenciesApi.directory(filters),
+  });
+
+  function apply(next: AgencyDirectoryFilters) {
+    const qs = agencyDirectoryFiltersToSearchParams({
+      ...next,
+      page: undefined,
+    }).toString();
+    router.replace(`/agencies${qs ? `?${qs}` : ""}`);
+  }
+
+  function goToPage(page: number) {
+    const qs = agencyDirectoryFiltersToSearchParams({
+      ...filters,
+      page,
+    }).toString();
+    router.replace(`/agencies${qs ? `?${qs}` : ""}`);
+  }
+
+  const agencies = query.data?.items ?? [];
+  const total = query.data?.total ?? 0;
+  const page = filters.page ?? 1;
+  const pageSize = query.data?.pageSize ?? 24;
+  const hasNext = page * pageSize < total;
+  const activeCount = (filters.city ? 1 : 0) + (filters.sort ? 1 : 0);
+
+  return (
+    <div>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Directory
+          </p>
+          <h1 className="font-display mt-1 text-3xl text-foreground">
+            Agencies
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Verified rent-a-car agencies — browse by city and rating.
+          </p>
+        </div>
+        {query.data ? (
+          <p className="text-sm text-muted-foreground">
+            {total} agenc{total === 1 ? "y" : "ies"}
+          </p>
+        ) : null}
+      </header>
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]">
+        <aside>
+          {/* Same faceted-panel language as the car search filters. */}
+          <div className="overflow-hidden rounded-[var(--radius)] border border-border bg-surface shadow-sm lg:sticky lg:top-24">
+            <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
+                <h2 className="text-sm font-semibold text-foreground">
+                  Filters
+                </h2>
+                {activeCount > 0 ? (
+                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground">
+                    {activeCount}
+                  </span>
+                ) : null}
+              </div>
+              {activeCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => apply({})}
+                  className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+                >
+                  Clear all
+                </button>
+              ) : null}
+            </div>
+
+            <div className="space-y-6 p-5">
+              <div className="space-y-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Location
+                </p>
+                <div className="space-y-1.5">
+                  <Label htmlFor="dir-city" className="text-xs text-muted-foreground">
+                    City
+                  </Label>
+                  <Select
+                    id="dir-city"
+                    value={filters.city ?? ""}
+                    onChange={(e) =>
+                      apply({ ...filters, city: e.target.value || undefined })
+                    }
+                  >
+                    <option value="">All cities</option>
+                    {(citiesQuery.data ?? []).map((c) => (
+                      <option key={c.id} value={c.slug}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              </div>
+
+              <div className="h-px bg-border" />
+
+              <div className="space-y-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Sort
+                </p>
+                <div className="space-y-1.5">
+                  <Label htmlFor="dir-sort" className="text-xs text-muted-foreground">
+                    Order by
+                  </Label>
+                  <Select
+                    id="dir-sort"
+                    value={filters.sort ?? ""}
+                    onChange={(e) =>
+                      apply({
+                        ...filters,
+                        sort: (e.target.value || undefined) as
+                          | AgencyDirectorySort
+                          | undefined,
+                      })
+                    }
+                  >
+                    <option value="">Recommended</option>
+                    {SORTS.map((s) => (
+                      <option key={s.value} value={s.value}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <section>
+          {query.isLoading ? (
+            <LoadingState label="Loading agencies…" className="py-16" />
+          ) : query.isError ? (
+            <ErrorState
+              title="Could not load agencies"
+              message={(query.error as Error).message}
+              onRetry={() => query.refetch()}
+            />
+          ) : agencies.length === 0 ? (
+            <EmptyState
+              title="No agencies here yet"
+              description="Try another city — or check back soon."
+              className="py-16"
+              action={
+                activeCount > 0 ? (
+                  <Button variant="outline" onClick={() => apply({})}>
+                    Clear filters
+                  </Button>
+                ) : undefined
+              }
+            />
+          ) : (
+            <>
+              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                {agencies.map((a) => (
+                  <Link key={a.id} href={`/agencies/${a.slug}`} className="group">
+                    <Card className="h-full transition-colors group-hover:border-border-strong">
+                      <CardContent className="space-y-3 p-5">
+                        <div className="flex items-center gap-3">
+                          <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full bg-muted">
+                            {a.logoUrl ? (
+                              <Image
+                                src={a.logoUrl}
+                                alt={a.name}
+                                fill
+                                sizes="44px"
+                                className="object-cover"
+                                unoptimized
+                              />
+                            ) : (
+                              <span className="flex h-full w-full items-center justify-center">
+                                <Building2 className="h-5 w-5 text-muted-foreground" />
+                              </span>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <h2 className="truncate font-medium text-foreground group-hover:text-primary">
+                              {a.name}
+                            </h2>
+                            <StarRating rating={a.ratingAvg} count={a.reviewCount} />
+                          </div>
+                        </div>
+
+                        {a.description ? (
+                          <p className="line-clamp-2 text-sm text-muted-foreground">
+                            {a.description}
+                          </p>
+                        ) : null}
+
+                        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                          <span className="inline-flex items-center gap-1">
+                            <CarIcon className="h-3.5 w-3.5" />
+                            {a.carCount} car{a.carCount === 1 ? "" : "s"}
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <MapPin className="h-3.5 w-3.5" />
+                            {a.cities.map((c) => c.name).join(", ") || "—"}
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                ))}
+              </div>
+
+              {(page > 1 || hasNext) && (
+                <div className="mt-8 flex items-center justify-center gap-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page <= 1}
+                    onClick={() => goToPage(page - 1)}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Page {page}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!hasNext}
+                    onClick={() => goToPage(page + 1)}
+                  >
+                    Next
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}

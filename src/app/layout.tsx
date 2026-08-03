@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import QueryProvider from "@/shared/providers/query-provider";
 import { SiteHeader } from "@/shared/components/site-header";
+import { SiteFooterNav } from "@/shared/components/site-footer-nav";
 import { Logo } from "@/shared/components/logo";
 
 const geistSans = Geist({
@@ -65,23 +65,7 @@ export default function RootLayout({
                     the server.
                   </p>
                 </div>
-                <nav className="flex flex-col gap-2 text-sm text-cream/80">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-cream/50">
-                    Explore
-                  </span>
-                  <Link href="/cars/santiago" className="hover:text-cream">
-                    Browse cars
-                  </Link>
-                  <Link href="/agencies" className="hover:text-cream">
-                    Agencies
-                  </Link>
-                  <Link href="/become-agency" className="hover:text-cream">
-                    Become an agency
-                  </Link>
-                  <Link href="/auth/login" className="hover:text-cream">
-                    Log in
-                  </Link>
-                </nav>
+                <SiteFooterNav />
               </div>
               <div className="mt-10 flex flex-col items-center gap-2 border-t border-cream/10 pt-6 text-xs text-cream/60 sm:flex-row sm:justify-between">
                 <span>

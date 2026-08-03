@@ -1,5 +1,6 @@
 import { Api } from "@/shared/api/client";
 import type { AgencyVerificationStatus, Car, Paginated } from "@/shared/types/domain";
+import type { CarSearchFilters } from "@/features/cars/filters";
 import { wholeUnitsToCents } from "@/shared/utils/money";
 
 /**
@@ -41,26 +42,31 @@ export interface Review {
 
 export type AgencyCarsSort = "price_asc" | "price_desc" | "year_desc";
 
-/** Filters for the agency storefront grid (whole units in UI, cents on wire). */
-export interface AgencyCarsFilters {
-  make?: string;
-  model?: string;
-  year?: number;
-  color?: string;
-  category?: string;
-  transmission?: string;
-  /** Per-day price bounds in WHOLE currency units (URL-friendly). */
-  priceMin?: number;
-  priceMax?: number;
+/**
+ * Agency storefront catalog filters. These are the SAME faceted filters as the
+ * car search (make/model catalog slugs, year range, specs, price/day) — so the
+ * storefront reuses the exact `CarFiltersPanel` — plus a catalog `sort`. There
+ * is no date range (a storefront is a catalog, not an availability search).
+ */
+export interface AgencyCarsFilters extends CarSearchFilters {
   sort?: AgencyCarsSort;
-  page?: number;
   pageSize?: number;
+}
+
+/** How the agency directory is ordered. */
+export type AgencyDirectorySort = "top_rated" | "most_reviews" | "name";
+
+/** Agency directory search filters — URL-driven, like the car search. */
+export interface AgencyDirectoryFilters {
+  city?: string;
+  sort?: AgencyDirectorySort;
+  page?: number;
 }
 
 export const agencyProfileKeys = {
   all: ["agency-profile"] as const,
-  directory: (city: string | undefined, page: number) =>
-    ["agency-directory", city ?? "all", page] as const,
+  directory: (filters: AgencyDirectoryFilters) =>
+    ["agency-directory", filters] as const,
   profile: (slug: string) => ["agency-profile", slug] as const,
   cars: (slug: string, filters: AgencyCarsFilters) =>
     ["agency-profile", slug, "cars", filters] as const,
@@ -133,7 +139,8 @@ export const AgenciesApi = {
       params: {
         make: filters.make,
         model: filters.model,
-        year: filters.year,
+        yearMin: filters.yearMin,
+        yearMax: filters.yearMax,
         color: filters.color,
         category: filters.category,
         transmission: filters.transmission,
@@ -180,10 +187,14 @@ export const AgenciesApi = {
   // ── Directory & reviews ──
 
   async directory(
-    opts: { city?: string; page?: number } = {},
+    filters: AgencyDirectoryFilters = {},
   ): Promise<Paginated<AgencyPublicProfile>> {
     const res = await Api.get("/agencies", {
-      params: { city: opts.city || undefined, page: opts.page },
+      params: {
+        city: filters.city || undefined,
+        sort: filters.sort,
+        page: filters.page,
+      },
     });
     return res.data;
   },
