@@ -32,7 +32,17 @@ export function LoginForm({ next }: { next?: string }) {
     mutationFn: AuthApi.login,
     onSuccess: ({ user, accessToken }) => {
       signIn(user, accessToken);
-      router.push(next && next.startsWith("/") ? next : "/account");
+      // An explicit ?next wins; otherwise land people in THEIR ecosystem —
+      // agency owners/staff go straight to the agency workspace, admins to
+      // the admin console, everyone else to their customer account.
+      const home =
+        user.roles.includes("agency_owner") ||
+        user.roles.includes("agency_staff")
+          ? "/agency"
+          : user.roles.includes("platform_admin")
+            ? "/admin"
+            : "/account";
+      router.push(next && next.startsWith("/") ? next : home);
     },
   });
 
