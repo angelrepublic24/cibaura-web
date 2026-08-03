@@ -5,18 +5,20 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { SlidersHorizontal } from "lucide-react";
 import { CarsApi, carKeys } from "@/features/cars/api";
+import { CatalogApi, catalogKeys } from "@/features/catalog/api";
 import {
   filtersToSearchParams,
   type CarSearchFilters,
 } from "@/features/cars/filters";
 import { CarFiltersPanel } from "@/features/cars/components/car-filters-panel";
 import { CarCard } from "@/features/cars/components/car-card";
-import type { Car } from "@/shared/types/domain";
+import type { Car, City } from "@/shared/types/domain";
 import { formatIsoDate, todayIso } from "@/shared/utils/dates";
 import { EmptyState, ErrorState } from "@/shared/components/states";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
+import { Select } from "@/shared/components/ui/select";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 
 /**
@@ -45,10 +47,25 @@ export function CarSearchResults({
     enabled: hasDates,
   });
 
+  const citiesQuery = useQuery({
+    queryKey: catalogKeys.cities(),
+    queryFn: CatalogApi.listCities,
+  });
+
   function applyFilters(next: CarSearchFilters) {
     const sp = filtersToSearchParams({ ...next, page: undefined });
     const qs = sp.toString();
     router.replace(`/cars/${encodeURIComponent(city)}${qs ? `?${qs}` : ""}`);
+  }
+
+  // Switch city in place (keeps the current dates + facets) and re-search.
+  function changeCity(nextCity: string) {
+    if (nextCity === city) return;
+    const sp = filtersToSearchParams({ ...filters, page: undefined });
+    const qs = sp.toString();
+    router.replace(
+      `/cars/${encodeURIComponent(nextCity)}${qs ? `?${qs}` : ""}`,
+    );
   }
 
   function goToPage(page: number) {
@@ -102,7 +119,13 @@ export function CarSearchResults({
 
       {/* Date range is first-class: the server only returns cars free for the
           whole window, so we ask for dates up front. */}
-      <DateRangeBar filters={filters} onApply={applyFilters} />
+      <DateRangeBar
+        filters={filters}
+        onApply={applyFilters}
+        city={city}
+        cities={citiesQuery.data ?? []}
+        onCityChange={changeCity}
+      />
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]">
         <aside>
@@ -203,9 +226,15 @@ function CarCardSkeleton() {
 function DateRangeBar({
   filters,
   onApply,
+  city,
+  cities,
+  onCityChange,
 }: {
   filters: CarSearchFilters;
   onApply: (next: CarSearchFilters) => void;
+  city: string;
+  cities: City[];
+  onCityChange: (slug: string) => void;
 }) {
   const [from, setFrom] = useState(filters.from ?? "");
   const [to, setTo] = useState(filters.to ?? "");
@@ -227,8 +256,24 @@ function DateRangeBar({
     >
       <span className="hidden items-center gap-2 pb-2.5 pr-1 text-sm font-medium text-muted-foreground sm:inline-flex">
         <SlidersHorizontal className="h-4 w-4" />
-        Trip dates
+        Trip
       </span>
+      {/* City is editable in place — change it and the search re-runs. */}
+      <div className="space-y-1.5">
+        <Label htmlFor="sr-city">City</Label>
+        <Select
+          id="sr-city"
+          value={city}
+          onChange={(e) => onCityChange(e.target.value)}
+        >
+          <option value="all">All cities</option>
+          {cities.map((c) => (
+            <option key={c.id} value={c.slug}>
+              {c.name}
+            </option>
+          ))}
+        </Select>
+      </div>
       <div className="space-y-1.5">
         <Label htmlFor="sr-from">Pickup date</Label>
         <Input
