@@ -39,6 +39,8 @@ export default function WalkInBookingPage() {
 
   const [carId, setCarId] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [deliver, setDeliver] = useState(false);
@@ -50,6 +52,8 @@ export default function WalkInBookingPage() {
       AgencyApi.walkInBooking({
         carId,
         customerEmail: customerEmail.trim(),
+        customerName: customerName.trim() || undefined,
+        customerPhone: customerPhone.trim() || undefined,
         start: from,
         end: to,
         pickupType: deliver ? "delivery" : "branch_pickup",
@@ -62,7 +66,9 @@ export default function WalkInBookingPage() {
             }
           : {}),
       }),
-    onSuccess: (booking) => router.push(`/account/bookings/${booking.id}`),
+    // The counter booking is confirmed and now blocks the calendar — take the
+    // salesperson there so they see it land.
+    onSuccess: () => router.push("/agency/calendar"),
   });
 
   if (!can("bookings:handle")) {
@@ -88,18 +94,19 @@ export default function WalkInBookingPage() {
     <div className="mx-auto max-w-2xl">
       <h1 className="font-display text-2xl text-foreground">Walk-in sale</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Book a car for a customer at the counter. The reservation is created in
-        the customer&apos;s name — they must have an account, a valid licence,
-        and a card on file.
+        Book a car for a customer at the counter. Enter an existing customer&apos;s
+        email, or a new one&apos;s details to register them on the spot. This is
+        an offline sale — you collect payment and check the licence yourself; the
+        car is reserved so the app can&apos;t double-book it.
       </p>
 
       <Card className="mt-5">
         <CardHeader>
-          <CardTitle className="text-base">Reservation details</CardTitle>
+          <CardTitle className="text-base">Customer</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="wi-email">Customer email</Label>
+            <Label htmlFor="wi-email">Email</Label>
             <Input
               id="wi-email"
               type="email"
@@ -107,8 +114,43 @@ export default function WalkInBookingPage() {
               value={customerEmail}
               onChange={(e) => setCustomerEmail(e.target.value)}
             />
+            <p className="text-xs text-muted-foreground">
+              If this email already has an account we&apos;ll use it; otherwise a
+              new customer is created from the name &amp; phone below.
+            </p>
           </div>
 
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="wi-name">Full name</Label>
+              <Input
+                id="wi-name"
+                placeholder="Juan Pérez"
+                value={customerName}
+                maxLength={160}
+                onChange={(e) => setCustomerName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="wi-phone">Phone</Label>
+              <Input
+                id="wi-phone"
+                type="tel"
+                placeholder="809-555-0123"
+                value={customerPhone}
+                maxLength={32}
+                onChange={(e) => setCustomerPhone(e.target.value)}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-4">
+        <CardHeader>
+          <CardTitle className="text-base">Reservation details</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="wi-car">Car</Label>
             <Select

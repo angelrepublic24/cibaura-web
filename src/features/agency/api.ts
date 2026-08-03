@@ -203,6 +203,9 @@ export const AgencyApi = {
   async walkInBooking(input: {
     carId: string;
     customerEmail: string;
+    /** Used only when the email has no account yet (new guest customer). */
+    customerName?: string;
+    customerPhone?: string;
     start: string;
     end: string;
     pickupType?: "branch_pickup" | "delivery";
