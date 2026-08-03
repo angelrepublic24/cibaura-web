@@ -1,10 +1,8 @@
 "use client";
 
-import Link from "next/link";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Building2, Car as CarIcon, MapPin, SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import {
   AgenciesApi,
   agencyProfileKeys,
@@ -12,15 +10,14 @@ import {
   type AgencyDirectorySort,
 } from "@/features/agencies/api";
 import { agencyDirectoryFiltersToSearchParams } from "@/features/agencies/filters";
+import { AgencyPublicCard } from "@/features/agencies/components/agency-public-card";
 import { CatalogApi, catalogKeys } from "@/features/catalog/api";
-import { StarRating } from "@/shared/components/star-rating";
 import {
   EmptyState,
   ErrorState,
   LoadingState,
 } from "@/shared/components/states";
 import { Button } from "@/shared/components/ui/button";
-import { Card, CardContent } from "@/shared/components/ui/card";
 import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
 
@@ -210,53 +207,7 @@ export function AgencyDirectory({
             <>
               <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                 {agencies.map((a) => (
-                  <Link key={a.id} href={`/agencies/${a.slug}`} className="group">
-                    <Card className="h-full transition-colors group-hover:border-border-strong">
-                      <CardContent className="space-y-3 p-5">
-                        <div className="flex items-center gap-3">
-                          <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full bg-muted">
-                            {a.logoUrl ? (
-                              <Image
-                                src={a.logoUrl}
-                                alt={a.name}
-                                fill
-                                sizes="44px"
-                                className="object-cover"
-                                unoptimized
-                              />
-                            ) : (
-                              <span className="flex h-full w-full items-center justify-center">
-                                <Building2 className="h-5 w-5 text-muted-foreground" />
-                              </span>
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <h2 className="truncate font-medium text-foreground group-hover:text-primary">
-                              {a.name}
-                            </h2>
-                            <StarRating rating={a.ratingAvg} count={a.reviewCount} />
-                          </div>
-                        </div>
-
-                        {a.description ? (
-                          <p className="line-clamp-2 text-sm text-muted-foreground">
-                            {a.description}
-                          </p>
-                        ) : null}
-
-                        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-                          <span className="inline-flex items-center gap-1">
-                            <CarIcon className="h-3.5 w-3.5" />
-                            {a.carCount} car{a.carCount === 1 ? "" : "s"}
-                          </span>
-                          <span className="inline-flex items-center gap-1">
-                            <MapPin className="h-3.5 w-3.5" />
-                            {a.cities.map((c) => c.name).join(", ") || "—"}
-                          </span>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
+                  <AgencyPublicCard key={a.id} agency={a} />
                 ))}
               </div>
 

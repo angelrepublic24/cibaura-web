@@ -2,19 +2,28 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import {
+  CalendarRange,
+  CreditCard,
+  FileText,
+  Heart,
+  User,
+} from "lucide-react";
 import { RoleGuard } from "@/shared/auth/guard";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { href: "/account", label: "Bookings" },
-  { href: "/account/verification", label: "Identity" },
-  { href: "/account/payment-methods", label: "Payment methods" },
-  { href: "/account/profile", label: "Profile" },
+  { href: "/account", label: "My rentals", icon: CalendarRange },
+  { href: "/account/profile", label: "Profile", icon: User },
+  { href: "/account/verification", label: "Documents", icon: FileText },
+  { href: "/account/payment-methods", label: "Payment methods", icon: CreditCard },
+  { href: "/account/favorites", label: "Favorites", icon: Heart },
 ];
 
 /**
- * /account route group — any authenticated user (agency owners are also
- * customers when they rent). Real authorization is backend RBAC.
+ * /account route group — settings-style left sidebar. Any authenticated user
+ * (agency owners are also customers when they rent). Real authorization is
+ * backend RBAC; this nav is convenience only.
  */
 export default function AccountLayout({
   children,
@@ -25,31 +34,38 @@ export default function AccountLayout({
 
   return (
     <RoleGuard allow={["customer", "agency_owner", "agency_staff", "platform_admin"]}>
-      <div className="mx-auto max-w-6xl px-4 py-8">
-        <h1 className="font-display text-3xl text-foreground">My account</h1>
-        <div className="mt-5 flex gap-1 border-b border-border">
-          {NAV.map((item) => {
-            const active =
-              item.href === "/account"
-                ? pathname === "/account" || pathname.startsWith("/account/bookings")
-                : pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "border-b-2 px-3 py-2 text-sm transition-colors",
-                  active
-                    ? "border-primary font-medium text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-        </div>
-        <div className="py-6">{children}</div>
+      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-8 md:grid-cols-[210px_1fr]">
+        <aside>
+          <h1 className="mb-3 px-3 font-display text-xl text-foreground">
+            Account
+          </h1>
+          <nav className="flex gap-1 overflow-x-auto md:flex-col">
+            {NAV.map((item) => {
+              const active =
+                item.href === "/account"
+                  ? pathname === "/account" ||
+                    pathname.startsWith("/account/bookings")
+                  : pathname.startsWith(item.href);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm transition-colors",
+                    active
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+        </aside>
+        <div>{children}</div>
       </div>
     </RoleGuard>
   );

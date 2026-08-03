@@ -22,6 +22,7 @@ import { agencyCarFiltersToSearchParams } from "@/features/agencies/filters";
 import { CarCard } from "@/features/cars/components/car-card";
 import { CarFiltersPanel } from "@/features/cars/components/car-filters-panel";
 import { StarRating } from "@/shared/components/star-rating";
+import { FavoriteButton } from "@/shared/components/favorite-button";
 import { type AgencyVerificationStatus } from "@/shared/types/domain";
 import {
   EmptyState,
@@ -98,6 +99,7 @@ export function AgencyProfile({
         carCount={agency.carCount}
         ratingAvg={agency.ratingAvg}
         reviewCount={agency.reviewCount}
+        agencyId={agency.id}
       />
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[280px_1fr]">
@@ -135,6 +137,7 @@ function AgencyHeader({
   carCount,
   ratingAvg,
   reviewCount,
+  agencyId,
 }: {
   name: string;
   description?: string;
@@ -145,6 +148,7 @@ function AgencyHeader({
   carCount: number;
   ratingAvg: number;
   reviewCount: number;
+  agencyId: string;
 }) {
   return (
     <header className="overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface shadow-sm">
@@ -175,6 +179,7 @@ function AgencyHeader({
               <StarRating rating={ratingAvg} count={reviewCount} />
             </div>
           </div>
+          <FavoriteButton agencyId={agencyId} className="mb-1 ml-auto" />
         </div>
 
         {description ? (
