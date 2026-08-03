@@ -20,6 +20,11 @@ import {
 } from "@/shared/components/ui/card";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
+import {
+  AddressAutocomplete,
+  type PickedAddress,
+} from "@/shared/components/address-autocomplete";
+import { wholeUnitsToCents } from "@/shared/utils/money";
 import { Select } from "@/shared/components/ui/select";
 
 /**
@@ -126,6 +131,12 @@ function NewBranchForm({ onDone }: { onDone: () => void }) {
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [phone, setPhone] = useState("");
+  // Delivery config
+  const [deliveryEnabled, setDeliveryEnabled] = useState(false);
+  const [branchLoc, setBranchLoc] = useState<PickedAddress | null>(null);
+  const [baseFee, setBaseFee] = useState("");
+  const [perKm, setPerKm] = useState("");
+  const [maxKm, setMaxKm] = useState("");
 
   const citiesQuery = useQuery({
     queryKey: catalogKeys.cities(),
@@ -139,6 +150,16 @@ function NewBranchForm({ onDone }: { onDone: () => void }) {
         name: name.trim(),
         address: address.trim(),
         phone: phone.trim() || undefined,
+        ...(deliveryEnabled && branchLoc
+          ? {
+              deliveryEnabled: true,
+              lat: branchLoc.lat,
+              lng: branchLoc.lng,
+              deliveryBaseFeeCents: wholeUnitsToCents(Number(baseFee) || 0),
+              deliveryPerKmCents: wholeUnitsToCents(Number(perKm) || 0),
+              deliveryMaxKm: maxKm ? Number(maxKm) : undefined,
+            }
+          : {}),
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: agencyKeys.branches() });
@@ -146,7 +167,12 @@ function NewBranchForm({ onDone }: { onDone: () => void }) {
     },
   });
 
-  const ready = !!cityId && name.trim().length >= 2 && address.trim().length >= 5;
+  const deliveryReady = !deliveryEnabled || (!!branchLoc && !!baseFee && !!perKm);
+  const ready =
+    !!cityId &&
+    name.trim().length >= 2 &&
+    address.trim().length >= 5 &&
+    deliveryReady;
 
   return (
     <Card className="mt-4">
@@ -201,6 +227,72 @@ function NewBranchForm({ onDone }: { onDone: () => void }) {
               onChange={(e) => setPhone(e.target.value)}
             />
           </div>
+        </div>
+
+        {/* ── Door-to-door delivery ─────────────────────────────────────── */}
+        <div className="mt-4 rounded-[var(--radius-sm)] border border-border p-3.5">
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input
+              type="checkbox"
+              checked={deliveryEnabled}
+              onChange={(e) => setDeliveryEnabled(e.target.checked)}
+            />
+            Offer door-to-door delivery from this branch
+          </label>
+          {deliveryEnabled ? (
+            <div className="mt-3 space-y-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="br-loc">
+                  Branch location (sets the delivery origin)
+                </Label>
+                <AddressAutocomplete
+                  id="br-loc"
+                  placeholder="Search the branch's location…"
+                  onSelect={setBranchLoc}
+                  onClear={() => setBranchLoc(null)}
+                />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="br-base">Base fee</Label>
+                  <Input
+                    id="br-base"
+                    type="number"
+                    min={0}
+                    placeholder="200"
+                    value={baseFee}
+                    onChange={(e) => setBaseFee(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="br-perkm">Per km</Label>
+                  <Input
+                    id="br-perkm"
+                    type="number"
+                    min={0}
+                    placeholder="50"
+                    value={perKm}
+                    onChange={(e) => setPerKm(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="br-maxkm">Max km (optional)</Label>
+                  <Input
+                    id="br-maxkm"
+                    type="number"
+                    min={1}
+                    placeholder="30"
+                    value={maxKm}
+                    onChange={(e) => setMaxKm(e.target.value)}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Fee = base + per-km × distance from the branch to the
+                customer&apos;s address. Amounts are in whole units.
+              </p>
+            </div>
+          ) : null}
         </div>
 
         {mutation.isError ? (

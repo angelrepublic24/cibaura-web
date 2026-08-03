@@ -106,6 +106,14 @@ export interface CreateBranchInput {
   phone?: string;
   /** `{ day: "HH:MM-HH:MM" }` map; omitted in the v1 branches form. */
   hours?: Record<string, string>;
+  // ── Door-to-door delivery config ──
+  /** Branch coordinates (the delivery origin) + fee params. */
+  lat?: number;
+  lng?: number;
+  deliveryEnabled?: boolean;
+  deliveryBaseFeeCents?: number;
+  deliveryPerKmCents?: number;
+  deliveryMaxKm?: number;
 }
 
 /** Partial branch edit + the `isActive` toggle (backend UpdateBranchDto). */
