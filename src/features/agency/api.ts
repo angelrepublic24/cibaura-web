@@ -198,6 +198,23 @@ export const AgencyApi = {
     return res.data;
   },
 
+  // ── Walk-in (counter) sale ──
+
+  async walkInBooking(input: {
+    carId: string;
+    customerEmail: string;
+    start: string;
+    end: string;
+    pickupType?: "branch_pickup" | "delivery";
+    deliveryAddress?: string;
+    deliveryLat?: number;
+    deliveryLng?: number;
+    deliveryReference?: string;
+  }): Promise<Booking> {
+    const res = await Api.post("/agency/walk-in-bookings", input);
+    return res.data;
+  },
+
   // -------------------------------------------------- branches & zones
 
   async branches(): Promise<Branch[]> {
