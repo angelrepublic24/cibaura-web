@@ -138,6 +138,16 @@ export function AgencyDirectory({
                     }
                   >
                     <option value="">All cities</option>
+                    {/* Keep a URL city selectable even if it has no availability
+                        now, so the dropdown never mislabels the active filter. */}
+                    {filters.city &&
+                    !(citiesQuery.data ?? []).some(
+                      (c) => c.slug === filters.city,
+                    ) ? (
+                      <option value={filters.city} className="capitalize">
+                        {filters.city.replace(/-/g, " ")}
+                      </option>
+                    ) : null}
                     {(citiesQuery.data ?? []).map((c) => (
                       <option key={c.id} value={c.slug}>
                         {c.name}

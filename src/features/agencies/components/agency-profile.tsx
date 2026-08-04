@@ -107,10 +107,18 @@ export function AgencyProfile({
 
       <div className="mt-10 grid gap-6 lg:grid-cols-[280px_1fr]">
         <aside>
-          {/* The SAME faceted filter panel as the car search. */}
+          {/* The SAME faceted filter panel as the car search. Branch + sort are
+              separate axes, not vehicle facets — preserve them across the
+              panel's Apply / Clear all so the location choice isn't lost. */}
           <CarFiltersPanel
             filters={filters}
-            onApply={(f) => applyFilters({ ...f, sort: filters.sort })}
+            onApply={(f) =>
+              applyFilters({
+                ...f,
+                branchId: filters.branchId,
+                sort: filters.sort,
+              })
+            }
           />
         </aside>
         <section className="space-y-4">

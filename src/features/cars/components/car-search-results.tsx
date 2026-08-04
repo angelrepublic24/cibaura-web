@@ -270,6 +270,14 @@ function DateRangeBar({
           onChange={(e) => onCityChange(e.target.value)}
         >
           <option value="all">All cities</option>
+          {/* Keep the current route's city selectable even if it has no
+              availability right now (bookmarked/shared links), so the dropdown
+              never silently reads "All cities" while the page is city-scoped. */}
+          {city !== "all" && !cities.some((c) => c.slug === city) ? (
+            <option value={city} className="capitalize">
+              {city.replace(/-/g, " ")}
+            </option>
+          ) : null}
           {cities.map((c) => (
             <option key={c.id} value={c.slug}>
               {c.name}
