@@ -11,12 +11,12 @@ import {
 } from "@/features/agencies/api";
 import { agencyDirectoryFiltersToSearchParams } from "@/features/agencies/filters";
 import { AgencyPublicCard } from "@/features/agencies/components/agency-public-card";
-import { CatalogApi, catalogKeys } from "@/features/catalog/api";
 import {
   EmptyState,
   ErrorState,
   LoadingState,
 } from "@/shared/components/states";
+import { SearchModeToggle } from "@/shared/components/search-mode-toggle";
 import { Button } from "@/shared/components/ui/button";
 import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
@@ -40,8 +40,8 @@ export function AgencyDirectory({
   const router = useRouter();
 
   const citiesQuery = useQuery({
-    queryKey: catalogKeys.cities(),
-    queryFn: CatalogApi.listCities,
+    queryKey: agencyProfileKeys.availableCities(),
+    queryFn: AgenciesApi.availableCities,
   });
 
   const query = useQuery({
@@ -94,7 +94,8 @@ export function AgencyDirectory({
       </header>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]">
-        <aside>
+        <aside className="space-y-4">
+          <SearchModeToggle mode="agencies" city={filters.city} />
           {/* Same faceted-panel language as the car search filters. */}
           <div className="overflow-hidden rounded-[var(--radius)] border border-border bg-surface shadow-sm lg:sticky lg:top-24">
             <div className="flex items-center justify-between border-b border-border px-5 py-3.5">

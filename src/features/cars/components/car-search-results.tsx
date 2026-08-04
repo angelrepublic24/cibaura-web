@@ -5,13 +5,14 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { SlidersHorizontal } from "lucide-react";
 import { CarsApi, carKeys } from "@/features/cars/api";
-import { CatalogApi, catalogKeys } from "@/features/catalog/api";
+import { AgenciesApi, agencyProfileKeys } from "@/features/agencies/api";
 import {
   filtersToSearchParams,
   type CarSearchFilters,
 } from "@/features/cars/filters";
 import { CarFiltersPanel } from "@/features/cars/components/car-filters-panel";
 import { CarCard } from "@/features/cars/components/car-card";
+import { SearchModeToggle } from "@/shared/components/search-mode-toggle";
 import type { Car, City } from "@/shared/types/domain";
 import { formatIsoDate, todayIso } from "@/shared/utils/dates";
 import { EmptyState, ErrorState } from "@/shared/components/states";
@@ -48,8 +49,8 @@ export function CarSearchResults({
   });
 
   const citiesQuery = useQuery({
-    queryKey: catalogKeys.cities(),
-    queryFn: CatalogApi.listCities,
+    queryKey: agencyProfileKeys.availableCities(),
+    queryFn: AgenciesApi.availableCities,
   });
 
   function applyFilters(next: CarSearchFilters) {
@@ -128,7 +129,9 @@ export function CarSearchResults({
       />
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]">
-        <aside>
+        <aside className="space-y-4">
+          {/* Search agencies instead — reachable from the filter, not the nav. */}
+          <SearchModeToggle mode="cars" city={city} />
           <CarFiltersPanel filters={filters} onApply={applyFilters} />
         </aside>
 

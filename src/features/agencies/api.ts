@@ -1,7 +1,19 @@
 import { Api } from "@/shared/api/client";
-import type { AgencyVerificationStatus, Car, Paginated } from "@/shared/types/domain";
+import type {
+  AgencyVerificationStatus,
+  Car,
+  City,
+  Paginated,
+} from "@/shared/types/domain";
 import type { CarSearchFilters } from "@/features/cars/filters";
 import { wholeUnitsToCents } from "@/shared/utils/money";
+
+/** Privacy-safe public branch: identity + city only (no address/coords). */
+export interface PublicBranch {
+  id: string;
+  name: string;
+  city: { id: string; name: string } | null;
+}
 
 /**
  * Public agency storefront API (no auth).
@@ -25,6 +37,8 @@ export interface AgencyPublicProfile {
   logoUrl?: string;
   verificationStatus: AgencyVerificationStatus;
   cities: { id: string; name: string }[];
+  /** Active branches for the storefront location picker (no address/coords). */
+  branches: PublicBranch[];
   branchCount: number;
   carCount: number;
   /** Average star rating (0 when no reviews) + how many. */
@@ -49,6 +63,8 @@ export type AgencyCarsSort = "price_asc" | "price_desc" | "year_desc";
  * is no date range (a storefront is a catalog, not an availability search).
  */
 export interface AgencyCarsFilters extends CarSearchFilters {
+  /** Show only cars at this branch/location. */
+  branchId?: string;
   sort?: AgencyCarsSort;
   pageSize?: number;
 }
@@ -67,6 +83,7 @@ export const agencyProfileKeys = {
   all: ["agency-profile"] as const,
   directory: (filters: AgencyDirectoryFilters) =>
     ["agency-directory", filters] as const,
+  availableCities: () => ["agency-available-cities"] as const,
   profile: (slug: string) => ["agency-profile", slug] as const,
   cars: (slug: string, filters: AgencyCarsFilters) =>
     ["agency-profile", slug, "cars", filters] as const,
@@ -137,6 +154,7 @@ export const AgenciesApi = {
   ): Promise<Paginated<Car>> {
     const res = await Api.get(`/agencies/${slug}/cars`, {
       params: {
+        branchId: filters.branchId,
         make: filters.make,
         model: filters.model,
         yearMin: filters.yearMin,
@@ -196,6 +214,12 @@ export const AgenciesApi = {
         page: filters.page,
       },
     });
+    return res.data;
+  },
+
+  /** Cities that actually have available cars (drives the search dropdown). */
+  async availableCities(): Promise<City[]> {
+    const res = await Api.get("/agencies/available-cities");
     return res.data;
   },
 

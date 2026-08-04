@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
-import { CatalogApi, catalogKeys } from "@/features/catalog/api";
+import { AgenciesApi, agencyProfileKeys } from "@/features/agencies/api";
 import { filtersToSearchParams } from "@/features/cars/filters";
 import { CAR_CATEGORIES } from "@/shared/types/domain";
 import { todayIso } from "@/shared/utils/dates";
@@ -27,9 +27,10 @@ export function HeroSearch() {
   const [to, setTo] = useState("");
   const [category, setCategory] = useState<string | undefined>(undefined);
 
+  // Only cities that actually have available cars.
   const citiesQuery = useQuery({
-    queryKey: catalogKeys.cities(),
-    queryFn: CatalogApi.listCities,
+    queryKey: agencyProfileKeys.availableCities(),
+    queryFn: AgenciesApi.availableCities,
   });
 
   // Dates are first-class: the results search is a server-side availability

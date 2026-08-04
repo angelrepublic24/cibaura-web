@@ -29,7 +29,7 @@ function one(v: string | string[] | undefined): string | undefined {
 
 const CAR_SORTS: AgencyCarsSort[] = ["price_asc", "price_desc", "year_desc"];
 
-/** Same faceting as car search (make/model/year/specs/price) + a catalog sort. */
+/** Same faceting as car search (make/model/year/specs/price) + branch + sort. */
 export function parseAgencyCarFilters(sp: RawSearchParams): AgencyCarsFilters {
   const base = parseCarFilters(sp);
   const sortRaw = one(sp.sort);
@@ -37,13 +37,14 @@ export function parseAgencyCarFilters(sp: RawSearchParams): AgencyCarsFilters {
     ? (sortRaw as AgencyCarsSort)
     : undefined;
   // A storefront is a catalog, not an availability search — drop any dates.
-  return { ...base, from: undefined, to: undefined, sort };
+  return { ...base, from: undefined, to: undefined, branchId: one(sp.branch), sort };
 }
 
 export function agencyCarFiltersToSearchParams(
   f: AgencyCarsFilters,
 ): URLSearchParams {
   const sp = filtersToSearchParams({ ...f, from: undefined, to: undefined });
+  if (f.branchId) sp.set("branch", f.branchId);
   if (f.sort) sp.set("sort", f.sort);
   return sp;
 }

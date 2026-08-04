@@ -102,7 +102,10 @@ export function AgencyProfile({
         agencyId={agency.id}
       />
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-[280px_1fr]">
+      {/* Reviews up top — easy to find before browsing the fleet. */}
+      <AgencyReviews slug={slug} reviewCount={agency.reviewCount} />
+
+      <div className="mt-10 grid gap-6 lg:grid-cols-[280px_1fr]">
         <aside>
           {/* The SAME faceted filter panel as the car search. */}
           <CarFiltersPanel
@@ -110,7 +113,16 @@ export function AgencyProfile({
             onApply={(f) => applyFilters({ ...f, sort: filters.sort })}
           />
         </aside>
-        <section>
+        <section className="space-y-4">
+          {agency.branches.length > 1 ? (
+            <LocationPicker
+              branches={agency.branches}
+              value={filters.branchId}
+              onChange={(branchId) =>
+                applyFilters({ ...filters, branchId })
+              }
+            />
+          ) : null}
           <AgencyCarsGrid
             slug={slug}
             filters={filters}
@@ -119,8 +131,41 @@ export function AgencyProfile({
           />
         </section>
       </div>
+    </div>
+  );
+}
 
-      <AgencyReviews slug={slug} reviewCount={agency.reviewCount} />
+// ------------------------------------------------------------ location picker
+
+function LocationPicker({
+  branches,
+  value,
+  onChange,
+}: {
+  branches: { id: string; name: string; city: { id: string; name: string } | null }[];
+  value?: string;
+  onChange: (branchId: string | undefined) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2 rounded-[var(--radius)] border border-border bg-surface p-3 shadow-sm">
+      <MapPin className="h-4 w-4 shrink-0 text-primary" />
+      <Label htmlFor="ap-branch" className="whitespace-nowrap text-sm">
+        Location
+      </Label>
+      <Select
+        id="ap-branch"
+        className="h-9"
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value || undefined)}
+      >
+        <option value="">All locations</option>
+        {branches.map((b) => (
+          <option key={b.id} value={b.id}>
+            {b.name}
+            {b.city ? ` — ${b.city.name}` : ""}
+          </option>
+        ))}
+      </Select>
     </div>
   );
 }
@@ -385,6 +430,7 @@ function AgencyReviews({
   reviewCount: number;
 }) {
   const [page, setPage] = useState(1);
+  const [expanded, setExpanded] = useState(false);
 
   const query = useQuery({
     queryKey: agencyProfileKeys.reviews(slug, page),
@@ -401,7 +447,7 @@ function AgencyReviews({
   const hasNext = page * pageSize < total;
 
   return (
-    <section className="mt-12 border-t border-border pt-8">
+    <section className="mt-8 border-t border-border pt-8">
       <h2 className="font-display text-2xl text-foreground">
         Reviews
         {total > 0 ? (
@@ -436,12 +482,27 @@ function AgencyReviews({
         ) : (
           <>
             <ul className="space-y-4">
-              {query.data!.items.map((review) => (
+              {(expanded
+                ? query.data!.items
+                : query.data!.items.slice(0, 3)
+              ).map((review) => (
                 <ReviewCard key={review.id} review={review} />
               ))}
             </ul>
 
-            {(page > 1 || hasNext) && (
+            {!expanded && total > 3 ? (
+              <div className="mt-5 flex justify-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setExpanded(true)}
+                >
+                  See all {total} reviews
+                </Button>
+              </div>
+            ) : null}
+
+            {expanded && (page > 1 || hasNext) && (
               <div className="mt-6 flex items-center justify-center gap-3">
                 <Button
                   variant="outline"
