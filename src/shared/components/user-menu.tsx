@@ -6,12 +6,10 @@ import { usePathname } from "next/navigation";
 import {
   Building2,
   CalendarRange,
-  CreditCard,
-  FileText,
-  Heart,
   LogOut,
+  Settings,
+  ShieldCheck,
   Store,
-  User as UserIcon,
   type LucideIcon,
 } from "lucide-react";
 import { useAuthStore } from "@/shared/auth/store";
@@ -33,6 +31,7 @@ export function UserMenu() {
   const isAgency = hasRole("agency_owner", "agency_staff");
   const isAdmin = hasRole("platform_admin");
   const inAgency = pathname.startsWith("/agency");
+  const inAdmin = pathname.startsWith("/admin");
 
   useEffect(() => {
     if (!open) return;
@@ -87,6 +86,9 @@ export function UserMenu() {
             </p>
           </div>
 
+          {/* Workspace switch. Agency people toggle agency⇄customer; admins
+              (root) toggle console⇄customer so they can rent as a customer —
+              they can't rent from inside the admin console. */}
           {isAgency ? (
             <div className="border-b border-border py-1">
               <MenuLink
@@ -96,29 +98,27 @@ export function UserMenu() {
                 {inAgency ? "Switch to customer" : "Switch to agency workspace"}
               </MenuLink>
             </div>
+          ) : isAdmin ? (
+            <div className="border-b border-border py-1">
+              <MenuLink
+                href={inAdmin ? "/" : "/admin"}
+                icon={inAdmin ? Store : ShieldCheck}
+              >
+                {inAdmin ? "Switch to customer" : "Switch to admin console"}
+              </MenuLink>
+            </div>
           ) : null}
 
+          {/* Lean account section. Documents, payment methods and favorites are
+              not listed here — they live behind "Account settings", which opens
+              the /account hub with its own settings sidebar. */}
           <div className="py-1">
             <MenuLink href="/account" icon={CalendarRange}>
               My rentals
             </MenuLink>
-            <MenuLink href="/account/profile" icon={UserIcon}>
-              Profile &amp; settings
+            <MenuLink href="/account/profile" icon={Settings}>
+              Account settings
             </MenuLink>
-            <MenuLink href="/account/favorites" icon={Heart}>
-              Favorites
-            </MenuLink>
-            <MenuLink href="/account/payment-methods" icon={CreditCard}>
-              Payment methods
-            </MenuLink>
-            <MenuLink href="/account/verification" icon={FileText}>
-              Documents
-            </MenuLink>
-            {isAdmin ? (
-              <MenuLink href="/admin" icon={Building2}>
-                Admin
-              </MenuLink>
-            ) : null}
           </div>
 
           <div className="border-t border-border py-1">
