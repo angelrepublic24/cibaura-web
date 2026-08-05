@@ -1,12 +1,135 @@
 import { Api } from "@/shared/api/client";
+import { getAccessToken, setAccessToken } from "@/shared/auth/token";
 import type {
+  AgencyVerificationStatus,
+  BookingState,
   CatalogMake,
   CatalogModel,
   City,
   Country,
+  Paginated,
   PlatformConfig,
 } from "@/shared/types/domain";
 import type { AgencyApplication } from "@/features/agencies/api";
+
+// ─────────────────────────────────────────────────────────────────────────
+// Console contract types (mirror the backend /admin console DTOs 1:1).
+// All money is INTEGER CENTS; dates are ISO strings; ranges half-open.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Per-state booking counts (all eight lifecycle states). */
+export interface AdminBookingStateCounts {
+  requested: number;
+  accepted: number;
+  active: number;
+  returned: number;
+  settled: number;
+  rejected: number;
+  cancelled: number;
+  expired: number;
+}
+
+/** GET /admin/overview — platform-wide dashboard snapshot. */
+export interface AdminOverview {
+  agencies: {
+    total: number;
+    verified: number;
+    pending: number;
+    rejected: number;
+  };
+  bookings: {
+    today: number;
+    thisMonth: number;
+    active: number;
+    byState: AdminBookingStateCounts;
+  };
+  revenue: {
+    platformBalanceCents: number;
+    currency: string;
+    thisMonthCents: number;
+    allTimeCents: number;
+  };
+  pending: {
+    applications: number;
+    verifications: number;
+  };
+}
+
+/** One row of GET /admin/agencies (directory across ALL statuses). */
+export interface AdminAgencyRow {
+  id: string;
+  name: string;
+  slug: string;
+  verificationStatus: AgencyVerificationStatus;
+  cities: string[];
+  branchCount: number;
+  carCount: number;
+  ratingAvg: number;
+  reviewCount: number;
+  createdAt: string;
+}
+
+/** One row of GET /admin/bookings (platform-wide orders). */
+export interface AdminBookingRow {
+  id: string;
+  agencyName: string;
+  customerName: string;
+  car: string;
+  start: string; // YYYY-MM-DD
+  end: string; // YYYY-MM-DD, exclusive
+  state: BookingState;
+  totalCents: number;
+  commissionCents: number;
+  currency: string;
+  createdAt: string;
+}
+
+/** One platform-wallet ledger entry in GET /admin/revenue. */
+export interface AdminRevenueEntry {
+  id: string;
+  amountCents: number; // signed: credit > 0, debit < 0
+  description: string;
+  bookingId?: string;
+  createdAt: string;
+}
+
+/** GET /admin/revenue — platform earnings + date-filtered ledger. */
+export interface AdminRevenue {
+  balanceCents: number;
+  currency: string;
+  thisMonthCents: number;
+  allTimeCents: number;
+  /** Newest first, date-filtered. */
+  entries: AdminRevenueEntry[];
+}
+
+/** Query params for the paginated agencies directory. */
+export interface AdminAgenciesQuery {
+  status?: AgencyVerificationStatus;
+  page?: number;
+  pageSize?: number;
+}
+
+/** Query params for the paginated platform orders list. */
+export interface AdminBookingsQuery {
+  from?: string; // YYYY-MM-DD
+  to?: string; // YYYY-MM-DD, exclusive
+  state?: BookingState;
+  page?: number;
+  pageSize?: number;
+}
+
+/** Query params for the platform revenue view. */
+export interface AdminRevenueQuery {
+  from?: string; // YYYY-MM-DD
+  to?: string; // YYYY-MM-DD, exclusive
+}
+
+/** PATCH /auth/change-password body (any authenticated user). */
+export interface ChangePasswordInput {
+  currentPassword: string;
+  newPassword: string;
+}
 
 /**
  * Platform admin API module (platform_admin only).
@@ -28,6 +151,13 @@ import type { AgencyApplication } from "@/features/agencies/api";
 export const adminKeys = {
   all: ["admin"] as const,
   config: () => ["admin", "config"] as const,
+  overview: () => ["admin", "overview"] as const,
+  agencies: (query: AdminAgenciesQuery = {}) =>
+    ["admin", "agencies", query] as const,
+  bookings: (query: AdminBookingsQuery = {}) =>
+    ["admin", "bookings", query] as const,
+  revenue: (query: AdminRevenueQuery = {}) =>
+    ["admin", "revenue", query] as const,
   makes: () => ["admin", "catalog", "makes"] as const,
   models: (makeId: string) => ["admin", "catalog", "models", makeId] as const,
   countries: () => ["admin", "geo", "countries"] as const,
@@ -46,6 +176,71 @@ export const AdminApi = {
   async setCommission(commissionPct: number): Promise<PlatformConfig> {
     const res = await Api.patch("/admin/config/commission", { commissionPct });
     return res.data;
+  },
+
+  // ── Console (platform-wide dashboards, all platform_admin-gated) ──────────
+
+  /** Platform-wide dashboard snapshot (agencies + bookings + revenue + queues). */
+  async getOverview(): Promise<AdminOverview> {
+    const res = await Api.get("/admin/overview");
+    return res.data;
+  },
+
+  /** Agencies directory across ALL statuses (paginated). */
+  async listAgencies(
+    query: AdminAgenciesQuery = {},
+  ): Promise<Paginated<AdminAgencyRow>> {
+    const res = await Api.get("/admin/agencies", {
+      params: {
+        status: query.status,
+        page: query.page,
+        pageSize: query.pageSize,
+      },
+    });
+    return res.data;
+  },
+
+  /** Platform-wide orders (bookings) by day/state (paginated). */
+  async listBookings(
+    query: AdminBookingsQuery = {},
+  ): Promise<Paginated<AdminBookingRow>> {
+    const res = await Api.get("/admin/bookings", {
+      params: {
+        from: query.from,
+        to: query.to,
+        state: query.state,
+        page: query.page,
+        pageSize: query.pageSize,
+      },
+    });
+    return res.data;
+  },
+
+  /** Platform earnings — wallet balance + date-filtered ledger (newest first). */
+  async getRevenue(query: AdminRevenueQuery = {}): Promise<AdminRevenue> {
+    const res = await Api.get("/admin/revenue", {
+      params: { from: query.from, to: query.to },
+    });
+    return res.data;
+  },
+
+  /**
+   * Change the current user's password (204 No Content on success).
+   *
+   * A wrong current password returns 401, and the shared axios interceptor
+   * treats every 401 as a dead session and clears the access token. Here the
+   * session is still valid — only the supplied current password was wrong — so
+   * we snapshot the token and restore it on failure, keeping the admin signed
+   * in to see the error and retry instead of being silently logged out.
+   */
+  async changePassword(input: ChangePasswordInput): Promise<void> {
+    const token = getAccessToken();
+    try {
+      await Api.patch("/auth/change-password", input);
+    } catch (err) {
+      if (token && !getAccessToken()) setAccessToken(token);
+      throw err;
+    }
   },
 
   // ── Catalog (read = public endpoints; write = admin-gated POSTs) ──────────

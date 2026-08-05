@@ -3,35 +3,37 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Percent,
-  Library,
-  MapPin,
+  LayoutDashboard,
+  Building2,
+  ClipboardList,
+  Wallet,
   ClipboardCheck,
   UserCheck,
+  Library,
+  MapPin,
   ShieldCheck,
+  Settings,
+  UserCircle,
 } from "lucide-react";
 import { RoleGuard } from "@/shared/auth/guard";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { href: "/admin", label: "Commission", icon: Percent },
-  { href: "/admin/catalog", label: "Catalog", icon: Library },
-  { href: "/admin/geo", label: "Geo", icon: MapPin },
+  { href: "/admin", label: "Overview", icon: LayoutDashboard },
+  { href: "/admin/agencies", label: "Agencies", icon: Building2 },
+  { href: "/admin/orders", label: "Orders", icon: ClipboardList },
+  { href: "/admin/revenue", label: "Revenue", icon: Wallet },
   {
     href: "/admin/agency-applications",
     label: "Applications",
     icon: ClipboardCheck,
   },
-  {
-    href: "/admin/verification",
-    label: "Customer KYC",
-    icon: UserCheck,
-  },
-  {
-    href: "/admin/roots",
-    label: "Admins",
-    icon: ShieldCheck,
-  },
+  { href: "/admin/verification", label: "Customer KYC", icon: UserCheck },
+  { href: "/admin/catalog", label: "Catalog", icon: Library },
+  { href: "/admin/geo", label: "Geo", icon: MapPin },
+  { href: "/admin/roots", label: "Admins", icon: ShieldCheck },
+  { href: "/admin/settings", label: "Settings", icon: Settings },
+  { href: "/admin/profile", label: "Profile", icon: UserCircle },
 ];
 
 /** /admin route group — platform admins only. */
