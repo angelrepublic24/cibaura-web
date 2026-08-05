@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { AdminApi, adminKeys } from "@/features/admin/api";
 import type { AdminBookingRow } from "@/features/admin/api";
@@ -281,8 +282,13 @@ export default function AdminOrdersPage() {
 function OrderRow({ booking: b }: { booking: AdminBookingRow }) {
   return (
     <li>
-      <Card>
-        <CardContent className="flex flex-wrap items-start justify-between gap-4 p-4">
+      <Link
+        href={`/admin/orders/${b.id}`}
+        className="block rounded-[var(--radius)] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring"
+        aria-label={`Open order for ${b.car}`}
+      >
+        <Card className="transition-colors hover:border-primary/40">
+          <CardContent className="flex flex-wrap items-start justify-between gap-4 p-4">
           {/* Who + what */}
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
@@ -320,7 +326,8 @@ function OrderRow({ booking: b }: { booking: AdminBookingRow }) {
             </p>
           </div>
         </CardContent>
-      </Card>
+        </Card>
+      </Link>
     </li>
   );
 }
