@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Percent, Library, MapPin, ClipboardCheck, UserCheck } from "lucide-react";
+import {
+  Percent,
+  Library,
+  MapPin,
+  ClipboardCheck,
+  UserCheck,
+  ShieldCheck,
+} from "lucide-react";
 import { RoleGuard } from "@/shared/auth/guard";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +27,11 @@ const NAV = [
     label: "Customer KYC",
     icon: UserCheck,
   },
+  {
+    href: "/admin/roots",
+    label: "Admins",
+    icon: ShieldCheck,
+  },
 ];
 
 /** /admin route group — platform admins only. */
@@ -29,6 +41,14 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+
+  // The accept-invite screen is a PUBLIC account-creation entry reached from an
+  // emailed link. It lives under /admin only for a tidy URL and must render for
+  // logged-out invitees — so it skips the platform-admin guard and the admin
+  // console chrome (nav/sidebar) entirely.
+  if (pathname === "/admin/accept-invite") {
+    return <>{children}</>;
+  }
 
   return (
     <RoleGuard allow={["platform_admin"]}>
