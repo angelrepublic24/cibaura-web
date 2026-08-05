@@ -15,9 +15,26 @@ import { Api } from "@/shared/api/client";
  * logs the raw token or the chosen password.
  */
 
+/** Roles that can be granted via an admin invite (extend for future sub-roles). */
+export const INVITE_ROLES = [
+  { value: "platform_admin", label: "Platform admin (Root)" },
+] as const;
+
+export type InviteRole = (typeof INVITE_ROLES)[number]["value"];
+
+export interface CreateInviteInput {
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: InviteRole;
+}
+
 export interface AdminInvite {
   id: string;
   email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
   invitedByName?: string | null;
   expiresAt: string;
   createdAt: string;
@@ -31,6 +48,9 @@ export interface CreatedInvite {
 
 export interface VerifiedInvite {
   email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
 }
 
 export const inviteKeys = {
@@ -42,8 +62,8 @@ export const inviteKeys = {
 export const InvitesApi = {
   // ── Admin-gated management (platform_admin only) ─────────────────────────
 
-  async create(email: string): Promise<CreatedInvite> {
-    const res = await Api.post("/admin/invites", { email });
+  async create(input: CreateInviteInput): Promise<CreatedInvite> {
+    const res = await Api.post("/admin/invites", input);
     return res.data;
   },
 

@@ -6,7 +6,9 @@ import { CheckCircle2, Clock } from "lucide-react";
 import {
   InvitesApi,
   inviteKeys,
+  INVITE_ROLES,
   type AdminInvite,
+  type InviteRole,
 } from "@/features/admin/invites";
 import { RoleGuard } from "@/shared/auth/guard";
 import {
@@ -18,6 +20,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent } from "@/shared/components/ui/card";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
+import { Select } from "@/shared/components/ui/select";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 
 /**
@@ -54,7 +57,10 @@ function daysUntil(iso: string): number {
 
 export default function AdminRootsPage() {
   const qc = useQueryClient();
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [role, setRole] = useState<InviteRole>(INVITE_ROLES[0].value);
   const [sentTo, setSentTo] = useState<string | null>(null);
 
   const listQuery = useQuery({
@@ -66,16 +72,25 @@ export default function AdminRootsPage() {
     qc.invalidateQueries({ queryKey: inviteKeys.all });
 
   const invite = useMutation({
-    mutationFn: () => InvitesApi.create(email.trim()),
+    mutationFn: () =>
+      InvitesApi.create({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.trim(),
+        role,
+      }),
     onSuccess: (created) => {
       setSentTo(created.email);
+      setFirstName("");
+      setLastName("");
       setEmail("");
       invalidate();
     },
   });
 
   const trimmed = email.trim();
-  const emailValid = EMAIL_RE.test(trimmed);
+  const canSubmit =
+    EMAIL_RE.test(trimmed) && !!firstName.trim() && !!lastName.trim();
   const invites = listQuery.data ?? [];
 
   return (
@@ -99,38 +114,91 @@ export default function AdminRootsPage() {
               Invite a new admin
             </h2>
             <form
-              className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end"
+              className="mt-3 space-y-3"
               onSubmit={(e) => {
                 e.preventDefault();
-                if (emailValid && !invite.isPending) {
+                if (canSubmit && !invite.isPending) {
                   invite.reset();
                   setSentTo(null);
                   invite.mutate();
                 }
               }}
             >
-              <div className="flex-1 space-y-1.5">
-                <Label htmlFor="invite-email" className="text-xs">
-                  Email address
-                </Label>
-                <Input
-                  id="invite-email"
-                  type="email"
-                  autoComplete="off"
-                  placeholder="new.admin@example.com"
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    if (sentTo) setSentTo(null);
-                    if (invite.isError) invite.reset();
-                  }}
-                  aria-invalid={trimmed.length > 0 && !emailValid}
-                />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="invite-first" className="text-xs">
+                    First name
+                  </Label>
+                  <Input
+                    id="invite-first"
+                    autoComplete="off"
+                    placeholder="Jane"
+                    value={firstName}
+                    onChange={(e) => {
+                      setFirstName(e.target.value);
+                      if (sentTo) setSentTo(null);
+                      if (invite.isError) invite.reset();
+                    }}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="invite-last" className="text-xs">
+                    Last name
+                  </Label>
+                  <Input
+                    id="invite-last"
+                    autoComplete="off"
+                    placeholder="Doe"
+                    value={lastName}
+                    onChange={(e) => {
+                      setLastName(e.target.value);
+                      if (sentTo) setSentTo(null);
+                      if (invite.isError) invite.reset();
+                    }}
+                  />
+                </div>
               </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="invite-email" className="text-xs">
+                    Email address
+                  </Label>
+                  <Input
+                    id="invite-email"
+                    type="email"
+                    autoComplete="off"
+                    placeholder="new.admin@example.com"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (sentTo) setSentTo(null);
+                      if (invite.isError) invite.reset();
+                    }}
+                    aria-invalid={trimmed.length > 0 && !EMAIL_RE.test(trimmed)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="invite-role" className="text-xs">
+                    Role
+                  </Label>
+                  <Select
+                    id="invite-role"
+                    value={role}
+                    onChange={(e) => setRole(e.target.value as InviteRole)}
+                  >
+                    {INVITE_ROLES.map((r) => (
+                      <option key={r.value} value={r.value}>
+                        {r.label}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              </div>
+
               <Button
                 type="submit"
-                disabled={!emailValid || invite.isPending}
-                className="sm:w-auto"
+                disabled={!canSubmit || invite.isPending}
               >
                 {invite.isPending ? "Sending…" : "Send invite"}
               </Button>
@@ -219,7 +287,10 @@ function InviteRow({
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
       <div className="min-w-0">
-        <p className="truncate font-medium text-foreground">{invite.email}</p>
+        <p className="truncate font-medium text-foreground">
+          {`${invite.firstName} ${invite.lastName}`.trim() || invite.email}
+        </p>
+        <p className="truncate text-xs text-muted-foreground">{invite.email}</p>
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
             <Clock className="h-3.5 w-3.5" />

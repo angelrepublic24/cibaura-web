@@ -8,7 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Eye, EyeOff } from "lucide-react";
-import { InvitesApi, inviteKeys } from "@/features/admin/invites";
+import { InvitesApi, inviteKeys, INVITE_ROLES } from "@/features/admin/invites";
 import { Button, buttonVariants } from "@/shared/components/ui/button";
 import {
   Card,
@@ -118,9 +118,17 @@ export function AcceptInviteForm({ token }: { token?: string }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>You&rsquo;ve been invited</CardTitle>
+        <CardTitle>
+          Welcome
+          {verify.data.firstName ? `, ${verify.data.firstName}` : ""}
+        </CardTitle>
         <CardDescription>
-          Set a password to activate the platform admin account for{" "}
+          You&rsquo;ve been invited as{" "}
+          <span className="font-medium text-foreground">
+            {INVITE_ROLES.find((r) => r.value === verify.data.role)?.label ??
+              verify.data.role}
+          </span>
+          . Set a password to activate your account for{" "}
           <span className="font-medium text-foreground">
             {verify.data.email}
           </span>
