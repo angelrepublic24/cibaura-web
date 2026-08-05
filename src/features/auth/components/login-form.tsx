@@ -42,7 +42,11 @@ export function LoginForm({ next }: { next?: string }) {
           : user.roles.includes("platform_admin")
             ? "/admin"
             : "/account";
-      router.push(next && next.startsWith("/") ? next : home);
+      // Only follow a SAME-ORIGIN internal path. Reject protocol-relative
+      // ("//evil.com") and backslash ("/\\evil.com", which browsers normalize
+      // to "//") forms that would open-redirect off-site after login.
+      const safeNext = next && /^\/(?![/\\])/.test(next) ? next : home;
+      router.push(safeNext);
     },
   });
 
