@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { setActiveQueryClient } from "@/shared/providers/query-client-registry";
+import { purgeLegacyTokenStorage } from "@/shared/auth/token";
 
 /**
  * App-wide React Query defaults (mirrors Beusun's provider):
@@ -40,6 +41,10 @@ export default function QueryProvider({
 
   // Expose the client so the auth store can clear it on login/logout.
   useEffect(() => setActiveQueryClient(client), [client]);
+
+  // Migration cleanliness: sessions moved to httpOnly cookies — make sure no
+  // returning browser keeps the pre-migration JWT readable in localStorage.
+  useEffect(() => purgeLegacyTokenStorage(), []);
 
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }

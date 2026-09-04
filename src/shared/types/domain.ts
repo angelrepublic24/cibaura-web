@@ -207,6 +207,12 @@ export interface Car {
   pricePerDayCents: number;
   /** First photo URL, or null when the car has none. */
   primaryPhoto: string | null;
+  /**
+   * ORDERED gallery URLs. Uploaded photos arrive as API paths
+   * (`/cars/photos/:photoId` — resolve via `resolveCarPhotoUrl`); legacy
+   * absolute URLs pass through. Empty when the car has no photos.
+   */
+  photos: string[];
   status: CarStatus; // public search is always "active"
 }
 
@@ -215,7 +221,6 @@ export interface Car {
  * branch's active delivery zones. Returned by `GET /cars/:id`.
  */
 export interface CarDetail extends Car {
-  photos: string[];
   branch: {
     id: string;
     name: string;
@@ -354,6 +359,57 @@ export interface Booking {
   };
   /** Reason for rejected/cancelled states (e.g. "no_longer_available"). */
   stateReason?: string;
+}
+
+/**
+ * Payment outcome of `POST /bookings` (wire `BookingPaymentDto`):
+ *  - `authorized`      — the card hold is live; nothing else to do.
+ *  - `requires_action` — the client MUST run the Stripe next-action (3DS)
+ *                        with `clientSecret`; a webhook then promotes the
+ *                        payment to authorized server-side (async).
+ *  - `failed`          — no hold; the request can never be accepted and is
+ *                        auto-rejected server-side.
+ */
+export type BookingPaymentStatus = "authorized" | "requires_action" | "failed";
+
+export interface BookingPayment {
+  status: BookingPaymentStatus;
+  /** Stripe PaymentIntent client secret — non-null ONLY for requires_action. */
+  clientSecret: string | null;
+}
+
+/** `POST /bookings` response: the booking + its real payment outcome. */
+export interface BookingWithPayment extends Booking {
+  payment: BookingPayment;
+}
+
+/**
+ * Full payment lifecycle as `GET /bookings/:id` may report it (backend
+ * `PaymentStatus` enum) — the detail read can surface any stage, not just
+ * the three creation outcomes.
+ */
+export type PaymentLifecycleStatus =
+  | BookingPaymentStatus
+  | "captured"
+  | "voided"
+  | "refunded"
+  | "capture_failed";
+
+export interface BookingDetailPayment {
+  status: PaymentLifecycleStatus;
+  /** Non-null ONLY while `requires_action` — the resume-3DS credential. */
+  clientSecret: string | null;
+}
+
+/**
+ * `GET /bookings/:id` response (wire `BookingDetailDto`). `payment` is
+ * present ONLY for the booking's OWNING CUSTOMER (never the agency side)
+ * and only when a Payment row exists (walk-ins have none). While it is
+ * `requires_action` it carries the client secret so the customer can RESUME
+ * a pending 3DS challenge after a page reload.
+ */
+export interface BookingDetail extends Booking {
+  payment?: BookingDetailPayment;
 }
 
 /** Availability response: the blocked windows in `[from, to)`. */

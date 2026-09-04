@@ -2,18 +2,17 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check } from "lucide-react";
 import { BookingsApi, bookingKeys } from "@/features/bookings/api";
 import { ChatPanel } from "@/features/bookings/components/chat-panel";
-import { AgenciesApi, agencyProfileKeys } from "@/features/agencies/api";
 import {
-  BOOKING_HAPPY_PATH,
-  BOOKING_TERMINAL_STATES,
-  type Booking,
-} from "@/shared/types/domain";
+  PricingCard,
+  StateTimeline,
+} from "@/features/bookings/components/booking-summary";
+import { useRequestPayment } from "@/features/bookings/use-request-payment";
+import { AgenciesApi, agencyProfileKeys } from "@/features/agencies/api";
+import type { Booking, BookingDetail as BookingDetailData } from "@/shared/types/domain";
 import { BookingStateBadge } from "@/shared/components/booking-state-badge";
 import { StarPicker, StarRating } from "@/shared/components/star-rating";
-import { formatMoneyCents, formatPct } from "@/shared/utils/money";
 import { formatIsoDate } from "@/shared/utils/dates";
 import { ErrorState, LoadingState } from "@/shared/components/states";
 import { Button } from "@/shared/components/ui/button";
@@ -24,7 +23,6 @@ import {
   CardTitle,
 } from "@/shared/components/ui/card";
 import { Textarea } from "@/shared/components/ui/textarea";
-import { cn } from "@/lib/utils";
 
 export function BookingDetail({ bookingId }: { bookingId: string }) {
   const query = useQuery({
@@ -82,6 +80,8 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
           <BookingStateBadge state={booking.state} />
         </div>
 
+        <PaymentNotice booking={booking} />
+
         <StateTimeline booking={booking} />
 
         <PricingCard booking={booking} />
@@ -96,98 +96,136 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
   );
 }
 
-/** Happy-path timeline with the current state highlighted; terminal
- *  branches (rejected/expired/cancelled) render as a banner instead. */
-function StateTimeline({ booking }: { booking: Booking }) {
-  const isTerminal = BOOKING_TERMINAL_STATES.includes(booking.state);
-  const currentIdx = BOOKING_HAPPY_PATH.indexOf(booking.state);
+/**
+ * Payment-status surface for the OWNING CUSTOMER — `booking.payment` is
+ * present only for them (`GET /bookings/:id`, wire `BookingDetailDto`).
+ *
+ *  - `requires_action` on a live request → prominent banner that RESUMES the
+ *    pending 3DS challenge (page was reloaded / closed mid-challenge) via the
+ *    SAME state machine the car-page request flow uses
+ *    (`use-request-payment`): Stripe next-action → "Verifying…" poll →
+ *    refetch on success.
+ *  - `failed` → honest terminal notice: no hold exists, nothing was charged,
+ *    the backend auto-rejects the request.
+ * Anything else (authorized/captured/…) needs no banner — the state
+ * timeline already tells the story.
+ */
+function PaymentNotice({ booking }: { booking: BookingDetailData }) {
+  const qc = useQueryClient();
+  const resume = useRequestPayment({
+    onAuthorized: () => {
+      // Fresh detail (payment flips to authorized, the secret is gone) +
+      // fresh lists — the request is now actionable by the agency.
+      qc.invalidateQueries({ queryKey: bookingKeys.detail(booking.id) });
+      qc.invalidateQueries({ queryKey: bookingKeys.all });
+    },
+  });
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Booking progress</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {isTerminal ? (
-          <div className="rounded-lg bg-red-50 p-3 text-sm text-red-800">
-            This booking ended as <strong>{booking.state}</strong>
-            {booking.stateReason ? ` — ${booking.stateReason}` : ""}.
-          </div>
-        ) : (
-          <ol className="flex flex-wrap items-center gap-2">
-            {BOOKING_HAPPY_PATH.map((state, i) => {
-              const done = i < currentIdx;
-              const current = i === currentIdx;
-              return (
-                <li key={state} className="flex items-center gap-2">
-                  <span
-                    className={cn(
-                      "flex h-7 w-7 items-center justify-center rounded-full border text-xs",
-                      done && "border-primary bg-primary text-primary-foreground",
-                      current && "border-primary text-primary",
-                      !done && !current && "border-border text-muted-foreground",
-                    )}
-                  >
-                    {done ? <Check className="h-4 w-4" /> : i + 1}
-                  </span>
-                  <span
-                    className={cn(
-                      "text-sm capitalize",
-                      current ? "font-semibold" : "text-muted-foreground",
-                    )}
-                  >
-                    {state}
-                  </span>
-                  {i < BOOKING_HAPPY_PATH.length - 1 ? (
-                    <span className="mx-1 h-px w-6 bg-border" />
-                  ) : null}
-                </li>
-              );
-            })}
-          </ol>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
+  const payment = booking.payment;
+  if (!payment) return null;
 
-/** Frozen server-side pricing snapshot, rendered verbatim. */
-function PricingCard({ booking }: { booking: Booking }) {
-  const p = booking.pricing;
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Price breakdown</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <dl className="space-y-1 text-sm">
-          <div className="flex justify-between">
-            <dt>
-              {p.days} day{p.days === 1 ? "" : "s"} x{" "}
-              {formatMoneyCents(p.ratePerDayCents, p.currency)}
-            </dt>
-            <dd>{formatMoneyCents(p.subtotalCents, p.currency)}</dd>
-          </div>
-          {p.deliveryFeeCents > 0 ? (
-            <div className="flex justify-between">
-              <dt>Delivery fee</dt>
-              <dd>{formatMoneyCents(p.deliveryFeeCents, p.currency)}</dd>
-            </div>
-          ) : null}
-          <div className="flex justify-between text-muted-foreground">
-            <dt>Service fee ({formatPct(p.commissionPct)})</dt>
-            <dd>{formatMoneyCents(p.commissionCents, p.currency)}</dd>
-          </div>
-          <div className="flex justify-between border-t border-border pt-1 font-semibold">
-            <dt>Total</dt>
-            <dd>{formatMoneyCents(p.totalCents, p.currency)}</dd>
-          </div>
-        </dl>
-        <p className="mt-2 text-xs text-muted-foreground">
-          Snapshot frozen at request time — computed by the server.
+  if (payment.status === "failed") {
+    // Relevant while the request is dying/dead from the failed authorize;
+    // later terminal states speak for themselves.
+    if (booking.state !== "requested" && booking.state !== "rejected") {
+      return null;
+    }
+    return (
+      <div
+        className="rounded-[var(--radius-sm)] border border-red-200 bg-red-50 p-4"
+        role="status"
+      >
+        <p className="text-sm font-semibold text-red-700">Payment failed</p>
+        <p className="mt-1 text-sm text-red-700">
+          Your card could not be authorized, so this request cannot proceed and
+          is rejected automatically. You have not been charged — any temporary
+          hold is released. You can request the car again with a different
+          card.
         </p>
-      </CardContent>
-    </Card>
+      </div>
+    );
+  }
+
+  // The resume window: a pending 3DS challenge on a still-open request.
+  if (payment.status !== "requires_action" || booking.state !== "requested") {
+    return null;
+  }
+
+  if (resume.phase.step === "failed") {
+    return (
+      <div
+        className="rounded-[var(--radius-sm)] border border-red-200 bg-red-50 p-4"
+        role="status"
+      >
+        <p className="text-sm font-semibold text-red-700">
+          Payment verification failed
+        </p>
+        <p className="mt-1 text-sm text-red-700">{resume.phase.message}</p>
+      </div>
+    );
+  }
+
+  if (resume.phase.step === "challenge" || resume.phase.step === "verifying") {
+    return (
+      <div
+        className="rounded-[var(--radius-sm)] border border-amber-200 bg-amber-50 p-4"
+        role="status"
+      >
+        <p className="text-sm font-semibold text-amber-900">
+          {resume.phase.step === "challenge"
+            ? "Bank verification in progress"
+            : "Verifying your payment…"}
+        </p>
+        <p className="mt-1 text-sm text-amber-800">
+          {resume.phase.step === "challenge"
+            ? "Complete the verification step in your bank's window. Keep this page open."
+            : "Verification passed — confirming the payment hold with the bank. This takes a few seconds."}
+        </p>
+      </div>
+    );
+  }
+
+  if (resume.phase.step === "authorized") {
+    return (
+      <div
+        className="rounded-[var(--radius-sm)] border border-emerald-200 bg-emerald-50 p-4"
+        role="status"
+      >
+        <p className="text-sm font-semibold text-emerald-700">
+          Payment verified — your request is now with the agency.
+        </p>
+      </div>
+    );
+  }
+
+  // idle → the resume entry point.
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-sm)] border border-amber-200 bg-amber-50 p-4">
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-amber-900">
+          Payment verification pending — complete it now
+        </p>
+        <p className="mt-1 text-sm text-amber-800">
+          Your bank requires a quick verification step before your booking
+          request can proceed. The agency cannot accept it until this is done.
+          You have not been charged yet.
+        </p>
+      </div>
+      <Button
+        size="sm"
+        onClick={() =>
+          resume.start({
+            id: booking.id,
+            payment: {
+              status: "requires_action",
+              clientSecret: payment.clientSecret,
+            },
+          })
+        }
+      >
+        Complete verification
+      </Button>
+    </div>
   );
 }
 

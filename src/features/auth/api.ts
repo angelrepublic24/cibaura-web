@@ -7,9 +7,17 @@ import type { Role, User } from "@/shared/types/domain";
  * Backend routes (NestJS, global prefix `api/` applied by the axios base URL):
  *  - POST /auth/register  { email, password, name, phone? } -> AuthResult
  *  - POST /auth/login     { email, password }               -> AuthResult
- *  - POST /auth/logout    (Bearer)                           -> 204
- *  - GET  /auth/me        (Bearer)                           -> compact auth user
- *  - GET  /users/me       (Bearer)                           -> full User entity
+ *  - POST /auth/logout    (cookie session)                   -> 204 + clears cookies
+ *  - GET  /auth/me        (cookie session)                   -> compact auth user
+ *  - GET  /users/me       (cookie session)                   -> full User entity
+ *  - PATCH /users/me      (cookie session) { name?, phone? } -> updated User
+ *      (safe profile fields only — email/roles/password have guarded flows)
+ *
+ * SESSION: login/register/refresh responses still carry `accessToken`/
+ * `refreshToken` in the body for the Expo app, but the web IGNORES them —
+ * the same responses set the httpOnly cookies (`cibaura_access` /
+ * `cibaura_refresh`) that authenticate every later request. Only the `user`
+ * snapshot leaves this module.
  *
  * The backend user carries a single `name`; this module maps it to the web's
  * `fullName` at the boundary so components keep their existing shape. The wire
@@ -45,6 +53,10 @@ interface BackendUser {
   createdAt?: string;
 }
 
+/**
+ * Wire shape of login/register. The token fields exist for the Expo app;
+ * the web deliberately never reads them (cookies carry the session).
+ */
 interface BackendAuthResult {
   accessToken: string;
   refreshToken: string;
@@ -53,8 +65,6 @@ interface BackendAuthResult {
 
 export interface AuthResponse {
   user: User;
-  accessToken: string;
-  refreshToken: string;
 }
 
 /** Map the backend user (`name`) onto the web `User` (`fullName`). */
@@ -78,20 +88,14 @@ export const AuthApi = {
       name: input.fullName,
       phone: input.phone,
     });
-    return {
-      user: toUser(res.data.user),
-      accessToken: res.data.accessToken,
-      refreshToken: res.data.refreshToken,
-    };
+    // Session = httpOnly cookies set by this response; body tokens ignored.
+    return { user: toUser(res.data.user) };
   },
 
   async login(input: LoginInput): Promise<AuthResponse> {
     const res = await Api.post<BackendAuthResult>("/auth/login", input);
-    return {
-      user: toUser(res.data.user),
-      accessToken: res.data.accessToken,
-      refreshToken: res.data.refreshToken,
-    };
+    // Session = httpOnly cookies set by this response; body tokens ignored.
+    return { user: toUser(res.data.user) };
   },
 
   async logout(): Promise<void> {
@@ -102,6 +106,22 @@ export const AuthApi = {
     // `/users/me` returns the full entity (name/phone/createdAt); mapped to the
     // web `User` shape. (`/auth/me` returns a leaner user without phone.)
     const res = await Api.get<BackendUser>("/users/me");
+    return toUser(res.data);
+  },
+
+  /**
+   * Update the caller's own profile — the SAFE fields only (name/phone; the
+   * backend rejects anything else). `phone: null` clears it. Returns the
+   * updated user, already mapped to the web shape.
+   */
+  async updateMe(input: {
+    fullName: string;
+    phone?: string | null;
+  }): Promise<User> {
+    const res = await Api.patch<BackendUser>("/users/me", {
+      name: input.fullName,
+      phone: input.phone ?? null,
+    });
     return toUser(res.data);
   },
 };

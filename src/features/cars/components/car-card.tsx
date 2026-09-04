@@ -5,12 +5,14 @@ import Image from "next/image";
 import { Users, Gauge, Fuel } from "lucide-react";
 import type { Car } from "@/shared/types/domain";
 import { carPhoto } from "@/features/cars/photos";
+import { CarPhotoPlaceholder } from "@/features/cars/components/car-photo-placeholder";
 import { formatMoneyCents } from "@/shared/utils/money";
 import { Badge } from "@/shared/components/ui/badge";
 
 /**
  * Photo-forward car card — the primary unit of the marketplace grid.
- * Large image up top (real photo or a category stock fallback), then the
+ * Large image up top (the car's REAL photo; a branded neutral placeholder
+ * when the agency hasn't uploaded any — never stock), then the
  * make/model/year, a linked agency name, key specs as quiet chips and a
  * prominent price/day. Reused by search results AND the agency profile.
  *
@@ -27,18 +29,23 @@ export function CarCard({
   href: string;
   agencyHref?: string;
 }) {
+  const photo = carPhoto(car);
   return (
     <div className="group relative flex flex-col overflow-hidden rounded-[var(--radius)] border border-border bg-surface shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
       <Link href={href} className="block">
         <div className="relative aspect-[4/3] overflow-hidden bg-muted">
-          <Image
-            src={carPhoto(car)}
-            alt={`${car.make.name} ${car.model.name}`}
-            fill
-            sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
-            className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-            unoptimized
-          />
+          {photo ? (
+            <Image
+              src={photo}
+              alt={`${car.make.name} ${car.model.name}`}
+              fill
+              sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
+              className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+              unoptimized
+            />
+          ) : (
+            <CarPhotoPlaceholder />
+          )}
           <div className="absolute left-3 top-3">
             <Badge
               variant="secondary"

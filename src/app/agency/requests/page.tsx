@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AgencyApi, agencyKeys } from "@/features/agency/api";
-import { usePermission } from "@/features/agency/use-permission";
-import { BOOKING_STATES, type Booking, type BookingState } from "@/shared/types/domain";
+import { useQuery } from "@tanstack/react-query";
+import { AgencyApi, agencyKeys, type AgencyRequest } from "@/features/agency/api";
+import { BookingLifecycleActions } from "@/features/agency/components/booking-lifecycle-actions";
+import { RequestDeadline } from "@/features/agency/components/request-deadline";
+import { BOOKING_STATES, type BookingState } from "@/shared/types/domain";
 import { BookingStateBadge } from "@/shared/components/booking-state-badge";
 import { formatMoneyCents } from "@/shared/utils/money";
 import { formatIsoDate } from "@/shared/utils/dates";
@@ -16,20 +17,18 @@ import {
 } from "@/shared/components/states";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent } from "@/shared/components/ui/card";
-import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
 
 /**
  * /agency/requests — the booking inbox. Defaults to `requested` (pending
- * accept/reject); accepting runs the server-side transaction that inserts the
- * occupancy row + captures payment atomically (it can come back rejected as
- * `no_longer_available` if the car was taken meanwhile — the server owns that).
+ * accept/reject; each pending row shows its auto-expiry countdown). Later
+ * states surface the follow-up lifecycle actions (pickup → return → settle)
+ * via the shared <BookingLifecycleActions/>. Accepting runs the server-side
+ * transaction that inserts the occupancy row + captures payment atomically
+ * (it can come back rejected as `no_longer_available` — the server owns that).
  */
 export default function AgencyRequestsPage() {
-  const { can } = usePermission();
-  const canHandle = can("bookings:handle");
-
   const [state, setState] = useState<BookingState>("requested");
   const [page, setPage] = useState(1);
 
@@ -82,13 +81,7 @@ export default function AgencyRequestsPage() {
           <>
             <div className="space-y-3">
               {query.data!.items.map((b) => (
-                <RequestRow
-                  key={b.id}
-                  booking={b}
-                  listState={state}
-                  listPage={page}
-                  canHandle={canHandle}
-                />
+                <RequestRow key={b.id} booking={b} />
               ))}
             </div>
 
@@ -118,54 +111,21 @@ export default function AgencyRequestsPage() {
   );
 }
 
-function RequestRow({
-  booking,
-  listState,
-  listPage,
-  canHandle,
-}: {
-  booking: Booking;
-  listState: BookingState;
-  listPage: number;
-  canHandle: boolean;
-}) {
-  const qc = useQueryClient();
-  const [rejecting, setRejecting] = useState(false);
-  const [reason, setReason] = useState("");
-
-  const invalidate = () => {
-    qc.invalidateQueries({ queryKey: agencyKeys.requests({ state: listState, page: listPage }) });
-    qc.invalidateQueries({ queryKey: agencyKeys.all });
-  };
-
-  const accept = useMutation({
-    mutationFn: () => AgencyApi.acceptRequest(booking.id),
-    onSuccess: invalidate,
-  });
-
-  const reject = useMutation({
-    mutationFn: () => AgencyApi.rejectRequest(booking.id, reason.trim() || "declined"),
-    onSuccess: () => {
-      setRejecting(false);
-      setReason("");
-      invalidate();
-    },
-  });
-
-  const pending = booking.state === "requested" && canHandle;
-  const busy = accept.isPending || reject.isPending;
-
+function RequestRow({ booking }: { booking: AgencyRequest }) {
   return (
     <Card>
       <CardContent className="space-y-3 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <Link
-              href={`/account/bookings/${booking.id}`}
-              className="font-medium hover:underline"
-            >
-              {booking.car.make} {booking.car.model} {booking.car.year}
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href={`/agency/requests/${booking.id}`}
+                className="font-medium hover:underline"
+              >
+                {booking.car.make} {booking.car.model} {booking.car.year}
+              </Link>
+              <RequestDeadline expiresAt={booking.expiresAt} />
+            </div>
             <p className="text-sm text-muted-foreground">
               {formatIsoDate(booking.period.start)} →{" "}
               {formatIsoDate(booking.period.end)} ·{" "}
@@ -185,62 +145,7 @@ function RequestRow({
           </div>
         </div>
 
-        {pending ? (
-          rejecting ? (
-            <div className="space-y-2 rounded-lg border border-border p-3">
-              <Label htmlFor={`reason-${booking.id}`}>Reason for rejection</Label>
-              <Input
-                id={`reason-${booking.id}`}
-                placeholder="e.g. Car unavailable for these dates"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-              />
-              <div className="flex gap-2">
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  disabled={busy}
-                  onClick={() => reject.mutate()}
-                >
-                  {reject.isPending ? "Rejecting…" : "Confirm reject"}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={busy}
-                  onClick={() => setRejecting(false)}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                disabled={busy}
-                onClick={() => accept.mutate()}
-              >
-                {accept.isPending ? "Accepting…" : "Accept"}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={busy}
-                onClick={() => setRejecting(true)}
-              >
-                Reject
-              </Button>
-            </div>
-          )
-        ) : null}
-
-        {accept.isError ? (
-          <p className="text-sm text-red-600">{accept.error.message}</p>
-        ) : null}
-        {reject.isError ? (
-          <p className="text-sm text-red-600">{reject.error.message}</p>
-        ) : null}
+        <BookingLifecycleActions booking={booking} />
       </CardContent>
     </Card>
   );
