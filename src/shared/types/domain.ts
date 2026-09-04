@@ -75,7 +75,11 @@ export interface Period {
 
 // ------------------------------------------------------------------ supply
 
-export type AgencyVerificationStatus = "pending" | "verified" | "rejected";
+export type AgencyVerificationStatus =
+  | "pending"
+  | "verified"
+  | "rejected"
+  | "suspended";
 
 export interface Agency {
   id: string;
@@ -84,6 +88,8 @@ export interface Agency {
   description?: string;
   logoUrl?: string;
   verificationStatus: AgencyVerificationStatus;
+  /** Set when the application was rejected — shown on the access-revoked screen. */
+  verificationReason?: string | null;
   createdAt: string;
 }
 

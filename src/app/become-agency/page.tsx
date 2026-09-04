@@ -14,6 +14,10 @@ import {
 import { useMe } from "@/features/auth/hooks";
 import { useAuthStore } from "@/shared/auth/store";
 import { AgencyApi, agencyKeys } from "@/features/agency/api";
+import {
+  AgencyAccessRevoked,
+  isRevokedStatus,
+} from "@/features/agency/access-revoked";
 import { ApplyForm } from "@/features/agencies/components/apply-form";
 import { LoadingState } from "@/shared/components/states";
 import { buttonVariants } from "@/shared/components/ui/button";
@@ -123,7 +127,8 @@ export default function BecomeAgencyPage() {
   const isMember = hasRole("agency_owner", "agency_staff");
 
   // For an existing member, the verification status decides what they see:
-  // verified → dashboard; pending/rejected → the upload / re-submit step.
+  // verified → dashboard; pending → the upload step; rejected/suspended →
+  // the access-revoked state (rejection is terminal — no re-submit).
   const sessionQuery = useQuery({
     queryKey: agencyKeys.session(),
     queryFn: () => AgencyApi.session(),
@@ -195,7 +200,16 @@ export default function BecomeAgencyPage() {
           </Card>
         );
       }
-      // Pending or rejected owner → let them upload / re-submit documents.
+      if (isRevokedStatus(verificationStatus)) {
+        // Owner rule: a rejected agency lost the platform — the backend 403s
+        // document upload/list too, so the old "re-submit" flow is gone.
+        return (
+          <AgencyAccessRevoked
+            reason={sessionQuery.data?.agency.verificationReason}
+          />
+        );
+      }
+      // Pending owner → let them upload documents.
       return <ApplyForm alreadyApplied status={verificationStatus} />;
     }
     // Plain customer → the full application flow.
