@@ -63,7 +63,7 @@ const BENEFITS = [
 ];
 
 const STEPS = [
-  { n: 1, title: "Apply", body: "Tell us about your agency and upload a couple of documents." },
+  { n: 1, title: "Apply", body: "Tell us about your agency, upload a couple of documents and sign the host agreement." },
   { n: 2, title: "Get verified", body: "Our team reviews your application — usually within a few business days." },
   { n: 3, title: "List & earn", body: "Add your cars, set your prices, and start receiving booking requests." },
 ];
@@ -115,6 +115,13 @@ function ValueProp() {
             </div>
           ))}
         </div>
+        <p className="mt-4 text-sm text-muted-foreground">
+          Renting out your own car, not running a business?{" "}
+          <Link href="/become-host" className="font-medium text-primary hover:underline">
+            Become a private host instead
+          </Link>
+          .
+        </p>
       </div>
     </section>
   );

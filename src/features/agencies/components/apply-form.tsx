@@ -1,14 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { FilePenLine } from "lucide-react";
 import {
   AgenciesApi,
   applyKeys,
   type AgencyApplication,
-  type AgencyDocumentType,
   type ApplyAgencyInput,
 } from "@/features/agencies/api";
+import { AgencyApi, agencyKeys } from "@/features/agency/api";
+import {
+  AgencyDocumentUploader,
+  agencyDocumentTypeLabel,
+  formatUploadedDate,
+  type RequiredAgencyDocument,
+} from "@/features/agencies/components/agency-document-uploader";
+import {
+  HostAgreementSigner,
+  HostAgreementSignedSummary,
+} from "@/features/agencies/components/host-agreement-signer";
 import type { AgencyVerificationStatus } from "@/shared/types/domain";
 import {
   EmptyState,
@@ -28,11 +40,12 @@ import { Label } from "@/shared/components/ui/label";
 import { Textarea } from "@/shared/components/ui/textarea";
 
 /**
- * The two-step "apply as an agency" flow for a signed-in customer.
+ * The three-step "apply as an agency" flow for a signed-in customer.
  *
  *   Step 1 (form)      -> AgenciesApi.apply(...)  submits the KYC application.
- *   Step 2 (documents) -> uploads business_registration + owner_id and shows
- *                         the "pending review" state.
+ *   Step 2 (documents) -> uploads business_registration + owner_id.
+ *   Step 3 (agreement) -> signs the host agreement (ADR-0010) — required
+ *                         before any car can be published.
  *
  * The server is the real authority — it re-validates every field and every
  * upload. This component only shapes input and surfaces the exact server
@@ -40,16 +53,12 @@ import { Textarea } from "@/shared/components/ui/textarea";
  *
  * On a return visit (application already submitted) the applicant's documents
  * come back non-empty, so we skip the form and land them on the documents /
- * pending step.
+ * pending step, with the agreement status shown alongside.
  */
 
-type Step = "form" | "documents";
+type Step = "form" | "documents" | "agreement";
 
-const REQUIRED_DOCS: {
-  type: Extract<AgencyDocumentType, "business_registration" | "owner_id">;
-  label: string;
-  hint: string;
-}[] = [
+const REQUIRED_DOCS: RequiredAgencyDocument[] = [
   {
     type: "business_registration",
     label: "Business registration",
@@ -61,22 +70,6 @@ const REQUIRED_DOCS: {
     hint: "Government-issued ID of the owner named above.",
   },
 ];
-
-const DOC_TYPE_LABELS: Record<string, string> = {
-  business_registration: "Business registration",
-  owner_id: "Owner ID",
-  other: "Other document",
-};
-
-function formatUploaded(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
 
 function StatusBadge({ status }: { status: AgencyVerificationStatus }) {
   if (status === "verified") return <Badge variant="success">Verified</Badge>;
@@ -100,6 +93,7 @@ export function ApplyForm({
 
   const [step, setStep] = useState<Step>(alreadyApplied ? "documents" : "form");
   const [application, setApplication] = useState<AgencyApplication | null>(null);
+  const isMember = alreadyApplied || application !== null;
 
   // Application form fields (controlled — keeps validation simple).
   const [name, setName] = useState("");
@@ -115,6 +109,17 @@ export function ApplyForm({
     queryKey: applyKeys.myDocuments(),
     queryFn: AgenciesApi.myDocuments,
   });
+
+  // Host agreement status — only meaningful once the agency exists.
+  const agreementQuery = useQuery({
+    queryKey: agencyKeys.hostAgreement(),
+    queryFn: AgencyApi.hostAgreement,
+    enabled: isMember,
+  });
+  const agreementSigned =
+    agreementQuery.isSuccess &&
+    agreementQuery.data.signed !== null &&
+    !agreementQuery.data.resignRequired;
 
   // If they already applied on a previous visit their documents come back
   // non-empty — jump straight to the documents / pending step. Errors here are
@@ -135,14 +140,6 @@ export function ApplyForm({
     onSuccess: (app) => {
       setApplication(app);
       setStep("documents");
-      qc.invalidateQueries({ queryKey: applyKeys.myDocuments() });
-    },
-  });
-
-  const upload = useMutation({
-    mutationFn: ({ file, type }: { file: File; type: AgencyDocumentType }) =>
-      AgenciesApi.uploadDocument(file, type),
-    onSuccess: () => {
       qc.invalidateQueries({ queryKey: applyKeys.myDocuments() });
     },
   });
@@ -181,19 +178,10 @@ export function ApplyForm({
     });
   }
 
-  function onPick(
-    type: AgencyDocumentType,
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) {
-    const file = e.target.files?.[0];
-    // Reset the input so the same file can be re-picked (e.g. after an error).
-    e.target.value = "";
-    if (!file) return;
-    upload.mutate({ file, type });
-  }
-
   const docs = documentsQuery.data ?? [];
-  const docByType = (t: string) => docs.find((d) => d.type === t);
+  const requiredUploaded = REQUIRED_DOCS.every((r) =>
+    docs.some((d) => d.type === r.type),
+  );
   // For a returning owner (alreadyApplied) `application` is null, so fall back
   // to the status passed by the page (from the agency session).
   const effectiveStatus: AgencyVerificationStatus =
@@ -203,14 +191,17 @@ export function ApplyForm({
   const steps: { key: Step; label: string }[] = [
     { key: "form", label: "Your details" },
     { key: "documents", label: "Documents" },
+    { key: "agreement", label: "Host agreement" },
   ];
+  const stepIndex = steps.findIndex((s) => s.key === step);
 
   return (
     <div className="space-y-6">
-      <ol className="flex items-center gap-3 text-sm">
+      <ol className="flex flex-wrap items-center gap-3 text-sm">
         {steps.map((s, i) => {
           const active = s.key === step;
-          const done = step === "documents" && s.key === "form";
+          const done =
+            i < stepIndex || (s.key === "agreement" && agreementSigned);
           return (
             <li key={s.key} className="flex items-center gap-3">
               <span className="flex items-center gap-2">
@@ -224,7 +215,7 @@ export function ApplyForm({
                         : "bg-muted text-muted-foreground")
                   }
                 >
-                  {done ? "✓" : i + 1}
+                  {done && !active ? "✓" : i + 1}
                 </span>
                 <span
                   className={
@@ -372,7 +363,7 @@ export function ApplyForm({
             </form>
           </CardContent>
         </Card>
-      ) : (
+      ) : step === "documents" ? (
         <div className="space-y-6">
           {/* Pending / status banner */}
           <Card className="border-accent-soft-foreground/15 bg-accent-soft">
@@ -403,48 +394,8 @@ export function ApplyForm({
                 Upload a clear photo or PDF of each.
               </p>
             </CardHeader>
-            <CardContent className="space-y-5">
-              {REQUIRED_DOCS.map(({ type, label, hint }) => {
-                const existing = docByType(type);
-                const uploadingThis =
-                  upload.isPending && upload.variables?.type === type;
-                const errorThis =
-                  upload.isError && upload.variables?.type === type;
-                return (
-                  <div key={type} className="space-y-1.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <Label htmlFor={`doc-${type}`}>{label}</Label>
-                      {existing ? (
-                        <Badge variant="success">Uploaded</Badge>
-                      ) : (
-                        <Badge variant="secondary">Required</Badge>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground">{hint}</p>
-                    <input
-                      id={`doc-${type}`}
-                      type="file"
-                      accept="application/pdf,image/*"
-                      disabled={uploadingThis}
-                      onChange={(e) => onPick(type, e)}
-                      className="block w-full cursor-pointer rounded-[var(--radius-sm)] border border-border bg-surface text-sm text-muted-foreground shadow-sm transition-colors hover:border-border-strong file:mr-3 file:cursor-pointer file:border-0 file:border-r file:border-border file:bg-muted file:px-4 file:py-2.5 file:text-sm file:font-medium file:text-foreground hover:file:bg-border disabled:cursor-not-allowed disabled:opacity-50"
-                    />
-                    {uploadingThis ? (
-                      <p className="text-xs text-muted-foreground">Uploading…</p>
-                    ) : existing ? (
-                      <p className="text-xs text-muted-foreground">
-                        Current: {existing.filename}. Pick a new file to replace
-                        it.
-                      </p>
-                    ) : null}
-                    {errorThis ? (
-                      <p className="text-sm text-destructive">
-                        {(upload.error as Error).message}
-                      </p>
-                    ) : null}
-                  </div>
-                );
-              })}
+            <CardContent>
+              <AgencyDocumentUploader required={REQUIRED_DOCS} existing={docs} />
             </CardContent>
           </Card>
 
@@ -482,8 +433,8 @@ export function ApplyForm({
                           {d.filename}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {DOC_TYPE_LABELS[d.type] ?? d.type} ·{" "}
-                          {formatUploaded(d.uploadedAt)}
+                          {agencyDocumentTypeLabel(d.type)} ·{" "}
+                          {formatUploadedDate(d.uploadedAt)}
                         </p>
                       </div>
                       <Badge variant="secondary">{d.contentType}</Badge>
@@ -494,11 +445,73 @@ export function ApplyForm({
             </CardContent>
           </Card>
 
+          {/* Host agreement hand-off */}
+          <Card>
+            <CardContent className="flex flex-wrap items-center justify-between gap-3 p-5">
+              <div className="min-w-0">
+                <p className="flex items-center gap-2 font-medium text-foreground">
+                  <FilePenLine className="h-4 w-4 text-primary" />
+                  Host agreement
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {agreementSigned
+                    ? "Signed — nothing else to do here."
+                    : "Sign the platform's host agreement now so your cars can go live the moment you are verified."}
+                </p>
+              </div>
+              {agreementSigned ? (
+                <Badge variant="success">Signed</Badge>
+              ) : (
+                <Button onClick={() => setStep("agreement")}>
+                  {requiredUploaded ? "Continue" : "Sign now"}
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+
           <p className="text-sm text-muted-foreground">
             We&apos;ll notify you once your agency has been reviewed. Once
             verified, you&apos;ll get access to the agency dashboard to add your
             cars.
           </p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-display text-base">
+                Host agreement
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                The association agreement between you and the platform: what
+                you commit to as a host, how bookings, deposits, cancellations
+                and payouts work. Read it, type your name and sign.
+              </p>
+            </CardHeader>
+            <CardContent>
+              {agreementSigned && agreementQuery.data?.signed ? (
+                <HostAgreementSignedSummary document={agreementQuery.data.signed} />
+              ) : (
+                <HostAgreementSigner />
+              )}
+            </CardContent>
+          </Card>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="outline" onClick={() => setStep("documents")}>
+              Back to documents
+            </Button>
+            {agreementSigned ? (
+              <p className="text-sm text-muted-foreground">
+                You&apos;re all set. We&apos;ll email you once your agency is
+                verified — you can also check the{" "}
+                <Link href="/agency" className="text-primary underline">
+                  dashboard
+                </Link>
+                .
+              </p>
+            ) : null}
+          </div>
         </div>
       )}
     </div>
