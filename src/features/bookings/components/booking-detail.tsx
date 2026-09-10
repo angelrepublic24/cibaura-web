@@ -1,18 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Clock,
-  FileSignature,
-  MapPin,
-  Phone,
-  XCircle,
-} from "lucide-react";
-import { BookingsApi, bookingKeys } from "@/features/bookings/api";
+import { Clock, MapPin, Phone, XCircle } from "lucide-react";
+import { bookingKeys } from "@/features/bookings/api";
+import { useBookingDetail } from "@/features/bookings/hooks";
+import { AgreementCard } from "@/features/bookings/components/agreement-card";
 import { ChatPanel } from "@/features/bookings/components/chat-panel";
 import { CancelBookingDialog } from "@/features/bookings/components/cancel-booking-dialog";
+import { ClaimResponseCard } from "@/features/bookings/components/claim-response-card";
+import { DepositBanner } from "@/features/bookings/components/deposit-banner";
+import { InspectionsSection } from "@/features/bookings/components/inspections-section";
+import { SettlementCard } from "@/features/bookings/components/settlement-card";
 import {
   PricingCard,
   StateTimeline,
@@ -24,12 +23,11 @@ import { formatDays } from "@/features/legal/components/cancellation-policy";
 import {
   BOOKING_TERMINAL_STATES,
   type Booking,
-  type BookingAgreement,
   type BookingDetail as BookingDetailData,
 } from "@/shared/types/domain";
 import { BookingStateBadge } from "@/shared/components/booking-state-badge";
 import { StarPicker, StarRating } from "@/shared/components/star-rating";
-import { formatIsoDate } from "@/shared/utils/dates";
+import { formatDateTime, formatIsoDate } from "@/shared/utils/dates";
 import { closedBookingReason } from "@/shared/utils/booking-reasons";
 import { ErrorState, LoadingState } from "@/shared/components/states";
 import { Button } from "@/shared/components/ui/button";
@@ -42,10 +40,7 @@ import {
 import { Textarea } from "@/shared/components/ui/textarea";
 
 export function BookingDetail({ bookingId }: { bookingId: string }) {
-  const query = useQuery({
-    queryKey: bookingKeys.detail(bookingId),
-    queryFn: () => BookingsApi.findById(bookingId),
-  });
+  const query = useBookingDetail(bookingId);
 
   if (query.isLoading) return <LoadingState label="Loading booking…" />;
   if (query.isError) {
@@ -94,11 +89,22 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
           </>
         )}
 
+        {/* Action-first ordering: what needs the customer NOW (deposit
+            verification, inspection confirmation, claim response) sits
+            above the reference cards. */}
+        <DepositBanner booking={booking} />
+
+        <InspectionsSection booking={booking} />
+
+        <ClaimResponseCard booking={booking} />
+
+        <SettlementCard booking={booking} />
+
         <PickupCard booking={booking} />
 
         <PricingCard booking={booking} />
 
-        <AgreementCard agreement={booking.agreement} />
+        <AgreementCard booking={booking} />
 
         <ReviewSection booking={booking} />
 
@@ -155,7 +161,7 @@ function ClosedBookingNotice({ booking }: { booking: Booking }) {
       ? "The hold on your card was released — you have not been charged. You can request another car for the same dates."
       : booking.state === "expired"
         ? "It was not accepted before the deadline, so it closed automatically and the hold on your card was released. Nothing was charged."
-        : "Any refund follows the cancellation policy in effect at the time and goes back to the original card within a few business days; a released hold never shows as a charge.";
+        : "Any refund follows the cancellation policy in effect at the time and goes back to the original card within a few business days; a released hold never shows as a charge. The settlement card below shows the exact figures.";
 
   return (
     <div
@@ -265,110 +271,6 @@ function PickupCard({ booking }: { booking: Booking }) {
               </dl>
             ) : null}
           </>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-/**
- * The frozen rental agreement (ADR-0007): what the customer accepted, who
- * they were and the car's plate at request time. Absent for bookings made
- * before the snapshot existed (and for walk-ins).
- */
-function AgreementCard({ agreement }: { agreement: BookingAgreement | null }) {
-  const [showConditions, setShowConditions] = useState(false);
-  if (!agreement) return null;
-
-  const acceptedAt = new Date(agreement.acceptedAt);
-  const acceptedLabel = Number.isNaN(acceptedAt.getTime())
-    ? agreement.acceptedAt
-    : acceptedAt.toLocaleString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      });
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <FileSignature className="h-4 w-4" />
-          Rental agreement
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3 text-sm">
-        <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-              Terms accepted
-            </dt>
-            <dd className="text-foreground">
-              <Link
-                href="/legal/terms"
-                className="text-primary underline-offset-2 hover:underline"
-              >
-                Version {agreement.termsVersion}
-              </Link>{" "}
-              <span className="text-muted-foreground">on {acceptedLabel}</span>
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-              Renter
-            </dt>
-            <dd className="text-foreground">{agreement.renter.fullName}</dd>
-          </div>
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-              Driver&apos;s license
-            </dt>
-            <dd className="text-foreground">
-              {agreement.renter.licenseMasked}
-              {agreement.renter.licenseExpiry ? (
-                <span className="text-muted-foreground">
-                  {" "}
-                  · valid until {formatIsoDate(agreement.renter.licenseExpiry)}
-                </span>
-              ) : null}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-              Vehicle plate
-            </dt>
-            <dd className="text-foreground">
-              {agreement.car.plate ?? (
-                <span className="text-muted-foreground">Not recorded</span>
-              )}
-            </dd>
-          </div>
-        </dl>
-
-        {agreement.agencyConditions ? (
-          <div>
-            <button
-              type="button"
-              className="text-xs font-medium text-primary underline-offset-2 hover:underline"
-              aria-expanded={showConditions}
-              onClick={() => setShowConditions((v) => !v)}
-            >
-              {showConditions
-                ? "Hide agency conditions"
-                : "Show the agency conditions you accepted"}
-            </button>
-            {showConditions ? (
-              <p className="mt-2 whitespace-pre-line rounded-[var(--radius-sm)] bg-muted/60 p-3 leading-relaxed text-muted-foreground">
-                {agreement.agencyConditions}
-              </p>
-            ) : null}
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            The agency had no additional conditions at request time.
-          </p>
         )}
       </CardContent>
     </Card>
@@ -611,14 +513,18 @@ function ReviewSection({ booking }: { booking: Booking }) {
 /**
  * Cancellation entry point:
  *  - `requested` / `accepted` → "Cancel booking" opens the quote dialog
- *    (server refund preview + reason + confirm).
+ *    (server refund preview + reason + confirm). The one-line hint uses the
+ *    server's own `cancellationQuote` (tier + free-until instant) when the
+ *    detail carries it, else the generic policy figures.
+ *  - a `closed` tier → no self-service cancel (the host is on site).
  *  - `active` → no self-service cancel; explain early return (recorded by
  *    the agency) with the policy figures from the API.
  */
-function CancelSection({ booking }: { booking: Booking }) {
+function CancelSection({ booking }: { booking: BookingDetailData }) {
   const [open, setOpen] = useState(false);
   const legal = useLegalCurrent();
   const policy = legal.data?.cancellationPolicy;
+  const quote = booking.cancellationQuote;
 
   if (booking.state === "active") {
     return (
@@ -637,13 +543,38 @@ function CancelSection({ booking }: { booking: Booking }) {
     booking.state === "requested" || booking.state === "accepted";
   if (!cancellable) return null;
 
+  if (quote?.tier === "closed") {
+    return (
+      <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
+        <span className="font-medium text-foreground">
+          Online cancellation has closed
+        </span>{" "}
+        — the pickup day is here. To cancel, contact {booking.agency.name}{" "}
+        through the booking chat; the host or our support team can do it for
+        you.
+      </div>
+    );
+  }
+
+  const retentionPct =
+    quote?.policy?.lateCancellationRetentionPct ??
+    policy?.lateCancellationRetentionPct;
+  const hint =
+    quote?.tier === "free" && quote.freeUntil
+      ? ` Free cancellation until ${formatDateTime(quote.freeUntil)}.`
+      : quote?.tier === "late"
+        ? retentionPct !== undefined
+          ? ` Cancelling now is a late cancellation: ${retentionPct}% of the rental subtotal is retained.`
+          : " Cancelling now is a late cancellation: part of the rental subtotal is retained."
+        : policy
+          ? ` Free until ${policy.freeCancellationHours} hour${policy.freeCancellationHours === 1 ? "" : "s"} before pickup.`
+          : "";
+
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-4">
       <p className="text-sm text-muted-foreground">
         Need to cancel? You will see the exact refund before confirming.
-        {policy
-          ? ` Free until ${policy.freeCancellationHours} hour${policy.freeCancellationHours === 1 ? "" : "s"} before pickup.`
-          : ""}
+        {hint}
       </p>
       <Button
         type="button"

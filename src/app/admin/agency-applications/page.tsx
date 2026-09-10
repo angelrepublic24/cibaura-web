@@ -3,11 +3,15 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminApi, adminKeys } from "@/features/admin/api";
+import { CarDocumentsReview } from "@/features/admin/components/car-documents-review";
 import type {
   AgencyApplication,
   AgencyDocument,
 } from "@/features/agencies/api";
-import type { AgencyVerificationStatus } from "@/shared/types/domain";
+import type {
+  AgencyKind,
+  AgencyVerificationStatus,
+} from "@/shared/types/domain";
 import { RoleGuard } from "@/shared/auth/guard";
 import {
   EmptyState,
@@ -31,6 +35,10 @@ import { cn } from "@/lib/utils";
  * reason. Every mutation invalidates the applications subtree so the list and
  * the open detail both refresh. The /admin layout already gates platform_admin;
  * we wrap again defensively so this page renders nothing useful otherwise.
+ *
+ * Both supply personas land here (ADR-0009): businesses with their
+ * registration + owner ID, and individual hosts with the cédula (front and
+ * back) plus a registration document per car that is verified separately.
  */
 
 type StatusFilter = Extract<
@@ -46,9 +54,18 @@ const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
 
 const DOC_TYPE_LABELS: Record<string, string> = {
   business_registration: "Business registration",
-  owner_id: "Owner ID",
+  owner_id: "Owner ID — front",
+  owner_id_back: "Owner ID — back",
   other: "Other",
 };
+
+function KindBadge({ kind }: { kind: AgencyKind }) {
+  return kind === "individual" ? (
+    <Badge variant="accent">Private host</Badge>
+  ) : (
+    <Badge variant="outline">Business</Badge>
+  );
+}
 
 /** ISO datetime (createdAt/uploadedAt) → "Aug 1, 2026". */
 function fmtDate(iso: string): string {
@@ -158,6 +175,9 @@ export default function AdminAgencyApplicationsPage() {
                           </span>
                           <StatusBadge status={app.verificationStatus} />
                         </div>
+                        <div className="mt-1.5">
+                          <KindBadge kind={app.kind} />
+                        </div>
                         <dl className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
                           <div className="flex gap-1">
                             <dt className="shrink-0">Legal name:</dt>
@@ -176,6 +196,11 @@ export default function AdminAgencyApplicationsPage() {
                           <span>
                             {app.documentCount}{" "}
                             {app.documentCount === 1 ? "document" : "documents"}
+                            {app.carDocumentsPending > 0
+                              ? ` · ${app.carDocumentsPending} car doc${
+                                  app.carDocumentsPending === 1 ? "" : "s"
+                                } pending`
+                              : ""}
                           </span>
                           <span>{fmtDate(app.createdAt)}</span>
                         </div>
@@ -271,13 +296,17 @@ function ApplicationDetail({ id }: { id: string }) {
   const app = detailQuery.data as AgencyApplication;
   const busy = verify.isPending || reject.isPending;
 
+  const individual = app.kind === "individual";
   const kycRows: { label: string; value: string | null }[] = [
-    { label: "Legal name", value: app.kyc.legalName },
-    { label: "Tax ID", value: app.kyc.taxId },
+    { label: individual ? "Full name" : "Legal name", value: app.kyc.legalName },
+    ...(individual ? [] : [{ label: "Tax ID", value: app.kyc.taxId }]),
     { label: "Owner name", value: app.kyc.ownerName },
-    { label: "Owner ID number", value: app.kyc.ownerIdNumber },
+    {
+      label: individual ? "Cédula" : "Owner ID number",
+      value: app.kyc.ownerIdNumber,
+    },
     { label: "Phone", value: app.kyc.phone },
-    { label: "Address", value: app.kyc.address },
+    { label: individual ? "Home address (pickup)" : "Address", value: app.kyc.address },
   ];
 
   return (
@@ -286,11 +315,12 @@ function ApplicationDetail({ id }: { id: string }) {
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h2 className="font-display text-xl text-foreground">
                 {app.name}
               </h2>
               <StatusBadge status={app.verificationStatus} />
+              <KindBadge kind={app.kind} />
             </div>
             <p className="mt-0.5 text-sm text-muted-foreground">/{app.slug}</p>
           </div>
@@ -370,6 +400,9 @@ function ApplicationDetail({ id }: { id: string }) {
             ) : null}
           </div>
         </section>
+
+        {/* Per-car registration documents (ADR-0009) — verified one by one. */}
+        <CarDocumentsReview agencyId={app.id} />
 
         {/* Prior decision reason (if any) */}
         {app.verificationStatus === "rejected" && app.verificationReason ? (

@@ -16,3 +16,18 @@ export function useLegalCurrent() {
     staleTime: Infinity,
   });
 }
+
+/**
+ * The PUBLISHED contract template of a kind (`GET /legal/contracts/:kind`),
+ * with generic placeholders — what a customer reads on the car page before
+ * any booking exists. A new version is an admin publish (rare), so a few
+ * minutes of staleness is fine.
+ */
+export function usePublicContract(kind: string, enabled = true) {
+  return useQuery({
+    queryKey: legalKeys.contract(kind),
+    queryFn: () => LegalApi.contract(kind),
+    staleTime: 5 * 60_000,
+    enabled,
+  });
+}

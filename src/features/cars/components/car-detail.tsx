@@ -19,7 +19,15 @@ import {
   Users,
 } from "lucide-react";
 import { CarsApi, carKeys } from "@/features/cars/api";
-import { BookingsApi } from "@/features/bookings/api";
+import {
+  BookingsApi,
+  type QuoteInput,
+  type SignatureInput,
+} from "@/features/bookings/api";
+import {
+  RentalAgreementSignDialog,
+  type SignStepError,
+} from "@/features/bookings/components/rental-agreement-sign-dialog";
 import { useRequestPayment } from "@/features/bookings/use-request-payment";
 import { useLegalCurrent } from "@/features/legal/hooks";
 import { CancellationPolicySummary } from "@/features/legal/components/cancellation-policy";
@@ -41,6 +49,7 @@ import {
 } from "@/shared/components/date-range-picker";
 import { carGallery } from "@/features/cars/photos";
 import { CarPhotoPlaceholder } from "@/features/cars/components/car-photo-placeholder";
+import { RentalPolicyCard } from "@/features/cars/components/rental-policy-card";
 import { useAuthStore } from "@/shared/auth/store";
 import {
   API_ERROR_CODES,
@@ -191,10 +200,16 @@ export function CarDetail({
           isError={availabilityQuery.isError}
           onRetry={() => availabilityQuery.refetch()}
         />
+
+        <RentalPolicyCard
+          className="mt-6"
+          depositCents={car.depositCents}
+          agencyName={car.agency.name}
+        />
       </div>
 
       <div className="space-y-4">
-        <RentalConditions agency={car.agency} />
+        <RentalConditions agency={car.agency} depositCents={car.depositCents} />
         <BookingPanel
           car={car}
           initialFrom={initialFrom}
@@ -268,10 +283,17 @@ function PhotoGallery({ photos, alt }: { photos: string[]; alt: string }) {
 /**
  * "Rental conditions by {agency}" — the agency's own terms the customer
  * accepts at request time (frozen into the booking's agreement snapshot):
- * free-text conditions, minimum driver age and the deposit note. Rendered
+ * free-text conditions, minimum driver age, the security deposit (server
+ * figure: car override or platform default) and the deposit note. Rendered
  * ABOVE the booking widget so nobody requests without seeing them.
  */
-function RentalConditions({ agency }: { agency: CarDetailAgencyDto }) {
+function RentalConditions({
+  agency,
+  depositCents,
+}: {
+  agency: CarDetailAgencyDto;
+  depositCents: number;
+}) {
   const [expanded, setExpanded] = useState(false);
   const conditions = agency.rentalConditions?.trim() ?? "";
   const long = conditions.length > 420;
@@ -296,10 +318,10 @@ function RentalConditions({ agency }: { agency: CarDetailAgencyDto }) {
           </div>
           <div className="rounded-[var(--radius-sm)] bg-muted/60 p-3">
             <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-              Deposit
+              Security deposit
             </dt>
             <dd className="mt-0.5 font-semibold text-foreground">
-              {agency.depositNote ? "See note" : "Not specified"}
+              {depositCents > 0 ? formatMoneyCents(depositCents) : "None"}
             </dd>
           </div>
         </dl>
@@ -472,6 +494,16 @@ function describeRequestError(error: unknown): {
         message:
           "This rental is longer than the maximum allowed. Choose a shorter period.",
       };
+    case API_ERROR_CODES.SIGNATURE_REQUIRED:
+      return {
+        message:
+          "Type your full name and tick the box to sign the rental agreement before sending the request.",
+      };
+    case API_ERROR_CODES.TEMPLATE_NOT_PUBLISHED:
+      return {
+        message:
+          "The rental agreement is not available right now, so new requests are paused. Please try again later.",
+      };
     default:
       return {
         message: getErrorMessage(
@@ -488,7 +520,9 @@ function describeRequestError(error: unknown): {
  * quote (POST /bookings/quote) + saved-card choice (the selected id travels
  * as `paymentMethodId`; the hold is placed on exactly that card, defaulting
  * to the backend's default = most recently saved) + terms acceptance
- * (`acceptTerms` + `termsVersion` from `GET /legal/current`).
+ * (`acceptTerms` + `termsVersion` from `GET /legal/current`) + the
+ * "Review and sign the rental agreement" step (ADR-0010): the request is
+ * only sent from the sign dialog, with the click-to-sign `signature`.
  * The client never multiplies days x rate — it renders the returned Pricing
  * verbatim.
  *
@@ -589,6 +623,16 @@ function BookingPanel({
         : { deliveryZoneId: zoneId }
       : {};
 
+  // ONE body for the quote, the agreement preview and the request itself,
+  // so the text the customer signs is rendered from exactly what is sent.
+  const quoteInput: QuoteInput = {
+    carId: car.id,
+    start: from,
+    end: to,
+    pickupType: pickup,
+    ...deliveryParams,
+  };
+
   const quoteQuery = useQuery({
     queryKey: carKeys.quote(
       car.id,
@@ -599,16 +643,13 @@ function BookingPanel({
         ? `${deliveryAddr?.lat ?? ""},${deliveryAddr?.lng ?? ""}`
         : zoneId || undefined,
     ),
-    queryFn: () =>
-      BookingsApi.quote({
-        carId: car.id,
-        start: from,
-        end: to,
-        pickupType: pickup,
-        ...deliveryParams,
-      }),
+    queryFn: () => BookingsApi.quote(quoteInput),
     enabled: quoteReady,
   });
+
+  // The sign step: opened once the panel's own gates pass; the request is
+  // sent from inside it with the signature.
+  const [signOpen, setSignOpen] = useState(false);
 
   // Payment outcome state machine: `authorized` → redirect; `requires_action`
   // → Stripe 3DS challenge + "Verifying…" poll; `failed` → honest error.
@@ -617,23 +658,26 @@ function BookingPanel({
   });
 
   const requestMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (signature: SignatureInput) =>
       BookingsApi.request({
-        carId: car.id,
-        start: from,
-        end: to,
-        pickupType: pickup,
-        ...deliveryParams,
+        ...quoteInput,
         // Always send the card the customer sees selected — even the default —
         // so what's displayed is exactly what gets the hold.
         paymentMethodId: selectedCard?.id,
         // The version the customer just accepted — read from the server.
         termsVersion: legal.data!.termsVersion,
+        // The click-to-sign collected in the agreement step.
+        signature,
       }),
-    onSuccess: (booking) => payment.start(booking),
+    onSuccess: (booking) => {
+      setSignOpen(false);
+      payment.start(booking);
+    },
     onError: async (error) => {
       if (getApiErrorCode(error) === API_ERROR_CODES.TERMS_OUTDATED) {
-        // Ask for a fresh consent against the new version.
+        // Ask for a fresh consent against the new version (the agreement
+        // must be re-read too, so the sign step closes).
+        setSignOpen(false);
         setAcceptTerms(false);
         await legal.refetch();
       }
@@ -664,18 +708,19 @@ function BookingPanel({
     ageOn(verification.dateOfBirth, from) < car.agency.minDriverAge;
 
   const legalReady = legal.isSuccess && !!legal.data;
-  const requestError = requestMutation.isError
+  const requestError: SignStepError | null = requestMutation.isError
     ? describeRequestError(requestMutation.error)
     : null;
 
-  function submitRequest() {
+  function openSignStep() {
     if (!acceptTerms) {
-      setTermsError("Accept the Terms of Service to send your request.");
+      setTermsError("Accept the Terms of Service to continue.");
       return;
     }
     setTermsError(null);
     payment.reset(); // clear a previous failed attempt, if any
-    requestMutation.mutate();
+    requestMutation.reset();
+    setSignOpen(true);
   }
 
   return (
@@ -866,6 +911,12 @@ function BookingPanel({
                 <dt>Total</dt>
                 <dd>{formatMoneyCents(quote.totalCents, quote.currency)}</dd>
               </div>
+              {car.depositCents > 0 ? (
+                <div className="flex justify-between border-t border-border pt-2 text-xs text-muted-foreground">
+                  <dt>Security deposit (held at check-in, not charged)</dt>
+                  <dd>{formatMoneyCents(car.depositCents, quote.currency)}</dd>
+                </div>
+              ) : null}
             </dl>
           ) : null
         ) : (
@@ -899,6 +950,9 @@ function BookingPanel({
             <p className="text-xs text-muted-foreground">
               The hold is placed on this card and only captured when the
               agency accepts.
+              {car.depositCents > 0
+                ? " The security deposit is held on the same card at check-in."
+                : ""}
             </p>
           </div>
         ) : null}
@@ -1053,7 +1107,7 @@ function BookingPanel({
               requestMutation.isPending ||
               paymentBusy
             }
-            onClick={submitRequest}
+            onClick={openSignStep}
           >
             {requestMutation.isPending
               ? "Sending request…"
@@ -1061,9 +1115,20 @@ function BookingPanel({
                 ? "Waiting for your bank…"
                 : payment.phase.step === "verifying"
                   ? "Verifying your payment…"
-                  : "Request to book"}
+                  : "Review agreement and request"}
           </Button>
         )}
+
+        <RentalAgreementSignDialog
+          open={signOpen}
+          onClose={() => setSignOpen(false)}
+          quoteInput={quoteInput}
+          agencyName={car.agency.name}
+          carLabel={`${car.make.name} ${car.model.name} ${car.year}`}
+          onSign={(signature) => requestMutation.mutate(signature)}
+          signing={requestMutation.isPending}
+          error={requestError}
+        />
 
         {/* 3DS in flight: the bank challenge is open in Stripe's window. */}
         {payment.phase.step === "challenge" ? (
@@ -1105,7 +1170,7 @@ function BookingPanel({
           </p>
         ) : null}
 
-        {requestError ? (
+        {requestError && !signOpen ? (
           <div
             className="space-y-2 rounded-[var(--radius-sm)] border border-red-200 bg-red-50 p-3"
             role="alert"
@@ -1127,7 +1192,8 @@ function BookingPanel({
           You will not be charged until the agency accepts. Your card is
           authorized at request and captured on acceptance; the agency has 24
           hours to answer, after which the request expires and the hold is
-          released.
+          released. You review and sign the rental agreement before the
+          request is sent.
         </p>
 
         <CancellationPolicySummary variant="inline" className="text-xs" />
