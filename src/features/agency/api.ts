@@ -8,13 +8,18 @@ import type {
   Branch,
   CarCategory,
   CarColor,
+  CarDocumentDto,
   CarStatus,
+  ContractDocumentDto,
   DeliveryZoneFull,
   FuelType,
+  HostAgreementStatusDto,
   OccupancyEntry,
   Paginated,
   Payout,
+  PayoutAccountDto,
   PayoutBankDetails,
+  SignedUrlDto,
   Transmission,
 } from "@/shared/types/domain";
 import type {
@@ -63,6 +68,22 @@ import type {
  *  - GET    /agency/wallet/payouts                  -> Payout[] (`wallet:view`)
  *  - POST   /agency/wallet/payouts { amountCents }  -> Payout (`wallet:withdraw`;
  *       409 INSUFFICIENT_BALANCE / PAYOUT_BANK_DETAILS_MISSING)
+ *
+ * v1 expansion (spec §4 B6/B7/B11 — coded against the spec, backend pending):
+ *  - PATCH  /agency/fleet/:carId UpdateCarInput     -> AgencyCar (`fleet:write`;
+ *       status=active gated: 403 HOST_AGREEMENT_REQUIRED / CAR_REGISTRATION_REQUIRED)
+ *  - GET    /agency/fleet/:carId/documents          -> CarDocumentDto[] (`fleet:read`)
+ *  - POST   /agency/fleet/:carId/documents (multipart file + type) -> CarDocumentDto
+ *       (`fleet:write`; replace-by-type, status resets to `pending`)
+ *  - GET    /agency/host-agreement                  -> HostAgreementStatusDto (any member)
+ *  - POST   /agency/host-agreement/sign SignContractInput -> ContractDocumentDto
+ *       (`agency:settings` + owner: 403 OWNER_ONLY, 409 HOST_AGREEMENT_OUTDATED,
+ *        409 TEMPLATE_NOT_PUBLISHED, 400 SIGNATURE_REQUIRED)
+ *  - GET    /agency/host-agreement/pdf              -> SignedUrlDto
+ *  - GET    /agency/payout-account                  -> PayoutAccountDto (`wallet:view`)
+ *  - POST   /agency/payout-account/onboarding-link  -> SignedUrlDto (`wallet:withdraw`
+ *       + owner: 403 OWNER_ONLY, 409 PAYOUT_RAIL_DISABLED)
+ *  - POST   /agency/payout-account/sync             -> PayoutAccountDto (`wallet:view`)
  */
 
 /** `GET /agency/fleet` query — `pageSize` lets pickers walk the whole fleet. */
@@ -81,6 +102,8 @@ export interface RequestFilters {
 
 export const agencyKeys = {
   all: ["agency"] as const,
+  /** Prefix of every fleet read (paged + infinite) — invalidate after a car changes. */
+  fleetAll: () => ["agency", "fleet"] as const,
   fleet: (filters: FleetFilters = {}) => ["agency", "fleet", filters] as const,
   /** Infinite-query variant (page lives in the page params, not the key). */
   fleetPages: (filters: Omit<FleetFilters, "page"> = {}) =>
@@ -90,11 +113,14 @@ export const agencyKeys = {
   requests: (filters: RequestFilters = {}) =>
     ["agency", "requests", filters] as const,
   carPhotos: (carId: string) => ["agency", "car-photos", carId] as const,
+  carDocuments: (carId: string) => ["agency", "car-documents", carId] as const,
   branches: () => ["agency", "branches"] as const,
   zones: (branchId: string) => ["agency", "zones", branchId] as const,
   wallet: () => ["agency", "wallet"] as const,
   payouts: () => ["agency", "wallet", "payouts"] as const,
+  payoutAccount: () => ["agency", "payout-account"] as const,
   settings: () => ["agency", "settings"] as const,
+  hostAgreement: () => ["agency", "host-agreement"] as const,
   session: () => ["agency", "session"] as const,
   staff: () => ["agency", "staff"] as const,
 };
@@ -145,7 +171,30 @@ export interface CreateCarInput {
   category: CarCategory;
   plate: string; // private — agency-only
   pricePerDayCents: number; // integer cents
+  /**
+   * Security deposit override, integer cents (spec §3 `Car.depositCents`).
+   * Omitted / `null` = the platform default deposit applies.
+   */
+  depositCents?: number | null;
   photos?: string[];
+}
+
+/**
+ * `PATCH /agency/fleet/:carId` body (backend `UpdateCarDto` = partial
+ * `CreateCarDto` minus `branchId`, plus `status`). Activation (`status:
+ * "active"`) is gated server-side: agency verified ∧ host agreement signed ∧
+ * (business ∨ verified registration document).
+ */
+export type UpdateCarInput = Partial<Omit<CreateCarInput, "branchId">> & {
+  status?: CarStatus;
+};
+
+/** `POST /agency/host-agreement/sign` body (backend `SignContractDto`). */
+export interface SignContractInput {
+  typedName: string;
+  acceptTerms: true;
+  /** The version the signer read — 409 HOST_AGREEMENT_OUTDATED when stale. */
+  templateVersion: number;
 }
 
 /**
@@ -215,6 +264,33 @@ export const AgencyApi = {
 
   async createCar(input: CreateCarInput): Promise<AgencyCar> {
     const res = await Api.post("/agency/fleet", input);
+    return res.data;
+  },
+
+  async updateCar(carId: string, input: UpdateCarInput): Promise<AgencyCar> {
+    const res = await Api.patch(`/agency/fleet/${carId}`, input);
+    return res.data;
+  },
+
+  // ------------------------------------------------------ car documents
+  // Per-car registration document (ADR-0009). Replace-by-type: uploading a
+  // new file for the same `type` supersedes the previous one and resets the
+  // status to `pending` for admin review.
+
+  async carDocuments(carId: string): Promise<CarDocumentDto[]> {
+    const res = await Api.get(`/agency/fleet/${carId}/documents`);
+    return res.data;
+  },
+
+  async uploadCarDocument(
+    carId: string,
+    file: File,
+    type: string,
+  ): Promise<CarDocumentDto> {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("type", type);
+    const res = await Api.post(`/agency/fleet/${carId}/documents`, form);
     return res.data;
   },
 
@@ -433,6 +509,28 @@ export const AgencyApi = {
     return res.data;
   },
 
+  // ----------------------------------------------- Stripe payout account
+  // ADR-0012: Stripe Global Payouts recipient. Onboarding is Stripe-hosted —
+  // the link is single-use and expires in ~10 minutes, so it is fetched on
+  // click and opened in the SAME tab; Stripe sends the host back to
+  // `/agency/wallet?stripe=return|refresh`, where the page calls `sync`.
+
+  async payoutAccount(): Promise<PayoutAccountDto> {
+    const res = await Api.get("/agency/payout-account");
+    return res.data;
+  },
+
+  async payoutAccountOnboardingLink(): Promise<SignedUrlDto> {
+    const res = await Api.post("/agency/payout-account/onboarding-link", {});
+    return res.data;
+  },
+
+  /** Re-read the recipient from Stripe (status, requirements, bank last4). */
+  async syncPayoutAccount(): Promise<PayoutAccountDto> {
+    const res = await Api.post("/agency/payout-account/sync", {});
+    return res.data;
+  },
+
   // ---------------------------------------------------------- settings
 
   async settings(): Promise<AgencySettings> {
@@ -444,6 +542,28 @@ export const AgencyApi = {
     input: UpdateAgencySettingsInput,
   ): Promise<AgencySettings> {
     const res = await Api.patch("/agency/settings", input);
+    return res.data;
+  },
+
+  // ---------------------------------------------- host agreement (ADR-0010)
+
+  /** Current published version (rendered for this host) + the signed document, if any. */
+  async hostAgreement(): Promise<HostAgreementStatusDto> {
+    const res = await Api.get("/agency/host-agreement");
+    return res.data;
+  },
+
+  /** Click-to-sign: typed name + checkbox; the server records IP/UA/time. */
+  async signHostAgreement(
+    input: SignContractInput,
+  ): Promise<ContractDocumentDto> {
+    const res = await Api.post("/agency/host-agreement/sign", input);
+    return res.data;
+  },
+
+  /** Short-lived signed URL of the host's signed PDF. */
+  async hostAgreementPdf(): Promise<SignedUrlDto> {
+    const res = await Api.get("/agency/host-agreement/pdf");
     return res.data;
   },
 

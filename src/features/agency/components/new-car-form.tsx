@@ -11,6 +11,7 @@ import {
   AgencyApi,
   agencyKeys,
   MAX_PHOTOS_PER_CAR,
+  type CreateCarInput,
 } from "@/features/agency/api";
 import {
   uploadCarPhotosSequentially,
@@ -22,19 +23,24 @@ import {
   CAR_COLORS,
   FUEL_TYPES,
   TRANSMISSIONS,
+  type AgencyCar,
 } from "@/shared/types/domain";
-import { wholeUnitsToCents } from "@/shared/utils/money";
+import { getErrorMessage } from "@/shared/api/errors";
+import { centsToWholeUnitsInput, wholeUnitsToCents } from "@/shared/utils/money";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
 
+const AMOUNT_REGEX = /^\d+(\.\d{1,2})?$/;
+
 /**
  * Numeric fields are kept as validated strings in the form and converted
  * once on submit — keeps react-hook-form + zod typing simple and the
- * error messages friendly.
+ * error messages friendly. Money is typed in whole units and converted to
+ * cents at this input boundary (never computed).
  */
-const newCarSchema = z.object({
+const carSchema = z.object({
   branchId: z.string().min(1, "Pick a branch"),
   makeId: z.string().min(1, "Pick a make"),
   modelId: z.string().min(1, "Pick a model"),
@@ -49,34 +55,95 @@ const newCarSchema = z.object({
   plate: z.string().min(3, "Enter the plate (kept private)"),
   pricePerDay: z
     .string()
-    .regex(/^\d+(\.\d{1,2})?$/, "Enter the per-day price, e.g. 45 or 45.50"),
+    .regex(AMOUNT_REGEX, "Enter the per-day price, e.g. 45 or 45.50"),
+  /** Empty = the platform default deposit applies (`depositCents: null`). */
+  deposit: z.union([
+    z.literal(""),
+    z.string().regex(AMOUNT_REGEX, "Enter the deposit, e.g. 200 or 200.00"),
+  ]),
 });
-type NewCarFormValues = z.infer<typeof newCarSchema>;
+type CarFormValues = z.infer<typeof carSchema>;
 
-export function NewCarForm() {
+function defaultsFor(
+  car: AgencyCar | undefined,
+  fixedBranchId: string | undefined,
+): CarFormValues {
+  return {
+    branchId: car?.branchId ?? fixedBranchId ?? "",
+    makeId: car?.makeId ?? "",
+    modelId: car?.modelId ?? "",
+    year: car ? String(car.year) : "",
+    color: car?.color ?? "white",
+    transmission: car?.transmission ?? "automatic",
+    fuel: car?.fuel ?? "gasoline",
+    seats: car ? String(car.seats) : "5",
+    category: car?.category ?? "sedan",
+    plate: car?.plate ?? "",
+    pricePerDay: car ? centsToWholeUnitsInput(car.pricePerDayCents) : "",
+    deposit:
+      car && car.depositCents !== null
+        ? centsToWholeUnitsInput(car.depositCents)
+        : "",
+  };
+}
+
+/** Form → wire fields shared by create and edit (branch/photos handled apart). */
+function toCarFields(
+  values: CarFormValues,
+): Omit<CreateCarInput, "branchId" | "photos" | "depositCents"> {
+  return {
+    makeId: values.makeId,
+    modelId: values.modelId,
+    year: Number(values.year),
+    color: values.color,
+    transmission: values.transmission,
+    fuel: values.fuel,
+    seats: Number(values.seats),
+    category: values.category,
+    plate: values.plate,
+    // Unit conversion at the input boundary (agency-entered price).
+    pricePerDayCents: wholeUnitsToCents(Number(values.pricePerDay)),
+  };
+}
+
+type CarFormProps =
+  | {
+      mode: "create";
+      /** Hide the branch picker and list the car at this branch (single-branch hosts). */
+      fixedBranchId?: string;
+      /** Called instead of navigating away once the car (and its photos) exist. */
+      onCreated?: (car: AgencyCar) => void;
+      submitLabel?: string;
+    }
+  | {
+      mode: "edit";
+      car: AgencyCar;
+      onSaved?: (car: AgencyCar) => void;
+      onCancel?: () => void;
+    };
+
+/**
+ * Catalog-driven car form. `create` posts the car as a draft and uploads
+ * the picked photos right after; `edit` patches the listing fields (photos
+ * and status are managed on the car page). One component for both modes so
+ * the field rules never drift.
+ */
+export function CarForm(props: CarFormProps) {
   const router = useRouter();
   const qc = useQueryClient();
+  const editing = props.mode === "edit";
+  const car = editing ? props.car : undefined;
+  const fixedBranchId = !editing ? props.fixedBranchId : undefined;
 
-  const form = useForm<NewCarFormValues>({
-    resolver: zodResolver(newCarSchema),
-    defaultValues: {
-      branchId: "",
-      makeId: "",
-      modelId: "",
-      year: "",
-      color: "white",
-      transmission: "automatic",
-      fuel: "gasoline",
-      seats: "5",
-      category: "sedan",
-      plate: "",
-      pricePerDay: "",
-    },
+  const form = useForm<CarFormValues>({
+    resolver: zodResolver(carSchema),
+    defaultValues: defaultsFor(car, fixedBranchId),
   });
 
   const branchesQuery = useQuery({
     queryKey: agencyKeys.branches(),
     queryFn: AgencyApi.branches,
+    enabled: !editing && !fixedBranchId,
   });
 
   const makesQuery = useQuery({
@@ -92,7 +159,7 @@ export function NewCarForm() {
     enabled: !!makeId,
   });
 
-  // ── Photos: picked before submit, uploaded right after the car exists ──────
+  // ── Photos (create only): picked before submit, uploaded right after ──────
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [photoErrors, setPhotoErrors] = useState<string[]>([]);
@@ -124,21 +191,14 @@ export function NewCarForm() {
     setPhotoFiles(merged.slice(0, MAX_PHOTOS_PER_CAR));
   }
 
-  const mutation = useMutation({
-    mutationFn: async (values: NewCarFormValues) => {
-      const car = await AgencyApi.createCar({
+  const create = useMutation({
+    mutationFn: async (values: CarFormValues) => {
+      const created = await AgencyApi.createCar({
         branchId: values.branchId,
-        makeId: values.makeId,
-        modelId: values.modelId,
-        year: Number(values.year),
-        color: values.color,
-        transmission: values.transmission,
-        fuel: values.fuel,
-        seats: Number(values.seats),
-        category: values.category,
-        plate: values.plate,
-        // Unit conversion at the input boundary (agency-entered price).
-        pricePerDayCents: wholeUnitsToCents(Number(values.pricePerDay)),
+        ...toCarFields(values),
+        ...(values.deposit !== ""
+          ? { depositCents: wholeUnitsToCents(Number(values.deposit)) }
+          : {}),
       });
 
       // The car exists — now upload its photos one by one (per-file errors
@@ -146,7 +206,7 @@ export function NewCarForm() {
       let uploaded = 0;
       if (photoFiles.length > 0) {
         uploaded = await uploadCarPhotosSequentially(
-          car.id,
+          created.id,
           photoFiles,
           (u) =>
             setUploadStatus(
@@ -155,21 +215,44 @@ export function NewCarForm() {
         );
         setUploadStatus(null);
       }
-      return { car, uploaded };
+      return { car: created, uploaded };
     },
-    onSuccess: ({ car, uploaded }) => {
+    onSuccess: ({ car: created, uploaded }) => {
       qc.invalidateQueries({ queryKey: agencyKeys.all });
+      if (props.mode === "create" && props.onCreated) {
+        props.onCreated(created);
+        return;
+      }
       // Some photos failed → land on the manage-photos surface to retry;
       // otherwise back to the fleet list.
       if (uploaded < photoFiles.length) {
-        router.push(`/agency/fleet/${car.id}/photos`);
+        router.push(`/agency/fleet/${created.id}/photos`);
       } else {
         router.push("/agency/fleet");
       }
     },
   });
 
+  const update = useMutation({
+    mutationFn: (values: CarFormValues) =>
+      AgencyApi.updateCar(car!.id, {
+        ...toCarFields(values),
+        // An emptied deposit CLEARS the override (`null` = platform default).
+        depositCents:
+          values.deposit === ""
+            ? null
+            : wholeUnitsToCents(Number(values.deposit)),
+      }),
+    onSuccess: (saved) => {
+      qc.invalidateQueries({ queryKey: agencyKeys.fleetAll() });
+      form.reset(defaultsFor(saved, undefined));
+      if (props.mode === "edit") props.onSaved?.(saved);
+    },
+  });
+
+  const mutation = editing ? update : create;
   const errors = form.formState.errors;
+  const showBranch = !editing && !fixedBranchId;
 
   return (
     <form
@@ -177,28 +260,30 @@ export function NewCarForm() {
       onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
       noValidate
     >
-      <div className="space-y-1.5">
-        <Label htmlFor="car-branch">Branch</Label>
-        <Select
-          id="car-branch"
-          disabled={branchesQuery.isLoading || branchesQuery.isError}
-          {...form.register("branchId")}
-        >
-          <option value="">
-            {branchesQuery.isError
-              ? "Branches unavailable"
-              : "Select a branch"}
-          </option>
-          {(branchesQuery.data ?? []).map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
+      {showBranch ? (
+        <div className="space-y-1.5">
+          <Label htmlFor="car-branch">Branch</Label>
+          <Select
+            id="car-branch"
+            disabled={branchesQuery.isLoading || branchesQuery.isError}
+            {...form.register("branchId")}
+          >
+            <option value="">
+              {branchesQuery.isError
+                ? "Branches unavailable"
+                : "Select a branch"}
             </option>
-          ))}
-        </Select>
-        {errors.branchId ? (
-          <p className="text-sm text-red-600">{errors.branchId.message}</p>
-        ) : null}
-      </div>
+            {(branchesQuery.data ?? []).map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </Select>
+          {errors.branchId ? (
+            <p className="text-sm text-destructive">{errors.branchId.message}</p>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
@@ -220,7 +305,7 @@ export function NewCarForm() {
             ))}
           </Select>
           {errors.makeId ? (
-            <p className="text-sm text-red-600">{errors.makeId.message}</p>
+            <p className="text-sm text-destructive">{errors.makeId.message}</p>
           ) : null}
         </div>
 
@@ -241,7 +326,7 @@ export function NewCarForm() {
             ))}
           </Select>
           {errors.modelId ? (
-            <p className="text-sm text-red-600">{errors.modelId.message}</p>
+            <p className="text-sm text-destructive">{errors.modelId.message}</p>
           ) : null}
         </div>
       </div>
@@ -251,7 +336,7 @@ export function NewCarForm() {
           <Label htmlFor="car-year">Year</Label>
           <Input id="car-year" inputMode="numeric" placeholder="2024" {...form.register("year")} />
           {errors.year ? (
-            <p className="text-sm text-red-600">{errors.year.message}</p>
+            <p className="text-sm text-destructive">{errors.year.message}</p>
           ) : null}
         </div>
 
@@ -305,17 +390,17 @@ export function NewCarForm() {
           <Label htmlFor="car-seats">Seats</Label>
           <Input id="car-seats" inputMode="numeric" {...form.register("seats")} />
           {errors.seats ? (
-            <p className="text-sm text-red-600">{errors.seats.message}</p>
+            <p className="text-sm text-destructive">{errors.seats.message}</p>
           ) : null}
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-3">
         <div className="space-y-1.5">
           <Label htmlFor="car-plate">Plate (private)</Label>
           <Input id="car-plate" placeholder="A123456" {...form.register("plate")} />
           {errors.plate ? (
-            <p className="text-sm text-red-600">{errors.plate.message}</p>
+            <p className="text-sm text-destructive">{errors.plate.message}</p>
           ) : null}
           <p className="text-xs text-muted-foreground">
             Never shown to customers.
@@ -331,84 +416,105 @@ export function NewCarForm() {
             {...form.register("pricePerDay")}
           />
           {errors.pricePerDay ? (
-            <p className="text-sm text-red-600">{errors.pricePerDay.message}</p>
+            <p className="text-sm text-destructive">{errors.pricePerDay.message}</p>
           ) : null}
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="car-deposit">Security deposit (optional)</Label>
+          <Input
+            id="car-deposit"
+            inputMode="decimal"
+            placeholder="Platform default"
+            aria-invalid={!!errors.deposit}
+            {...form.register("deposit")}
+          />
+          {errors.deposit ? (
+            <p className="text-sm text-destructive">{errors.deposit.message}</p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Held on the renter&apos;s card at check-in and released after the
+              return. Leave empty to use the platform default.
+            </p>
+          )}
         </div>
       </div>
 
-      {/* Photos — picked here, uploaded right after the car is created. */}
-      <div className="space-y-2">
-        <Label>Photos</Label>
-        <input
-          ref={photoInputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          multiple
-          hidden
-          onChange={(e) => {
-            addPhotos(e.target.files);
-            e.target.value = "";
-          }}
-        />
+      {!editing ? (
+        /* Photos — picked here, uploaded right after the car is created. */
+        <div className="space-y-2">
+          <Label>Photos</Label>
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            multiple
+            hidden
+            onChange={(e) => {
+              addPhotos(e.target.files);
+              e.target.value = "";
+            }}
+          />
 
-        {photoFiles.length > 0 ? (
-          <ul className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-            {photoFiles.map((file, i) => (
-              <li
-                key={`${file.name}-${i}`}
-                className="relative aspect-[4/3] overflow-hidden rounded-[var(--radius-sm)] border border-border bg-muted"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={previews[i]}
-                  alt={file.name}
-                  className="absolute inset-0 h-full w-full object-cover"
-                />
-                {i === 0 ? (
-                  <span className="absolute left-1 top-1 rounded bg-surface/90 px-1.5 py-0.5 text-[10px] font-medium">
-                    Cover
-                  </span>
-                ) : null}
-                <button
-                  type="button"
-                  aria-label={`Remove ${file.name}`}
-                  className="absolute right-1 top-1 rounded-full bg-surface/90 p-1 shadow-sm hover:bg-surface"
-                  disabled={mutation.isPending}
-                  onClick={() =>
-                    setPhotoFiles((prev) => prev.filter((_, j) => j !== i))
-                  }
+          {photoFiles.length > 0 ? (
+            <ul className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+              {photoFiles.map((file, i) => (
+                <li
+                  key={`${file.name}-${i}`}
+                  className="relative aspect-[4/3] overflow-hidden rounded-[var(--radius-sm)] border border-border bg-muted"
                 >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={previews[i]}
+                    alt={file.name}
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                  {i === 0 ? (
+                    <span className="absolute left-1 top-1 rounded bg-surface/90 px-1.5 py-0.5 text-[10px] font-medium">
+                      Cover
+                    </span>
+                  ) : null}
+                  <button
+                    type="button"
+                    aria-label={`Remove ${file.name}`}
+                    className="absolute right-1 top-1 rounded-full bg-surface/90 p-1 shadow-sm hover:bg-surface"
+                    disabled={mutation.isPending}
+                    onClick={() =>
+                      setPhotoFiles((prev) => prev.filter((_, j) => j !== i))
+                    }
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
 
-        <button
-          type="button"
-          onClick={() => photoInputRef.current?.click()}
-          disabled={mutation.isPending || photoFiles.length >= MAX_PHOTOS_PER_CAR}
-          className="flex w-full flex-col items-center gap-1 rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground transition-colors hover:border-border-strong hover:text-foreground disabled:opacity-60"
-        >
-          <ImagePlus className="h-5 w-5" />
-          {photoFiles.length >= MAX_PHOTOS_PER_CAR
-            ? `Maximum of ${MAX_PHOTOS_PER_CAR} photos selected`
-            : "Add photos of this exact car — JPEG, PNG or WEBP, up to 5 MB each"}
-        </button>
-        <p className="text-xs text-muted-foreground">
-          {photoFiles.length}/{MAX_PHOTOS_PER_CAR} selected · the first photo
-          becomes the cover. You can also manage photos later from the fleet
-          list. Cars can be saved as drafts without photos.
-        </p>
-        {photoErrors.length > 0 ? (
-          <ul className="space-y-0.5 text-sm text-red-600">
-            {photoErrors.map((msg) => (
-              <li key={msg}>{msg}</li>
-            ))}
-          </ul>
-        ) : null}
-      </div>
+          <button
+            type="button"
+            onClick={() => photoInputRef.current?.click()}
+            disabled={mutation.isPending || photoFiles.length >= MAX_PHOTOS_PER_CAR}
+            className="flex w-full flex-col items-center gap-1 rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground transition-colors hover:border-border-strong hover:text-foreground disabled:opacity-60"
+          >
+            <ImagePlus className="h-5 w-5" />
+            {photoFiles.length >= MAX_PHOTOS_PER_CAR
+              ? `Maximum of ${MAX_PHOTOS_PER_CAR} photos selected`
+              : "Add photos of this exact car — JPEG, PNG or WEBP, up to 5 MB each"}
+          </button>
+          <p className="text-xs text-muted-foreground">
+            {photoFiles.length}/{MAX_PHOTOS_PER_CAR} selected · the first photo
+            becomes the cover. You can also manage photos later from the fleet
+            list. Cars can be saved as drafts without photos.
+          </p>
+          {photoErrors.length > 0 ? (
+            <ul className="space-y-0.5 text-sm text-destructive">
+              {photoErrors.map((msg) => (
+                <li key={msg}>{msg}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
 
       {uploadStatus ? (
         <p className="text-sm text-muted-foreground" role="status">
@@ -417,25 +523,50 @@ export function NewCarForm() {
       ) : null}
 
       {mutation.isError ? (
-        <p className="text-sm text-red-600">{mutation.error.message}</p>
+        <p className="text-sm text-destructive" role="alert">
+          {getErrorMessage(mutation.error, "Could not save the car.")}
+        </p>
       ) : null}
 
       <div className="flex gap-2">
-        <Button type="submit" disabled={mutation.isPending}>
+        <Button
+          type="submit"
+          disabled={mutation.isPending || (editing && !form.formState.isDirty)}
+        >
           {mutation.isPending
             ? uploadStatus
               ? "Uploading photos…"
               : "Saving…"
-            : "Save as draft"}
+            : editing
+              ? "Save changes"
+              : (props.submitLabel ?? "Save as draft")}
         </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.push("/agency/fleet")}
-        >
-          Cancel
-        </Button>
+        {editing ? (
+          props.onCancel ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={mutation.isPending}
+              onClick={props.onCancel}
+            >
+              Cancel
+            </Button>
+          ) : null
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => router.push("/agency/fleet")}
+          >
+            Cancel
+          </Button>
+        )}
       </div>
     </form>
   );
+}
+
+/** `/agency/fleet/new` — the plain create flow (navigates back to the fleet). */
+export function NewCarForm() {
+  return <CarForm mode="create" />;
 }

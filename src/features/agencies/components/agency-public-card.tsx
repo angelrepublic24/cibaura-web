@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Building2, Car as CarIcon, MapPin } from "lucide-react";
 import type { AgencyPublicProfile } from "@/features/agencies/api";
+import { PrivateHostBadge } from "@/features/agencies/components/private-host-badge";
 import { StarRating } from "@/shared/components/star-rating";
 import { FavoriteButton } from "@/shared/components/favorite-button";
 import { Card, CardContent } from "@/shared/components/ui/card";
@@ -35,9 +36,12 @@ export function AgencyPublicCard({ agency }: { agency: AgencyPublicProfile }) {
                 )}
               </div>
               <div className="min-w-0">
-                <h2 className="truncate font-medium text-foreground group-hover:text-primary">
-                  {agency.name}
-                </h2>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="truncate font-medium text-foreground group-hover:text-primary">
+                    {agency.name}
+                  </h2>
+                  <PrivateHostBadge kind={agency.kind} />
+                </div>
                 <StarRating rating={agency.ratingAvg} count={agency.reviewCount} />
               </div>
             </div>

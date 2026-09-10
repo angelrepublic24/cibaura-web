@@ -10,6 +10,7 @@ import {
   WEEK_DAY_LABELS,
 } from "@/features/agency/components/branch-form";
 import { PermissionGate } from "@/features/agency/components/permission-gate";
+import { useAgencySession } from "@/features/agency/hooks";
 import type { Branch } from "@/shared/types/domain";
 import { formatMoneyCents } from "@/shared/utils/money";
 import {
@@ -43,22 +44,36 @@ function BranchesBody() {
     queryKey: agencyKeys.branches(),
     queryFn: AgencyApi.branches,
   });
+  // Individual hosts have exactly ONE branch — their pickup address
+  // (ADR-0009; the server answers INDIVIDUAL_SINGLE_BRANCH to a second one).
+  const session = useAgencySession();
+  const individual = session.data?.agency.kind === "individual";
 
   return (
     <div>
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Branches</h1>
-        <Button
-          onClick={() => {
-            setEditingId(null);
-            setShowForm((v) => !v);
-          }}
-        >
-          {showForm ? "Close" : "Add branch"}
-        </Button>
+        <h1 className="text-2xl font-bold">
+          {individual ? "Pickup address" : "Branches"}
+        </h1>
+        {!individual ? (
+          <Button
+            onClick={() => {
+              setEditingId(null);
+              setShowForm((v) => !v);
+            }}
+          >
+            {showForm ? "Close" : "Add branch"}
+          </Button>
+        ) : null}
       </div>
+      {individual ? (
+        <p className="mt-1 text-sm text-muted-foreground">
+          As a private host you rent from a single address. Edit it, set your
+          hours or offer door-to-door delivery below.
+        </p>
+      ) : null}
 
-      {showForm ? (
+      {showForm && !individual ? (
         <BranchForm mode="create" onDone={() => setShowForm(false)} />
       ) : null}
 

@@ -1,5 +1,6 @@
 import { Api } from "@/shared/api/client";
 import type {
+  AgencyKind,
   AgencyVerificationStatus,
   BookingDetail,
   BookingState,
@@ -119,6 +120,8 @@ export interface AdminAgencyRow {
   id: string;
   name: string;
   slug: string;
+  /** `business | individual` (ADR-0009). */
+  kind: AgencyKind;
   verificationStatus: AgencyVerificationStatus;
   cities: string[];
   branchCount: number;

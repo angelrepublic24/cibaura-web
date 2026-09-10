@@ -6,6 +6,7 @@ import { Users, Gauge, Fuel } from "lucide-react";
 import type { Car } from "@/shared/types/domain";
 import { carPhoto } from "@/features/cars/photos";
 import { CarPhotoPlaceholder } from "@/features/cars/components/car-photo-placeholder";
+import { PrivateHostBadge } from "@/features/agencies/components/private-host-badge";
 import { formatMoneyCents } from "@/shared/utils/money";
 import { Badge } from "@/shared/components/ui/badge";
 
@@ -68,18 +69,21 @@ export function CarCard({
         </div>
 
         {/* Agency line — links to the public agency profile when provided. */}
-        <p className="mt-1 text-sm text-muted-foreground">
-          by{" "}
-          {agencyHref ? (
-            <Link
-              href={agencyHref}
-              className="font-medium text-foreground underline-offset-2 hover:text-primary hover:underline"
-            >
-              {car.agency.name}
-            </Link>
-          ) : (
-            <span className="font-medium text-foreground">{car.agency.name}</span>
-          )}
+        <p className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+          <span>
+            by{" "}
+            {agencyHref ? (
+              <Link
+                href={agencyHref}
+                className="font-medium text-foreground underline-offset-2 hover:text-primary hover:underline"
+              >
+                {car.agency.name}
+              </Link>
+            ) : (
+              <span className="font-medium text-foreground">{car.agency.name}</span>
+            )}
+          </span>
+          <PrivateHostBadge kind={car.agency.kind} />
         </p>
 
         {/* Key specs as small quiet chips. */}

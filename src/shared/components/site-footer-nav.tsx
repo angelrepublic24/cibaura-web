@@ -52,9 +52,14 @@ export function SiteFooterNav() {
         Agencies
       </Link>
       {!isAgency ? (
-        <Link href="/become-agency" className="hover:text-cream">
-          Become an agency
-        </Link>
+        <>
+          <Link href="/become-host" className="hover:text-cream">
+            Rent out your car
+          </Link>
+          <Link href="/become-agency" className="hover:text-cream">
+            Become an agency
+          </Link>
+        </>
       ) : null}
       {!isAuthenticated ? (
         <Link href="/auth/login" className="hover:text-cream">
