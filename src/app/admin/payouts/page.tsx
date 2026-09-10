@@ -29,8 +29,10 @@ const PAGE_SIZE = 20;
 
 const TAB_LABELS: Record<PayoutStatus, string> = {
   requested: "Requested",
+  processing: "Processing",
   paid: "Paid",
   rejected: "Rejected",
+  failed: "Failed",
 };
 
 function fmtDateTime(iso: string | null): string {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,6 +8,7 @@ import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AgencyApi, agencyKeys } from "@/features/agency/api";
 import { PermissionGate } from "@/features/agency/components/permission-gate";
+import { StripePayoutsCard } from "@/features/agency/components/stripe-payouts-card";
 import { usePermission } from "@/features/agency/use-permission";
 import type {
   AgencyWallet,
@@ -16,7 +17,13 @@ import type {
 } from "@/shared/types/domain";
 import { API_ERROR_CODES, getErrorMessage, isApiErrorCode } from "@/shared/api/errors";
 import { formatMoneyCents, wholeUnitsToCents } from "@/shared/utils/money";
-import { ledgerKindLabel, PayoutStatusBadge } from "@/shared/components/wallet-labels";
+import {
+  ledgerKindLabel,
+  payoutKindLabel,
+  payoutMethodLabel,
+  PayoutRailStatusBadge,
+  PayoutStatusBadge,
+} from "@/shared/components/wallet-labels";
 import {
   EmptyState,
   ErrorState,
@@ -37,13 +44,16 @@ import { cn } from "@/lib/utils";
 /**
  * /agency/wallet — balance, payouts and the append-only ledger (`wallet:view`).
  *
- * Money flow: a settled booking credits the agency (total − commission); a
- * payout request reserves part of the balance (`pendingPayoutCents`) until an
- * admin pays it (a `payout` DEBIT) or rejects it (reservation released).
- * Refunds after settlement, late-cancellation retentions and early-return
- * refunds land as their own ledger kinds. Every figure is server-computed;
- * this screen only formats and, for the payout form, converts the typed
- * amount to cents at the input boundary.
+ * Money flow: a settled booking credits the agency (subtotal − adjustments);
+ * a manual payout request reserves part of the balance (`pendingPayoutCents`)
+ * until an admin pays it (a `payout` DEBIT) or rejects it (reservation
+ * released). With an ACTIVE Stripe payout account (ADR-0012) settlements are
+ * paid out automatically instead (`method = stripe_connect`, tracked through
+ * `railStatus`; a failure reverses the debit). Refunds after settlement,
+ * cancellation retentions, claims and payout reversals land as their own
+ * ledger kinds. Every figure is server-computed; this screen only formats
+ * and, for the payout form, converts the typed amount to cents at the input
+ * boundary.
  */
 export default function AgencyWalletPage() {
   return (
@@ -103,6 +113,11 @@ function WalletBody() {
         />
       </div>
 
+      {/* Reads `useSearchParams` (Stripe return) — needs a Suspense boundary. */}
+      <Suspense fallback={<LoadingState label="Loading Stripe payout status…" />}>
+        <StripePayoutsCard />
+      </Suspense>
+
       {can("wallet:withdraw") ? <RequestPayoutCard wallet={wallet} /> : null}
 
       <section className="space-y-3">
@@ -118,7 +133,7 @@ function WalletBody() {
         ) : payoutsQuery.data!.length === 0 ? (
           <EmptyState
             title="No payouts yet"
-            description="Request a payout above once you have an available balance."
+            description="Request a payout above once you have an available balance, or set up Stripe payouts to receive settlements automatically."
             className="py-10"
           />
         ) : (
@@ -249,8 +264,8 @@ function RequestPayoutCard({ wallet }: { wallet: AgencyWallet }) {
       <CardHeader>
         <CardTitle className="text-base">Request a payout</CardTitle>
         <CardDescription>
-          We transfer to the bank account in your settings. Payouts are
-          processed manually, usually within a few business days.
+          We transfer to the bank account in your settings. Manual payouts are
+          processed by our team, usually within a few business days.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -336,43 +351,83 @@ function fmtDateTime(iso: string | null): string {
   });
 }
 
+/** The one line of context a payout row carries: reference, reason or failure. */
+function payoutNote(p: Payout): React.ReactNode {
+  if (p.status === "paid" && p.reference) {
+    return <span className="font-mono text-xs text-foreground">{p.reference}</span>;
+  }
+  if (p.status === "rejected" && p.note) {
+    return <span className="text-destructive">{p.note}</span>;
+  }
+  if (p.status === "failed") {
+    return (
+      <span className="text-destructive">
+        {p.failureReason ?? "Failed — the amount was returned to your balance."}
+      </span>
+    );
+  }
+  return "—";
+}
+
 function PayoutsTable({ payouts }: { payouts: Payout[] }) {
   return (
     <Card className="overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] border-collapse text-sm">
+        <table className="w-full min-w-[960px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
               <th className="px-4 py-3 font-medium">Requested</th>
               <th className="px-4 py-3 text-right font-medium">Amount</th>
+              <th className="px-4 py-3 font-medium">Method</th>
+              <th className="px-4 py-3 font-medium">Kind</th>
               <th className="px-4 py-3 font-medium">Status</th>
+              <th className="px-4 py-3 text-right font-medium">Received</th>
               <th className="px-4 py-3 font-medium">Reference / reason</th>
               <th className="px-4 py-3 font-medium">Decided</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {payouts.map((p) => (
-              <tr key={p.id} className="align-middle">
+              <tr key={p.id} className="align-top">
                 <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
                   {fmtDateTime(p.requestedAt)}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 text-right font-semibold tabular-nums text-foreground">
                   {formatMoneyCents(p.amountCents, p.currency)}
                 </td>
-                <td className="px-4 py-3">
-                  <PayoutStatusBadge status={p.status} />
+                <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
+                  {payoutMethodLabel(p.method)}
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">
-                  {p.status === "paid" && p.reference ? (
-                    <span className="font-mono text-xs text-foreground">
-                      {p.reference}
-                    </span>
-                  ) : p.status === "rejected" && p.note ? (
-                    <span className="text-destructive">{p.note}</span>
-                  ) : (
-                    "—"
-                  )}
+                  <div className="space-y-0.5">
+                    <p>{payoutKindLabel(p.kind)}</p>
+                    {p.bookingId ? (
+                      <Link
+                        href={`/agency/requests/${p.bookingId}`}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        View booking
+                      </Link>
+                    ) : null}
+                  </div>
                 </td>
+                <td className="px-4 py-3">
+                  <div className="flex flex-col items-start gap-1">
+                    <PayoutStatusBadge status={p.status} />
+                    {p.railStatus ? (
+                      <PayoutRailStatusBadge status={p.railStatus} />
+                    ) : null}
+                  </div>
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-muted-foreground">
+                  {p.receivedAmount
+                    ? formatMoneyCents(
+                        p.receivedAmount.value,
+                        p.receivedAmount.currency,
+                      )
+                    : "—"}
+                </td>
+                <td className="px-4 py-3 text-muted-foreground">{payoutNote(p)}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
                   {fmtDateTime(p.decidedAt)}
                 </td>
