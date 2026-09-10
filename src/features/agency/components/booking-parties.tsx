@@ -28,15 +28,19 @@ export function CustomerCard({ customer }: { customer: BookingCustomerDto }) {
       <CardContent>
         <p className="font-medium text-foreground">{customer.name}</p>
         <ul className="mt-2 space-y-1 text-sm">
-          <li>
-            <a
-              href={`mailto:${customer.email}`}
-              className="inline-flex items-center gap-1.5 text-primary hover:underline"
-            >
-              <Mail className="h-3.5 w-3.5" />
-              {customer.email}
-            </a>
-          </li>
+          {customer.email ? (
+            <li>
+              <a
+                href={`mailto:${customer.email}`}
+                className="inline-flex items-center gap-1.5 text-primary hover:underline"
+              >
+                <Mail className="h-3.5 w-3.5" />
+                {customer.email}
+              </a>
+            </li>
+          ) : (
+            <li className="text-muted-foreground">Email not shared</li>
+          )}
           {customer.phone ? (
             <li>
               <a
