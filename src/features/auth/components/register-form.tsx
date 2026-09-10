@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -10,7 +11,14 @@ import {
   registerSchema,
   type RegisterFormValues,
 } from "@/features/auth/schemas";
+import { TermsCheckbox } from "@/features/auth/components/terms-checkbox";
+import { useLegalCurrent } from "@/features/legal/hooks";
 import { useAuthStore } from "@/shared/auth/store";
+import {
+  API_ERROR_CODES,
+  getErrorMessage,
+  isApiErrorCode,
+} from "@/shared/api/errors";
 import { Button } from "@/shared/components/ui/button";
 import {
   Card,
@@ -25,6 +33,8 @@ import { Label } from "@/shared/components/ui/label";
 export function RegisterForm() {
   const router = useRouter();
   const signIn = useAuthStore((s) => s.signIn);
+  const legal = useLegalCurrent();
+  const [termsNotice, setTermsNotice] = useState<string | null>(null);
 
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
@@ -34,6 +44,7 @@ export function RegisterForm() {
       phone: "",
       password: "",
       confirmPassword: "",
+      acceptTerms: false,
     },
   });
 
@@ -44,6 +55,8 @@ export function RegisterForm() {
         password: values.password,
         fullName: values.fullName,
         phone: values.phone || undefined,
+        // The version the user actually saw/accepted — read from the server.
+        termsVersion: legal.data!.termsVersion,
       }),
     onSuccess: ({ user }) => {
       // The response set the httpOnly session cookies; only the user
@@ -51,9 +64,21 @@ export function RegisterForm() {
       signIn(user);
       router.push("/account");
     },
+    onError: async (error) => {
+      if (isApiErrorCode(error, API_ERROR_CODES.TERMS_OUTDATED)) {
+        // The terms changed between page load and submit: reload the current
+        // version and ask for a fresh consent instead of silently resending.
+        form.setValue("acceptTerms", false, { shouldValidate: false });
+        setTermsNotice(
+          "Our terms were updated while you were on this page. Please review and accept the current version to continue.",
+        );
+        await legal.refetch();
+      }
+    },
   });
 
   const errors = form.formState.errors;
+  const legalReady = legal.isSuccess && !!legal.data;
 
   return (
     <Card>
@@ -66,7 +91,10 @@ export function RegisterForm() {
       <CardContent>
         <form
           className="space-y-4"
-          onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+          onSubmit={form.handleSubmit((values) => {
+            setTermsNotice(null);
+            mutation.mutate(values);
+          })}
           noValidate
         >
           <div className="space-y-1.5">
@@ -131,29 +159,55 @@ export function RegisterForm() {
             ) : null}
           </div>
 
-          {mutation.isError ? (
-            <p className="text-sm text-red-600">{mutation.error.message}</p>
+          <TermsCheckbox
+            id="reg-terms"
+            inputProps={form.register("acceptTerms")}
+            disabled={!legalReady}
+            error={errors.acceptTerms?.message}
+            hint={
+              legal.isLoading ? (
+                "Loading the current terms…"
+              ) : legal.isError ? (
+                <>
+                  The current terms could not be loaded.{" "}
+                  <button
+                    type="button"
+                    className="text-primary underline underline-offset-2"
+                    onClick={() => legal.refetch()}
+                  >
+                    Try again
+                  </button>
+                </>
+              ) : legal.data ? (
+                `Terms version ${legal.data.termsVersion}`
+              ) : null
+            }
+          />
+
+          {termsNotice ? (
+            <p
+              className="rounded-[var(--radius-sm)] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
+              role="status"
+            >
+              {termsNotice}
+            </p>
           ) : null}
 
-          <p className="text-xs text-muted-foreground">
-            By creating an account you agree to our{" "}
-            <Link
-              href="/legal/terms"
-              className="text-primary underline underline-offset-2"
-            >
-              Terms of Service
-            </Link>{" "}
-            and{" "}
-            <Link
-              href="/legal/privacy"
-              className="text-primary underline underline-offset-2"
-            >
-              Privacy Policy
-            </Link>
-            .
-          </p>
+          {mutation.isError &&
+          !isApiErrorCode(mutation.error, API_ERROR_CODES.TERMS_OUTDATED) ? (
+            <p className="text-sm text-red-600" role="alert">
+              {getErrorMessage(
+                mutation.error,
+                "Could not create your account. Please try again.",
+              )}
+            </p>
+          ) : null}
 
-          <Button type="submit" className="w-full" disabled={mutation.isPending}>
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={mutation.isPending || !legalReady}
+          >
             {mutation.isPending ? "Creating account…" : "Create account"}
           </Button>
         </form>

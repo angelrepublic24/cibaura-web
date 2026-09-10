@@ -10,6 +10,7 @@ import {
   type StaffMember,
 } from "@/features/agency/rbac";
 import { StaffForm } from "@/features/agency/components/staff-form";
+import { getErrorMessage } from "@/shared/api/errors";
 import {
   EmptyState,
   ErrorState,
@@ -34,9 +35,26 @@ function scopeLabel(scope: BranchScope): string {
  * The server re-checks every mutation regardless.
  */
 export default function AgencyStaffPage() {
-  const { can, isLoading: permLoading } = usePermission();
+  const {
+    can,
+    isPending: permPending,
+    isError: permError,
+    error: permErrorValue,
+    refetch: refetchPermissions,
+  } = usePermission();
 
-  if (permLoading) {
+  // A failed session read means permissions are UNKNOWN — never "no access".
+  if (permError) {
+    return (
+      <ErrorState
+        title="Could not check your permissions"
+        message={getErrorMessage(permErrorValue, "Please try again.")}
+        onRetry={refetchPermissions}
+      />
+    );
+  }
+
+  if (permPending) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-48" />

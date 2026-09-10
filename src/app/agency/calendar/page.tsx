@@ -9,6 +9,8 @@ import {
   List as ListIcon,
 } from "lucide-react";
 import { AgencyApi, agencyKeys } from "@/features/agency/api";
+import { PermissionGate } from "@/features/agency/components/permission-gate";
+import { useAllFleet } from "@/features/agency/hooks";
 import type { AgencyCar, OccupancyEntry } from "@/shared/types/domain";
 import { currentMonth, toIsoDate, todayIso } from "@/shared/utils/dates";
 import {
@@ -31,12 +33,13 @@ import { Textarea } from "@/shared/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 /**
- * /agency/calendar — the agency's occupancy (accepted bookings + manual
- * blocks) as a real month-grid calendar with a List fallback. Accepted
- * requests land here automatically: accepting a request inserts a row into
- * CarOccupancy in the same transaction, so `source: "booking"` entries show
- * up the moment they're accepted (the DB exclusion constraint is what actually
- * prevents double-booking — never this screen).
+ * /agency/calendar (`calendar:manage`) — the agency's occupancy (accepted
+ * bookings + manual blocks) as a real month-grid calendar with a List
+ * fallback. Accepted requests land here automatically: accepting a request
+ * inserts a row into CarOccupancy in the same transaction, so
+ * `source: "booking"` entries show up the moment they're accepted (the DB
+ * exclusion constraint is what actually prevents double-booking — never this
+ * screen).
  */
 type View = "month" | "list";
 
@@ -90,16 +93,22 @@ function carLabel(car: AgencyCar | undefined): string {
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default function AgencyCalendarPage() {
+  return (
+    <PermissionGate permission="calendar:manage">
+      <OccupancyCalendar />
+    </PermissionGate>
+  );
+}
+
+function OccupancyCalendar() {
   const qc = useQueryClient();
   const [month, setMonth] = useState<string>(currentMonth());
   const [carId, setCarId] = useState<string>("");
   const [view, setView] = useState<View>("month");
   const [showBlockForm, setShowBlockForm] = useState(false);
 
-  const fleetQuery = useQuery({
-    queryKey: agencyKeys.fleet(),
-    queryFn: () => AgencyApi.fleet(),
-  });
+  // Every car (all pages) — a <select> cannot paginate.
+  const fleet = useAllFleet();
 
   const calendarQuery = useQuery({
     queryKey: agencyKeys.calendar(carId || null, month),
@@ -117,9 +126,9 @@ export default function AgencyCalendarPage() {
   // carId → label, for booking/block bars under "All cars".
   const carsById = useMemo(() => {
     const map = new Map<string, AgencyCar>();
-    for (const c of fleetQuery.data?.items ?? []) map.set(c.id, c);
+    for (const c of fleet.cars) map.set(c.id, c);
     return map;
-  }, [fleetQuery.data]);
+  }, [fleet.cars]);
 
   const entries = calendarQuery.data ?? [];
   const isCurrentMonth = month === currentMonth();
@@ -207,11 +216,13 @@ export default function AgencyCalendarPage() {
             <Select
               id="cal-car"
               value={carId}
-              disabled={fleetQuery.isLoading}
+              disabled={fleet.isLoading}
               onChange={(e) => setCarId(e.target.value)}
             >
-              <option value="">All cars</option>
-              {(fleetQuery.data?.items ?? []).map((c) => (
+              <option value="">
+                {fleet.isLoading ? "Loading cars…" : "All cars"}
+              </option>
+              {fleet.cars.map((c) => (
                 <option key={c.id} value={c.id}>
                   {carLabel(c)} · {c.year}
                 </option>
@@ -224,7 +235,8 @@ export default function AgencyCalendarPage() {
 
       {showBlockForm ? (
         <ManualBlockForm
-          cars={fleetQuery.data?.items ?? []}
+          cars={fleet.cars}
+          carsLoading={fleet.isLoading}
           onDone={() => {
             setShowBlockForm(false);
             invalidate();
@@ -451,9 +463,11 @@ function OccupancyList({
 
 function ManualBlockForm({
   cars,
+  carsLoading,
   onDone,
 }: {
   cars: AgencyCar[];
+  carsLoading: boolean;
   onDone: () => void;
 }) {
   const [blockCarId, setBlockCarId] = useState("");
@@ -490,9 +504,12 @@ function ManualBlockForm({
             <Select
               id="mb-car"
               value={blockCarId}
+              disabled={carsLoading}
               onChange={(e) => setBlockCarId(e.target.value)}
             >
-              <option value="">Select a car</option>
+              <option value="">
+                {carsLoading ? "Loading cars…" : "Select a car"}
+              </option>
               {cars.map((c) => (
                 <option key={c.id} value={c.id}>
                   {carLabel(c)} · {c.year}

@@ -24,11 +24,11 @@ import { Textarea } from "@/shared/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 /**
- * /admin/verification — the customer identity/licence review queue (ADR-0004).
+ * /admin/verification — the customer identity/license review queue (ADR-0004).
  *
  * Admins pick a status filter (pending by default), open a customer to read
- * their licence + view uploaded ID/licence photos, then Verify or Reject with a
- * reason. Verifying an EXPIRED licence is blocked server-side (400) — we mirror
+ * their license + view uploaded ID/license photos, then Verify or Reject with a
+ * reason. Verifying an EXPIRED license is blocked server-side (400) — we mirror
  * that by disabling Verify and showing why. Every mutation invalidates the
  * verification subtree so the list and the open detail both refresh.
  */
@@ -47,11 +47,11 @@ const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
 const DOC_TYPE_LABELS: Record<string, string> = {
   id_front: "ID — front",
   id_back: "ID — back",
-  license_front: "Licence — front",
-  license_back: "Licence — back",
+  license_front: "License — front",
+  license_back: "License — back",
 };
 
-/** ISO datetime → "Aug 1, 2026"; YYYY-MM-DD licence dates render the same. */
+/** ISO datetime → "Aug 1, 2026"; YYYY-MM-DD license dates render the same. */
 function fmtDate(iso: string | null): string {
   if (!iso) return "—";
   const d = new Date(iso.length === 10 ? `${iso}T00:00:00` : iso);
@@ -91,7 +91,7 @@ export default function AdminVerificationPage() {
               Customer verification
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Review customer identity + driver&apos;s licence submissions,
+              Review customer identity + driver&apos;s license submissions,
               inspect their photos, then verify or reject each one.
             </p>
           </div>
@@ -168,7 +168,7 @@ export default function AdminVerificationPage() {
                             {c.documentCount}{" "}
                             {c.documentCount === 1 ? "photo" : "photos"}
                             {c.licenseExpired ? (
-                              <Badge variant="destructive">Licence expired</Badge>
+                              <Badge variant="destructive">License expired</Badge>
                             ) : null}
                           </span>
                           <span>{fmtDate(c.createdAt)}</span>
@@ -189,7 +189,7 @@ export default function AdminVerificationPage() {
               <Card>
                 <CardContent className="py-16">
                   <p className="text-center text-sm text-muted-foreground">
-                    Select a customer to review their licence and photos.
+                    Select a customer to review their license and photos.
                   </p>
                 </CardContent>
               </Card>
@@ -264,9 +264,10 @@ function CustomerDetail({ userId }: { userId: string }) {
   const rows: { label: string; value: string | null; alert?: boolean }[] = [
     { label: "Name", value: c.name },
     { label: "Email", value: c.email },
-    { label: "Licence number", value: c.licenseNumber },
+    { label: "Date of birth", value: fmtDate(c.dateOfBirth) },
+    { label: "License number", value: c.licenseNumber },
     {
-      label: "Licence expiry",
+      label: "License expiry",
       value: fmtDate(c.licenseExpiry),
       alert: c.licenseExpired,
     },
@@ -289,18 +290,18 @@ function CustomerDetail({ userId }: { userId: string }) {
           </span>
         </div>
 
-        {/* Expired-licence warning */}
+        {/* Expired-license warning */}
         {c.licenseExpired ? (
           <div className="rounded-[var(--radius-sm)] border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-700">
-            This driver&apos;s licence is expired — it cannot be verified. Ask
-            the customer to submit a valid licence.
+            This driver&apos;s license is expired — it cannot be verified. Ask
+            the customer to submit a valid license.
           </div>
         ) : null}
 
         {/* Details */}
         <section>
           <h3 className="text-sm font-semibold text-foreground">
-            Licence details
+            Identity &amp; license
           </h3>
           <dl className="mt-3 grid gap-x-6 gap-y-3 sm:grid-cols-2">
             {rows.map((row) => (
@@ -411,7 +412,7 @@ function CustomerDetail({ userId }: { userId: string }) {
                       id="reject-reason"
                       value={reason}
                       onChange={(e) => setReason(e.target.value)}
-                      placeholder="Explain what is missing or invalid (blurry photo, name mismatch, expired licence…) so the customer can fix and re-submit."
+                      placeholder="Explain what is missing or invalid (blurry photo, name mismatch, expired license…) so the customer can fix and re-submit."
                     />
                     <p className="text-xs text-muted-foreground">
                       This reason is shown to the customer. A reason is required.

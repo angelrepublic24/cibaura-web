@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main, v1-launch-hardening]
+  pull_request:
+
+jobs:
+  web:
+    name: Build · typecheck · lint
+    runs-on: ubuntu-latest
+    env:
+      # Dummy public values — the bundle only needs them to exist. Real
+      # deployments inject theirs at build time (see .env.example).
+      NEXT_PUBLIC_API_URL: https://api.ci.invalid
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_ci_placeholder
+      NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build

@@ -9,13 +9,21 @@ import type {
 } from "@/shared/types/domain";
 
 /**
- * Customer identity/licence verification API (ADR-0004).
+ * Customer identity/license verification API (DOMAIN.md "Identity & KYC
+ * gates" / ADR-0007).
  *
- * Backend contract (verified against verification.controller.ts, all under /api):
+ * Backend contract (all under /api):
  *  Customer (any authenticated user):
  *   - GET  /verification/me            -> { verification, documents }
- *   - POST /verification { licenseNumber, licenseExpiry } -> CustomerVerification
- *       (an already-expired licence auto-REJECTS server-side)
+ *   - POST /verification { licenseNumber, licenseExpiry, dateOfBirth }
+ *       -> CustomerVerification (an already-expired license auto-REJECTS
+ *          server-side; `dateOfBirth` is required and must be at least 16
+ *          years ago — agencies enforce their own minimum driver age at
+ *          request time via DRIVER_TOO_YOUNG)
+ *   - PATCH /verification/me { dateOfBirth } -> CustomerVerification
+ *       (ONLY while the stored date of birth is null; 409 otherwise. Does not
+ *        change the verification status — lets already-verified customers
+ *        add the field the age gate needs without re-submitting.)
  *   - POST /verification/documents  (multipart: file + type) -> CustomerDocument
  *  Admin (platform_admin):
  *   - GET   /verification/customers?status=              -> CustomerVerificationAdmin[]
@@ -39,6 +47,7 @@ export const verificationKeys = {
 export interface SubmitVerificationInput {
   licenseNumber: string;
   licenseExpiry: string; // YYYY-MM-DD
+  dateOfBirth: string; // YYYY-MM-DD
 }
 
 export const VerificationApi = {
@@ -49,7 +58,15 @@ export const VerificationApi = {
   },
 
   async submit(input: SubmitVerificationInput): Promise<CustomerVerification> {
-    const res = await Api.post("/verification", input);
+    const res = await Api.post<CustomerVerification>("/verification", input);
+    return res.data;
+  },
+
+  /** Add the date of birth to an existing record (allowed only while null). */
+  async setDateOfBirth(dateOfBirth: string): Promise<CustomerVerification> {
+    const res = await Api.patch<CustomerVerification>("/verification/me", {
+      dateOfBirth,
+    });
     return res.data;
   },
 

@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   CalendarDays,
+  ChevronDown,
+  ChevronUp,
+  FileText,
   Fuel,
   Gauge,
   Loader2,
@@ -18,6 +21,9 @@ import {
 import { CarsApi, carKeys } from "@/features/cars/api";
 import { BookingsApi } from "@/features/bookings/api";
 import { useRequestPayment } from "@/features/bookings/use-request-payment";
+import { useLegalCurrent } from "@/features/legal/hooks";
+import { CancellationPolicySummary } from "@/features/legal/components/cancellation-policy";
+import { TermsCheckbox } from "@/features/auth/components/terms-checkbox";
 import {
   PaymentMethodsApi,
   paymentMethodKeys,
@@ -27,12 +33,24 @@ import {
   AddressAutocomplete,
   type PickedAddress,
 } from "@/shared/components/address-autocomplete";
+import {
+  DateRangePicker,
+  addDaysIso,
+  blockedDayPredicate,
+} from "@/shared/components/date-range-picker";
 import { carGallery } from "@/features/cars/photos";
 import { CarPhotoPlaceholder } from "@/features/cars/components/car-photo-placeholder";
 import { useAuthStore } from "@/shared/auth/store";
+import {
+  API_ERROR_CODES,
+  getApiErrorCode,
+  getErrorMessage,
+} from "@/shared/api/errors";
 import type {
   CarDetail as CarDetailShape,
+  CarDetailAgencyDto,
   PaymentMethod,
+  Period,
   PickupType,
 } from "@/shared/types/domain";
 import { formatMoneyCents, formatPct } from "@/shared/utils/money";
@@ -51,6 +69,9 @@ import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
 import { cn } from "@/lib/utils";
 
+/** How far ahead the availability window (and the picker) reaches. */
+const AVAILABILITY_DAYS = 90;
+
 export function CarDetail({
   carId,
   initialFrom,
@@ -64,6 +85,19 @@ export function CarDetail({
     queryKey: carKeys.detail(carId),
     queryFn: () => CarsApi.findById(carId),
   });
+
+  // ONE availability fetch feeds both the blocked-days list and the date
+  // picker (same key → TanStack dedupes; the server owns availability).
+  const availabilityFrom = todayIso();
+  const availabilityTo = addDaysIso(availabilityFrom, AVAILABILITY_DAYS);
+  const availabilityQuery = useQuery({
+    queryKey: carKeys.availability(carId, availabilityFrom, availabilityTo),
+    queryFn: () => CarsApi.availability(carId, availabilityFrom, availabilityTo),
+  });
+  const occupied = useMemo(
+    () => availabilityQuery.data?.occupied ?? [],
+    [availabilityQuery.data],
+  );
 
   if (carQuery.isLoading) return <LoadingState label="Loading car…" />;
   if (carQuery.isError) {
@@ -147,10 +181,24 @@ export function CarDetail({
           </span>
         </div>
 
-        <AvailabilityCalendar carId={carId} />
+        <AvailabilityCalendar
+          occupied={occupied}
+          isLoading={availabilityQuery.isLoading}
+          isError={availabilityQuery.isError}
+          onRetry={() => availabilityQuery.refetch()}
+        />
       </div>
 
-      <BookingPanel car={car} initialFrom={initialFrom} initialTo={initialTo} />
+      <div className="space-y-4">
+        <RentalConditions agency={car.agency} />
+        <BookingPanel
+          car={car}
+          initialFrom={initialFrom}
+          initialTo={initialTo}
+          occupied={occupied}
+          availabilityWindow={{ start: availabilityFrom, end: availabilityTo }}
+        />
+      </div>
     </div>
   );
 }
@@ -214,38 +262,133 @@ function PhotoGallery({ photos, alt }: { photos: string[]; alt: string }) {
 }
 
 /**
- * Availability list for the next ~60 days: renders the server's blocked
+ * "Rental conditions by {agency}" — the agency's own terms the customer
+ * accepts at request time (frozen into the booking's agreement snapshot):
+ * free-text conditions, minimum driver age and the deposit note. Rendered
+ * ABOVE the booking widget so nobody requests without seeing them.
+ */
+function RentalConditions({ agency }: { agency: CarDetailAgencyDto }) {
+  const [expanded, setExpanded] = useState(false);
+  const conditions = agency.rentalConditions?.trim() ?? "";
+  const long = conditions.length > 420;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <FileText className="h-4 w-4 text-primary" />
+          Rental conditions by {agency.name}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <dl className="grid grid-cols-2 gap-3">
+          <div className="rounded-[var(--radius-sm)] bg-muted/60 p-3">
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+              Minimum driver age
+            </dt>
+            <dd className="mt-0.5 font-semibold text-foreground">
+              {agency.minDriverAge} years
+            </dd>
+          </div>
+          <div className="rounded-[var(--radius-sm)] bg-muted/60 p-3">
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+              Deposit
+            </dt>
+            <dd className="mt-0.5 font-semibold text-foreground">
+              {agency.depositNote ? "See note" : "Not specified"}
+            </dd>
+          </div>
+        </dl>
+
+        {agency.depositNote ? (
+          <p className="text-muted-foreground">
+            <span className="font-medium text-foreground">Deposit: </span>
+            {agency.depositNote}
+          </p>
+        ) : null}
+
+        {conditions ? (
+          <div>
+            <p
+              className={cn(
+                "whitespace-pre-line leading-relaxed text-muted-foreground",
+                long && !expanded && "line-clamp-6",
+              )}
+            >
+              {conditions}
+            </p>
+            {long ? (
+              <button
+                type="button"
+                className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary"
+                onClick={() => setExpanded((v) => !v)}
+              >
+                {expanded ? (
+                  <>
+                    Show less <ChevronUp className="h-3.5 w-3.5" />
+                  </>
+                ) : (
+                  <>
+                    Read all conditions <ChevronDown className="h-3.5 w-3.5" />
+                  </>
+                )}
+              </button>
+            ) : null}
+          </div>
+        ) : (
+          <p className="text-muted-foreground">
+            This agency has not published additional conditions. The platform
+            Terms of Service and the cancellation policy still apply.
+          </p>
+        )}
+
+        <p className="text-xs text-muted-foreground">
+          These conditions are saved with your booking exactly as they read
+          today.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Availability list for the next ~90 days: renders the server's blocked
  * windows (`Availability.occupied`, `Period[]`). The server owns
  * availability; this UI only reflects it — the booking panel's server
  * quote has the final word on any conflict.
  */
-function AvailabilityCalendar({ carId }: { carId: string }) {
-  const from = todayIso();
-  const to = addDaysIso(from, 60);
-
-  const query = useQuery({
-    queryKey: carKeys.availability(carId, from, to),
-    queryFn: () => CarsApi.availability(carId, from, to),
-  });
-
-  const occupied = query.data?.occupied ?? [];
-
+function AvailabilityCalendar({
+  occupied,
+  isLoading,
+  isError,
+  onRetry,
+}: {
+  occupied: Period[];
+  isLoading: boolean;
+  isError: boolean;
+  onRetry: () => void;
+}) {
   return (
     <Card className="mt-6">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <CalendarDays className="h-4 w-4" />
-          Availability (next 60 days)
+          Availability (next {AVAILABILITY_DAYS} days)
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {query.isLoading ? (
+        {isLoading ? (
           <LoadingState label="Loading availability…" className="py-6" />
-        ) : query.isError ? (
-          <p className="text-sm text-muted-foreground">
-            Availability could not be loaded. You can still request dates —
-            the server always has the final word on conflicts.
-          </p>
+        ) : isError ? (
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Availability could not be loaded. You can still request dates —
+              the server always has the final word on conflicts.
+            </p>
+            <Button type="button" size="sm" variant="outline" onClick={onRetry}>
+              Try again
+            </Button>
+          </div>
         ) : occupied.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             No blocked dates in this window.
@@ -269,11 +412,79 @@ function AvailabilityCalendar({ carId }: { carId: string }) {
   );
 }
 
+/** Whole years between a YYYY-MM-DD birth date and a YYYY-MM-DD reference day. */
+function ageOn(dateOfBirth: string, day: string): number {
+  const [by, bm, bd] = dateOfBirth.split("-").map(Number);
+  const [y, m, d] = day.split("-").map(Number);
+  let age = y - by;
+  if (m < bm || (m === bm && d < bd)) age -= 1;
+  return age;
+}
+
 /**
- * Booking panel: date range + pickup choice (branch | delivery-with-zone)
- * + SERVER-computed quote (POST /bookings/quote) + saved-card choice (the
- * selected id travels as `paymentMethodId`; the hold is placed on exactly
- * that card, defaulting to the backend's default = most recently saved).
+ * Map the request-to-book gate errors (stable backend `code`s) to copy the
+ * customer can act on. Anything unmapped falls back to the server message.
+ */
+function describeRequestError(error: unknown): {
+  message: string;
+  action?: { label: string; href: string };
+} {
+  const code = getApiErrorCode(error);
+  switch (code) {
+    case API_ERROR_CODES.TERMS_OUTDATED:
+      return {
+        message:
+          "Our terms were updated while you were on this page. Please review and accept the current version, then request again.",
+      };
+    case API_ERROR_CODES.TERMS_ACCEPTANCE_REQUIRED:
+      return {
+        message: "You need to accept the Terms of Service to request a booking.",
+      };
+    case API_ERROR_CODES.CUSTOMER_NOT_VERIFIED:
+      return {
+        message:
+          "Your identity is not verified yet. Complete the one-time verification to book.",
+        action: { label: "Verify identity", href: "/account/verification" },
+      };
+    case API_ERROR_CODES.VERIFICATION_INCOMPLETE:
+      return {
+        message:
+          "Your verification is missing your date of birth, which agencies need to check their minimum driver age.",
+        action: { label: "Add date of birth", href: "/account/verification" },
+      };
+    case API_ERROR_CODES.DRIVER_TOO_YOUNG:
+      return {
+        message:
+          "You do not meet this agency's minimum driver age on the pickup date, so this car cannot be requested.",
+      };
+    case API_ERROR_CODES.LICENSE_EXPIRES_BEFORE_END:
+      return {
+        message:
+          "Your driver's license expires before this rental ends. Renew it or choose an earlier return date.",
+        action: { label: "Update license", href: "/account/verification" },
+      };
+    case API_ERROR_CODES.RENTAL_TOO_LONG:
+      return {
+        message:
+          "This rental is longer than the maximum allowed. Choose a shorter period.",
+      };
+    default:
+      return {
+        message: getErrorMessage(
+          error,
+          "The request could not be sent. Please try again.",
+        ),
+      };
+  }
+}
+
+/**
+ * Booking panel: date range (blocked days disabled) + pickup choice
+ * (branch | delivery-with-zone | delivery-to-address) + SERVER-computed
+ * quote (POST /bookings/quote) + saved-card choice (the selected id travels
+ * as `paymentMethodId`; the hold is placed on exactly that card, defaulting
+ * to the backend's default = most recently saved) + terms acceptance
+ * (`acceptTerms` + `termsVersion` from `GET /legal/current`).
  * The client never multiplies days x rate — it renders the returned Pricing
  * verbatim.
  *
@@ -283,13 +494,18 @@ function BookingPanel({
   car,
   initialFrom,
   initialTo,
+  occupied,
+  availabilityWindow,
 }: {
   car: CarDetailShape;
   initialFrom?: string;
   initialTo?: string;
+  occupied: Period[];
+  availabilityWindow: Period;
 }) {
   const router = useRouter();
   const status = useAuthStore((s) => s.status);
+  const legal = useLegalCurrent();
 
   // A card is required to book (the request places a hold on it). Gate the
   // request button on the customer having a saved payment method.
@@ -309,7 +525,7 @@ function BookingPanel({
   const selectedCard =
     cards.find((c) => c.id === selectedCardId) ?? cards[0] ?? null;
 
-  // Identity gate: only a VERIFIED customer with a valid licence can rent.
+  // Identity gate: only a VERIFIED customer with a valid license can rent.
   // The server enforces it (assertCanRent); we read `/verification/me` to show
   // the right CTA up front instead of letting the request 403.
   const verifQuery = useQuery({
@@ -320,12 +536,31 @@ function BookingPanel({
   const verification = verifQuery.data?.verification;
   const isVerified = verification?.status === "verified";
 
-  const [from, setFrom] = useState(initialFrom ?? "");
-  const [to, setTo] = useState(initialTo ?? "");
+  const [range, setRange] = useState({
+    from: initialFrom ?? "",
+    to: initialTo ?? "",
+  });
+  const from = range.from;
+  const to = range.to;
+  const [calendarOpen, setCalendarOpen] = useState(!initialFrom || !initialTo);
   const [pickup, setPickup] = useState<PickupType>("branch_pickup");
   const [zoneId, setZoneId] = useState<string>("");
   const [deliveryAddr, setDeliveryAddr] = useState<PickedAddress | null>(null);
   const [deliveryReference, setDeliveryReference] = useState("");
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [termsError, setTermsError] = useState<string | null>(null);
+
+  const isDayBlocked = useMemo(() => blockedDayPredicate(occupied), [occupied]);
+
+  // Dates pre-filled from the URL may collide with a block the customer has
+  // not seen yet — flag it (the server would reject the request anyway).
+  const rangeBlocked = useMemo(() => {
+    if (!from || !to || to <= from) return false;
+    for (let d = from; d < to; d = addDaysIso(d, 1)) {
+      if (isDayBlocked(d)) return true;
+    }
+    return false;
+  }, [from, to, isDayBlocked]);
 
   const zones = car.deliveryZones;
   // Address-based delivery when the branch enables it; else legacy zones (if any).
@@ -333,8 +568,9 @@ function BookingPanel({
   const deliveryAvailable = addressDelivery || zones.length > 0;
 
   const deliveryReady = addressDelivery ? !!deliveryAddr : !!zoneId;
+  const datesReady = !!from && !!to && to > from;
   const quoteReady =
-    !!from && !!to && (pickup === "branch_pickup" || deliveryReady);
+    datesReady && !rangeBlocked && (pickup === "branch_pickup" || deliveryReady);
 
   // Delivery params for the server (a geocoded address takes precedence).
   const deliveryParams =
@@ -387,8 +623,17 @@ function BookingPanel({
         // Always send the card the customer sees selected — even the default —
         // so what's displayed is exactly what gets the hold.
         paymentMethodId: selectedCard?.id,
+        // The version the customer just accepted — read from the server.
+        termsVersion: legal.data!.termsVersion,
       }),
     onSuccess: (booking) => payment.start(booking),
+    onError: async (error) => {
+      if (getApiErrorCode(error) === API_ERROR_CODES.TERMS_OUTDATED) {
+        // Ask for a fresh consent against the new version.
+        setAcceptTerms(false);
+        await legal.refetch();
+      }
+    },
   });
 
   const paymentBusy =
@@ -396,13 +641,38 @@ function BookingPanel({
 
   const quote = quoteQuery.data;
 
-  // A verified customer whose licence expires before the chosen return date is
+  // A verified customer whose license expires before the chosen return date is
   // blocked server-side (assertCanRent). Warn + disable proactively.
-  const licenceExpiresBeforeReturn =
+  const licenseExpiresBeforeReturn =
     isVerified &&
     !!verification?.licenseExpiry &&
     !!to &&
     verification.licenseExpiry < to;
+
+  // Agency minimum driver age, checked on the pickup day (server does the
+  // same in the business timezone). No date of birth on file → the server
+  // answers VERIFICATION_INCOMPLETE, so point there first.
+  const dobMissing = isVerified && verification?.dateOfBirth === null;
+  const tooYoung =
+    isVerified &&
+    !!verification?.dateOfBirth &&
+    !!from &&
+    ageOn(verification.dateOfBirth, from) < car.agency.minDriverAge;
+
+  const legalReady = legal.isSuccess && !!legal.data;
+  const requestError = requestMutation.isError
+    ? describeRequestError(requestMutation.error)
+    : null;
+
+  function submitRequest() {
+    if (!acceptTerms) {
+      setTermsError("Accept the Terms of Service to send your request.");
+      return;
+    }
+    setTermsError(null);
+    payment.reset(); // clear a previous failed attempt, if any
+    requestMutation.mutate();
+  }
 
   return (
     <Card className="h-fit lg:sticky lg:top-24">
@@ -417,28 +687,62 @@ function BookingPanel({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 pt-5">
+        {/* Dates: two summary fields that open the blocked-days picker. */}
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1.5">
             <Label htmlFor="bp-from">Pickup</Label>
-            <Input
+            <button
               id="bp-from"
-              type="date"
-              min={todayIso()}
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-            />
+              type="button"
+              aria-expanded={calendarOpen}
+              onClick={() => setCalendarOpen((v) => !v)}
+              className={cn(
+                "flex h-10 w-full items-center rounded-[var(--radius-sm)] border border-border bg-surface px-3.5 text-left text-sm shadow-sm transition-colors hover:border-border-strong focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                !from && "text-muted-foreground",
+              )}
+            >
+              {from ? formatIsoDate(from) : "Add date"}
+            </button>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="bp-to">Return</Label>
-            <Input
+            <button
               id="bp-to"
-              type="date"
-              min={from || todayIso()}
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-            />
+              type="button"
+              aria-expanded={calendarOpen}
+              onClick={() => setCalendarOpen((v) => !v)}
+              className={cn(
+                "flex h-10 w-full items-center rounded-[var(--radius-sm)] border border-border bg-surface px-3.5 text-left text-sm shadow-sm transition-colors hover:border-border-strong focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                !to && "text-muted-foreground",
+              )}
+            >
+              {to ? formatIsoDate(to) : "Add date"}
+            </button>
           </div>
         </div>
+
+        {calendarOpen ? (
+          <DateRangePicker
+            value={range}
+            onChange={(next) => {
+              setRange(next);
+              if (next.from && next.to) setCalendarOpen(false);
+            }}
+            minDate={availabilityWindow.start}
+            maxDate={availabilityWindow.end}
+            isDayBlocked={isDayBlocked}
+          />
+        ) : null}
+
+        {rangeBlocked ? (
+          <p
+            className="rounded-[var(--radius-sm)] border border-red-200 bg-red-50 p-3 text-xs text-red-700"
+            role="alert"
+          >
+            The car is unavailable on some of these days. Pick different dates
+            — blocked days are marked in the calendar.
+          </p>
+        ) : null}
 
         {/* Pickup choice: branch pickup or delivery to a zone */}
         <fieldset className="space-y-2">
@@ -527,7 +831,7 @@ function BookingPanel({
           ) : quoteQuery.isError ? (
             <ErrorState
               title="Quote unavailable"
-              message={quoteQuery.error.message}
+              message={describeRequestError(quoteQuery.error).message}
               onRetry={() => quoteQuery.refetch()}
               className="py-4"
             />
@@ -568,8 +872,7 @@ function BookingPanel({
                 ? " and a delivery address"
                 : " and a zone"
               : ""}{" "}
-            to see
-            the total.
+            to see the total.
           </p>
         )}
 
@@ -596,14 +899,87 @@ function BookingPanel({
           </div>
         ) : null}
 
-        {/* Proactive licence-window warning (server blocks it too). */}
-        {licenceExpiresBeforeReturn ? (
+        {/* Proactive gate warnings (the server blocks all of them too). */}
+        {licenseExpiresBeforeReturn ? (
           <p className="flex items-start gap-2 rounded-[var(--radius-sm)] border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
             <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            Your driver&apos;s licence expires on{" "}
-            {formatIsoDate(verification!.licenseExpiry!)}, before this rental
-            ends. Renew your licence or choose an earlier return date.
+            <span>
+              Your driver&apos;s license expires on{" "}
+              {formatIsoDate(verification!.licenseExpiry!)}, before this rental
+              ends. Renew your license or choose an earlier return date.
+            </span>
           </p>
+        ) : null}
+        {tooYoung ? (
+          <p className="flex items-start gap-2 rounded-[var(--radius-sm)] border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+              {car.agency.name} requires drivers to be at least{" "}
+              {car.agency.minDriverAge} on the pickup date, so this car cannot
+              be requested with your date of birth on file.
+            </span>
+          </p>
+        ) : null}
+        {dobMissing ? (
+          <p className="flex items-start gap-2 rounded-[var(--radius-sm)] border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+              Agencies check a minimum driver age.{" "}
+              <Link
+                href="/account/verification"
+                className="font-medium underline underline-offset-2"
+              >
+                Add your date of birth
+              </Link>{" "}
+              to your verification before requesting.
+            </span>
+          </p>
+        ) : null}
+
+        {status === "authenticated" && isVerified && hasCard ? (
+          <TermsCheckbox
+            id="bp-terms"
+            inputProps={{
+              checked: acceptTerms,
+              onChange: (e) => {
+                setAcceptTerms(e.target.checked);
+                if (e.target.checked) setTermsError(null);
+              },
+            }}
+            disabled={!legalReady}
+            error={termsError ?? undefined}
+            label={
+              <>
+                I agree to the{" "}
+                <Link
+                  href="/legal/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline underline-offset-2"
+                >
+                  Terms of Service
+                </Link>
+                , the cancellation policy and {car.agency.name}&apos;s rental
+                conditions above.
+              </>
+            }
+            hint={
+              legal.isLoading ? (
+                "Loading the current terms…"
+              ) : legal.isError ? (
+                <>
+                  The current terms could not be loaded.{" "}
+                  <button
+                    type="button"
+                    className="text-primary underline underline-offset-2"
+                    onClick={() => legal.refetch()}
+                  >
+                    Try again
+                  </button>
+                </>
+              ) : null
+            }
+          />
         ) : null}
 
         {status !== "authenticated" ? (
@@ -665,14 +1041,15 @@ function BookingPanel({
             disabled={
               !quoteReady ||
               quoteQuery.isLoading ||
-              licenceExpiresBeforeReturn ||
+              quoteQuery.isError ||
+              licenseExpiresBeforeReturn ||
+              tooYoung ||
+              dobMissing ||
+              !legalReady ||
               requestMutation.isPending ||
               paymentBusy
             }
-            onClick={() => {
-              payment.reset(); // clear a previous failed attempt, if any
-              requestMutation.mutate();
-            }}
+            onClick={submitRequest}
           >
             {requestMutation.isPending
               ? "Sending request…"
@@ -724,15 +1101,32 @@ function BookingPanel({
           </p>
         ) : null}
 
-        {requestMutation.isError ? (
-          <p className="text-sm text-red-600">{requestMutation.error.message}</p>
+        {requestError ? (
+          <div
+            className="space-y-2 rounded-[var(--radius-sm)] border border-red-200 bg-red-50 p-3"
+            role="alert"
+          >
+            <p className="text-sm text-red-700">{requestError.message}</p>
+            {requestError.action ? (
+              <Link
+                href={requestError.action.href}
+                className="inline-flex text-sm font-medium text-red-800 underline underline-offset-2"
+              >
+                {requestError.action.label}
+              </Link>
+            ) : null}
+          </div>
         ) : null}
 
         <p className="flex items-start gap-2 text-xs text-muted-foreground">
           <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
           You will not be charged until the agency accepts. Your card is
-          authorized at request and captured on acceptance.
+          authorized at request and captured on acceptance; the agency has 24
+          hours to answer, after which the request expires and the hold is
+          released.
         </p>
+
+        <CancellationPolicySummary variant="inline" className="text-xs" />
       </CardContent>
     </Card>
   );
@@ -745,12 +1139,4 @@ function formatCardOption(c: PaymentMethod): string {
     : "Card";
   const month = String(c.expMonth).padStart(2, "0");
   return `${brand} •••• ${c.last4} — expires ${month}/${c.expYear}`;
-}
-
-/** Add N days to a YYYY-MM-DD string (UTC-safe, display/query helper only). */
-function addDaysIso(iso: string, days: number): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  const date = new Date(Date.UTC(y, m - 1, d));
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
 }

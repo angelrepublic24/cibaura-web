@@ -88,8 +88,11 @@ export function ApplyForm({
   alreadyApplied = false,
   status,
 }: {
-  /** The caller already owns an agency (pending/rejected) → skip the form,
-   *  land straight on the documents step so they can upload / re-submit. */
+  /** The caller already owns a PENDING agency → skip the form, land straight
+   *  on the documents step so they can (re)upload while under review.
+   *  Rejection is terminal (the backend 403s uploads): rejected/suspended
+   *  owners never reach this form — /become-agency shows the access-revoked
+   *  state instead. */
   alreadyApplied?: boolean;
   status?: AgencyVerificationStatus;
 } = {}) {
@@ -377,9 +380,7 @@ export function ApplyForm({
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h2 className="font-display text-lg text-accent-soft-foreground">
-                    {effectiveStatus === "rejected"
-                      ? "Update your documents"
-                      : "Application submitted — pending review"}
+                    Application submitted — pending review
                   </h2>
                   <p className="mt-1 text-sm text-accent-soft-foreground/80">
                     Upload the documents below to help us verify your agency
@@ -391,19 +392,6 @@ export function ApplyForm({
               </div>
             </CardContent>
           </Card>
-
-          {effectiveStatus === "rejected" ? (
-            <div className="rounded-[var(--radius-sm)] border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-              {application?.verificationReason ? (
-                <>
-                  <span className="font-medium">Reason: </span>
-                  {application.verificationReason}
-                </>
-              ) : (
-                "Your previous application was rejected — please re-upload corrected documents below."
-              )}
-            </div>
-          ) : null}
 
           {/* Uploaders */}
           <Card>
