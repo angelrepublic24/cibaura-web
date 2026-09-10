@@ -23,6 +23,7 @@ import { BookingsApi } from "@/features/bookings/api";
 import { useRequestPayment } from "@/features/bookings/use-request-payment";
 import { useLegalCurrent } from "@/features/legal/hooks";
 import { CancellationPolicySummary } from "@/features/legal/components/cancellation-policy";
+import { PrivateHostBadge } from "@/features/agencies/components/private-host-badge";
 import { TermsCheckbox } from "@/features/auth/components/terms-checkbox";
 import {
   PaymentMethodsApi,
@@ -136,14 +137,17 @@ export function CarDetail({
           </Badge>
         </div>
 
-        <p className="mt-2 text-sm text-muted-foreground">
-          Offered by{" "}
-          <Link
-            href={`/agencies/${car.agency.slug}`}
-            className="font-medium text-foreground underline-offset-2 hover:text-primary hover:underline"
-          >
-            {car.agency.name}
-          </Link>
+        <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <span>
+            Offered by{" "}
+            <Link
+              href={`/agencies/${car.agency.slug}`}
+              className="font-medium text-foreground underline-offset-2 hover:text-primary hover:underline"
+            >
+              {car.agency.name}
+            </Link>
+          </span>
+          <PrivateHostBadge kind={car.agency.kind} />
         </p>
 
         {/* Elegant spec grid. */}

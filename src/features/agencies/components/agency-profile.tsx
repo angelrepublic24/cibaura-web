@@ -19,11 +19,12 @@ import {
   type Review,
 } from "@/features/agencies/api";
 import { agencyCarFiltersToSearchParams } from "@/features/agencies/filters";
+import { PrivateHostBadge } from "@/features/agencies/components/private-host-badge";
 import { CarCard } from "@/features/cars/components/car-card";
 import { CarFiltersPanel } from "@/features/cars/components/car-filters-panel";
 import { StarRating } from "@/shared/components/star-rating";
 import { FavoriteButton } from "@/shared/components/favorite-button";
-import { type AgencyVerificationStatus } from "@/shared/types/domain";
+import type { AgencyKind, AgencyVerificationStatus } from "@/shared/types/domain";
 import {
   EmptyState,
   ErrorState,
@@ -91,6 +92,7 @@ export function AgencyProfile({
     <div>
       <AgencyHeader
         name={agency.name}
+        kind={agency.kind}
         description={agency.description}
         logoUrl={agency.logoUrl}
         verificationStatus={agency.verificationStatus}
@@ -182,6 +184,7 @@ function LocationPicker({
 
 function AgencyHeader({
   name,
+  kind,
   description,
   logoUrl,
   verificationStatus,
@@ -193,6 +196,7 @@ function AgencyHeader({
   agencyId,
 }: {
   name: string;
+  kind: AgencyKind;
   description?: string;
   logoUrl?: string;
   verificationStatus: AgencyVerificationStatus;
@@ -227,6 +231,7 @@ function AgencyHeader({
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="font-display text-3xl text-foreground">{name}</h1>
               <VerificationBadge status={verificationStatus} />
+              <PrivateHostBadge kind={kind} />
             </div>
             <div className="mt-1.5">
               <StarRating rating={ratingAvg} count={reviewCount} />
