@@ -67,8 +67,9 @@ const EMPTY_COPY: Record<BookingState, { title: string; description: string }> =
 /**
  * /agency/requests — the booking inbox (`bookings:read`). Defaults to
  * `requested` (pending accept/reject; each pending row shows its auto-expiry
- * countdown). Later states surface the follow-up lifecycle actions
- * (pickup → return → settle) via the shared <BookingLifecycleActions/>.
+ * countdown). Later states link to the booking detail, where pickup,
+ * return and settlement run through the inspection and settlement cards
+ * (the shared <BookingLifecycleActions/> keeps accept / reject / cancel).
  * Accepting runs the server-side transaction that inserts the occupancy row
  * + captures payment atomically (it can come back rejected as
  * `no_longer_available` — the server owns that).
@@ -199,12 +200,14 @@ function RequestRow({ booking }: { booking: AgencyRequest }) {
                     {booking.customer.phone}
                   </a>
                 ) : null}
-                <a
-                  href={`mailto:${booking.customer.email}`}
-                  className="text-primary hover:underline"
-                >
-                  {booking.customer.email}
-                </a>
+                {booking.customer.email ? (
+                  <a
+                    href={`mailto:${booking.customer.email}`}
+                    className="text-primary hover:underline"
+                  >
+                    {booking.customer.email}
+                  </a>
+                ) : null}
               </p>
             ) : null}
           </div>
@@ -219,7 +222,7 @@ function RequestRow({ booking }: { booking: AgencyRequest }) {
           </div>
         </div>
 
-        <BookingLifecycleActions booking={booking} />
+        <BookingLifecycleActions booking={booking} surface="inbox" />
       </CardContent>
     </Card>
   );
