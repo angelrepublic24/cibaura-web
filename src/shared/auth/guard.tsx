@@ -5,8 +5,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useMe } from "@/features/auth/hooks";
 import { useAuthStore } from "@/shared/auth/store";
+import { getErrorMessage } from "@/shared/api/errors";
 import type { Role } from "@/shared/types/domain";
-import { LoadingState } from "@/shared/components/states";
+import { ErrorState, LoadingState } from "@/shared/components/states";
 import { buttonVariants } from "@/shared/components/ui/button";
 
 /**
@@ -16,6 +17,9 @@ import { buttonVariants } from "@/shared/components/ui/button";
  * - guest        -> redirect to /auth/login?next=<current path>
  * - wrong role   -> "no access" card (no redirect loop)
  * - hydrating    -> loading block
+ * - hydration failed transiently (offline, 5xx) with no user to fall back
+ *   on -> error block with retry; a live session is never bounced to login
+ *   over a flaky network (only a definitive 401 ends it — see `useMe`)
  *
  * NOTE: this is UX-level gating only. REAL authorization lives in the
  * backend (RBAC on every endpoint); nothing sensitive is trusted to
@@ -28,7 +32,7 @@ export function RoleGuard({
   allow: Role[];
   children: React.ReactNode;
 }) {
-  useMe(); // hydrate the session store
+  const me = useMe(); // hydrate the session store
   const router = useRouter();
   const pathname = usePathname();
   const status = useAuthStore((s) => s.status);
@@ -42,7 +46,18 @@ export function RoleGuard({
     }
   }, [status, router, pathname]);
 
-  if (status === "unknown") return <LoadingState label="Checking session…" />;
+  if (status === "unknown") {
+    if (me.isError) {
+      return (
+        <ErrorState
+          title="Could not check your session"
+          message={getErrorMessage(me.error, "Please try again.")}
+          onRetry={() => me.refetch()}
+        />
+      );
+    }
+    return <LoadingState label="Checking session…" />;
+  }
   if (status === "guest") return <LoadingState label="Redirecting to login…" />;
 
   if (!allowed) {

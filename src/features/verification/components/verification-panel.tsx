@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, Clock, ShieldCheck } from "lucide-react";
 import {
@@ -13,6 +15,7 @@ import type {
   CustomerVerification,
   CustomerVerificationStatus,
 } from "@/shared/types/domain";
+import { getErrorMessage } from "@/shared/api/errors";
 import {
   EmptyState,
   ErrorState,
@@ -32,14 +35,25 @@ import { businessTodayIso, formatIsoDate } from "@/shared/utils/dates";
 
 /**
  * Customer identity verification — the surface a renter uses to become eligible
- * to book. "No licence, no service": a customer must submit a valid driver's
- * licence and upload their ID + licence photos, then an admin verifies them.
+ * to book. "No license, no service": a customer must submit a valid driver's
+ * license + date of birth and upload their ID + license photos, then an admin
+ * verifies them.
  *
- * The server is the authority — it auto-rejects an already-expired licence on
- * submit, and the booking flow re-checks the gate. This component shapes input
- * and surfaces the exact server message + the licence expiry alerts (expired /
+ * The server is the authority — it auto-rejects an already-expired license on
+ * submit, and the booking flow re-checks the gate (including each agency's
+ * minimum driver age against the date of birth). This component shapes input
+ * and surfaces the exact server message + the license expiry alerts (expired /
  * expires-soon) so the customer can act before a booking is ever blocked.
  */
+
+/** Backend rule: the date of birth must be at least this many years ago. */
+const MIN_AGE_YEARS = 16;
+
+/** Backend `SubmitVerificationDto`: licenseNumber 3..60. */
+const LICENSE_NUMBER_MIN = 3;
+const LICENSE_NUMBER_MAX = 60;
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 const REQUIRED_DOCS: {
   type: CustomerDocumentType;
@@ -58,21 +72,21 @@ const REQUIRED_DOCS: {
   },
   {
     type: "license_front",
-    label: "Driver's licence — front",
-    hint: "Required. You cannot rent without a valid driver's licence.",
+    label: "Driver's license — front",
+    hint: "Required. You cannot rent without a valid driver's license.",
   },
   {
     type: "license_back",
-    label: "Driver's licence — back",
-    hint: "Back side of your driver's licence.",
+    label: "Driver's license — back",
+    hint: "Back side of your driver's license.",
   },
 ];
 
 const DOC_TYPE_LABELS: Record<string, string> = {
   id_front: "ID — front",
   id_back: "ID — back",
-  license_front: "Licence — front",
-  license_back: "Licence — back",
+  license_front: "License — front",
+  license_back: "License — back",
 };
 
 function formatUploaded(iso: string): string {
@@ -85,6 +99,35 @@ function formatUploaded(iso: string): string {
   });
 }
 
+/** Latest acceptable date of birth (today minus MIN_AGE_YEARS, business tz). */
+function maxDateOfBirthIso(): string {
+  const today = businessTodayIso();
+  const year = Number(today.slice(0, 4)) - MIN_AGE_YEARS;
+  return `${year}${today.slice(4)}`;
+}
+
+/**
+ * Date-of-birth presence, read DEFENSIVELY: "on file" only when the wire
+ * carries a real string; "missing" for `null` AND for an absent field (a
+ * backend that does not emit it yet). An absent field must never lock the
+ * input or block the submit — the server still validates the value.
+ */
+function hasDateOfBirth(v: CustomerVerification): boolean {
+  return typeof v.dateOfBirth === "string";
+}
+
+function isDateOfBirthMissing(v: CustomerVerification): boolean {
+  return v.dateOfBirth == null;
+}
+
+/** Shared field rule: ISO date, at least MIN_AGE_YEARS ago (evaluated at parse time). */
+const dateOfBirthField = z
+  .string()
+  .regex(DATE_ONLY, "Enter your date of birth")
+  .refine((v) => v <= maxDateOfBirthIso(), {
+    message: `You must be at least ${MIN_AGE_YEARS} years old`,
+  });
+
 function StatusBadge({ status }: { status: CustomerVerificationStatus }) {
   if (status === "verified") return <Badge variant="success">Verified</Badge>;
   if (status === "rejected")
@@ -94,7 +137,7 @@ function StatusBadge({ status }: { status: CustomerVerificationStatus }) {
   return <Badge variant="secondary">Not started</Badge>;
 }
 
-/** The status banner + licence-expiry alerts at the top of the page. */
+/** The status banner + license-expiry alerts at the top of the page. */
 function StatusBanner({ v }: { v: CustomerVerification }) {
   return (
     <div className="space-y-3">
@@ -133,10 +176,10 @@ function StatusBanner({ v }: { v: CustomerVerification }) {
                   {v.status === "verified"
                     ? "You're all set to request bookings."
                     : v.status === "rejected"
-                      ? "Fix the issue below, then re-submit your licence and photos."
+                      ? "Fix the issue below, then re-submit your license and photos."
                       : v.status === "pending"
                         ? "We'll review your documents shortly. You can update them any time — your progress is saved."
-                        : "Submit your driver's licence details and upload your ID + licence photos. A verified identity is required to book any car."}
+                        : "Submit your driver's license details and upload your ID + license photos. A verified identity is required to book any car."}
                 </p>
               </div>
             </div>
@@ -153,33 +196,288 @@ function StatusBanner({ v }: { v: CustomerVerification }) {
         </div>
       ) : null}
 
-      {/* Licence expiry alerts (independent of status) */}
+      {/* License expiry alerts (independent of status) */}
       {v.licenseExpired ? (
         <div className="flex items-start gap-2.5 rounded-[var(--radius-sm)] border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
-            <span className="font-medium">Your driver&apos;s licence is expired</span>
+            <span className="font-medium">Your driver&apos;s license is expired</span>
             {v.licenseExpiry ? ` (expired ${formatIsoDate(v.licenseExpiry)})` : ""}.
-            You cannot rent until you submit a valid licence.
+            You cannot rent until you submit a valid license.
           </span>
         </div>
       ) : v.licenseExpiresSoon ? (
         <div className="flex items-start gap-2.5 rounded-[var(--radius-sm)] border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
-            <span className="font-medium">Your licence expires soon</span>
+            <span className="font-medium">Your license expires soon</span>
             {v.licenseExpiry ? ` (on ${formatIsoDate(v.licenseExpiry)}` : ""}
             {v.daysUntilExpiry != null
               ? `, in ${v.daysUntilExpiry} day${v.daysUntilExpiry === 1 ? "" : "s"})`
               : v.licenseExpiry
                 ? ")"
                 : ""}
-            . Renew it soon — a rental that ends after your licence expires
+            . Renew it soon — a rental that ends after your license expires
             can&apos;t be booked.
           </span>
         </div>
       ) : null}
+
+      {/* Missing date of birth on an existing record (age gate needs it). */}
+      {v.status !== "unverified" && isDateOfBirthMissing(v) ? (
+        <div className="flex items-start gap-2.5 rounded-[var(--radius-sm)] border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            <span className="font-medium">Add your date of birth.</span>{" "}
+            Agencies set a minimum driver age; without your date of birth a
+            booking request is refused. Add it below — your verification
+            status does not change.
+          </span>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+const dateOfBirthSchema = z.object({ dateOfBirth: dateOfBirthField });
+type DateOfBirthFormValues = z.infer<typeof dateOfBirthSchema>;
+
+/**
+ * One-field form for customers whose record predates the age gate: PATCHes
+ * `/verification/me { dateOfBirth }` without touching the status. The
+ * backend allows it only while the stored value is null.
+ */
+function DateOfBirthCard({ onSaved }: { onSaved: () => void }) {
+  const form = useForm<DateOfBirthFormValues>({
+    resolver: zodResolver(dateOfBirthSchema),
+    defaultValues: { dateOfBirth: "" },
+  });
+
+  const mutation = useMutation({
+    mutationFn: (values: DateOfBirthFormValues) =>
+      VerificationApi.setDateOfBirth(values.dateOfBirth),
+    onSuccess: onSaved,
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="font-display text-base">Date of birth</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Needed once to check each agency&apos;s minimum driver age. It is
+          not shown to agencies.
+        </p>
+      </CardHeader>
+      <CardContent>
+        <form
+          className="flex flex-wrap items-end gap-3"
+          onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+          noValidate
+        >
+          <div className="space-y-1.5">
+            <Label htmlFor="dob-patch">Date of birth</Label>
+            <Input
+              id="dob-patch"
+              type="date"
+              max={maxDateOfBirthIso()}
+              autoComplete="bday"
+              aria-invalid={!!form.formState.errors.dateOfBirth}
+              {...form.register("dateOfBirth")}
+            />
+          </div>
+          <Button type="submit" disabled={mutation.isPending}>
+            {mutation.isPending ? "Saving…" : "Save date of birth"}
+          </Button>
+          {form.formState.errors.dateOfBirth ? (
+            <p className="basis-full text-sm text-destructive">
+              {form.formState.errors.dateOfBirth.message}
+            </p>
+          ) : null}
+          {mutation.isError ? (
+            <p className="basis-full text-sm text-destructive" role="alert">
+              {getErrorMessage(
+                mutation.error,
+                "Could not save your date of birth. Please try again.",
+              )}
+            </p>
+          ) : null}
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+const licenseSchema = z.object({
+  licenseNumber: z
+    .string()
+    .trim()
+    .min(LICENSE_NUMBER_MIN, "Enter your license number")
+    .max(LICENSE_NUMBER_MAX, `At most ${LICENSE_NUMBER_MAX} characters`),
+  // Expiry must be today or later in the BUSINESS timezone (matches the
+  // server's gate). The server has the final word (and auto-rejects a past
+  // date), but we block the obvious case on the same calendar day it uses.
+  licenseExpiry: z
+    .string()
+    .regex(DATE_ONLY, "Enter the expiry date")
+    .refine((v) => v >= businessTodayIso(), {
+      message: "Your license is expired — the expiry date must be today or later",
+    }),
+  dateOfBirth: dateOfBirthField,
+});
+type LicenseFormValues = z.infer<typeof licenseSchema>;
+
+function licenseDefaults(v: CustomerVerification): LicenseFormValues {
+  return {
+    licenseNumber: v.licenseNumber ?? "",
+    licenseExpiry: v.licenseExpiry ?? "",
+    dateOfBirth: v.dateOfBirth ?? "",
+  };
+}
+
+/**
+ * The license-details form (`POST /verification`). Mounted only once the
+ * record has loaded, so the defaults come straight from it — no prefill
+ * effect. The date of birth is locked ONLY when the wire says it is on
+ * file (see `hasDateOfBirth`); its stored value still travels with the
+ * submit, which the DTO requires.
+ */
+function LicenseDetailsCard({ verification: v }: { verification: CustomerVerification }) {
+  const qc = useQueryClient();
+  const dobOnFile = hasDateOfBirth(v);
+
+  const form = useForm<LicenseFormValues>({
+    resolver: zodResolver(licenseSchema),
+    defaultValues: licenseDefaults(v),
+  });
+  const errors = form.formState.errors;
+
+  const submit = useMutation({
+    mutationFn: (input: SubmitVerificationInput) => VerificationApi.submit(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: verificationKeys.me() });
+    },
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="font-display text-base">
+          Driver&apos;s license details
+        </CardTitle>
+        <p className="text-sm text-muted-foreground">
+          We check your license is valid and doesn&apos;t expire before your
+          rental ends. An expired date is rejected automatically.
+        </p>
+      </CardHeader>
+      <CardContent>
+        <form
+          className="space-y-5"
+          onSubmit={form.handleSubmit((values) => submit.mutate(values))}
+          onChange={() => {
+            // Any edit clears the stale saved/error feedback.
+            if (submit.isSuccess || submit.isError) submit.reset();
+          }}
+          noValidate
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="license-number">License number</Label>
+              <Input
+                id="license-number"
+                placeholder="As printed on your license"
+                maxLength={LICENSE_NUMBER_MAX}
+                autoComplete="off"
+                aria-invalid={!!errors.licenseNumber}
+                {...form.register("licenseNumber")}
+              />
+              {errors.licenseNumber ? (
+                <p className="text-sm text-destructive">
+                  {errors.licenseNumber.message}
+                </p>
+              ) : null}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="license-expiry">Expiry date</Label>
+              <Input
+                id="license-expiry"
+                type="date"
+                min={businessTodayIso()}
+                aria-invalid={!!errors.licenseExpiry}
+                {...form.register("licenseExpiry")}
+              />
+              {errors.licenseExpiry ? (
+                <p className="text-sm text-destructive">
+                  {errors.licenseExpiry.message}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Must be today or later.
+                </p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="date-of-birth">Date of birth</Label>
+              <Input
+                id="date-of-birth"
+                type="date"
+                max={maxDateOfBirthIso()}
+                autoComplete="bday"
+                disabled={dobOnFile}
+                aria-invalid={!!errors.dateOfBirth}
+                {...form.register("dateOfBirth")}
+              />
+              {errors.dateOfBirth ? (
+                <p className="text-sm text-destructive">
+                  {errors.dateOfBirth.message}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {dobOnFile
+                    ? "On file. Contact support to correct it."
+                    : "Agencies set a minimum driver age; we check it against this date."}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* The submit resolves 200 even when the server AUTO-REJECTS an
+              expired license — key the message off the returned status, never
+              assume success from a 200. */}
+          {submit.isError ? (
+            <p className="text-sm text-destructive" role="alert">
+              {getErrorMessage(
+                submit.error,
+                "Could not save your license details. Please try again.",
+              )}
+            </p>
+          ) : submit.isSuccess ? (
+            submit.data.status === "rejected" ? (
+              <p className="text-sm text-destructive" role="alert">
+                {submit.data.rejectionReason ??
+                  "Your license could not be accepted."}
+              </p>
+            ) : (
+              <p className="text-sm text-success" role="status">
+                License details saved.
+              </p>
+            )
+          ) : null}
+
+          <div className="flex items-center gap-3">
+            <Button type="submit" disabled={submit.isPending}>
+              {submit.isPending
+                ? "Saving…"
+                : v.status === "unverified"
+                  ? "Submit license"
+                  : "Update license"}
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Then upload your photos below.
+            </p>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -189,26 +487,6 @@ export function VerificationPanel() {
   const meQuery = useQuery({
     queryKey: verificationKeys.me(),
     queryFn: VerificationApi.me,
-  });
-
-  // Licence form (prefilled from the current record once loaded).
-  const [licenseNumber, setLicenseNumber] = useState("");
-  const [licenseExpiry, setLicenseExpiry] = useState("");
-  const [prefilled, setPrefilled] = useState(false);
-
-  useEffect(() => {
-    if (prefilled || !meQuery.isSuccess) return;
-    const v = meQuery.data.verification;
-    if (v.licenseNumber) setLicenseNumber(v.licenseNumber);
-    if (v.licenseExpiry) setLicenseExpiry(v.licenseExpiry);
-    setPrefilled(true);
-  }, [prefilled, meQuery.isSuccess, meQuery.data]);
-
-  const submit = useMutation({
-    mutationFn: (input: SubmitVerificationInput) => VerificationApi.submit(input),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: verificationKeys.me() });
-    },
   });
 
   const upload = useMutation({
@@ -226,7 +504,7 @@ export function VerificationPanel() {
     return (
       <ErrorState
         title="Could not load your verification"
-        message={(meQuery.error as Error).message}
+        message={getErrorMessage(meQuery.error, "Please try again.")}
         onRetry={() => meQuery.refetch()}
       />
     );
@@ -238,18 +516,6 @@ export function VerificationPanel() {
   }
   const { verification: v, documents: docs } = data;
   const docByType = (t: string) => docs.find((d) => d.type === t);
-
-  const num = licenseNumber.trim();
-  // Expiry must be today or later in the BUSINESS timezone (matches the server's
-  // gate). The server has the final word (and auto-rejects a past date), but we
-  // block the obvious case on the same calendar day the server uses.
-  const ready = num.length >= 3 && licenseExpiry >= businessTodayIso();
-
-  function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!ready || submit.isPending) return;
-    submit.mutate({ licenseNumber: num, licenseExpiry });
-  }
 
   function onPick(
     type: CustomerDocumentType,
@@ -265,83 +531,13 @@ export function VerificationPanel() {
     <div className="space-y-6">
       <StatusBanner v={v} />
 
-      {/* Licence details */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="font-display text-base">
-            Driver&apos;s licence details
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            We check your licence is valid and doesn&apos;t expire before your
-            rental ends. An expired date is rejected automatically.
-          </p>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-5" onSubmit={onSubmit}>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="license-number">Licence number</Label>
-                <Input
-                  id="license-number"
-                  placeholder="As printed on your licence"
-                  value={licenseNumber}
-                  onChange={(e) => {
-                    setLicenseNumber(e.target.value);
-                    submit.reset(); // clear stale saved/error feedback while editing
-                  }}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="license-expiry">Expiry date</Label>
-                <Input
-                  id="license-expiry"
-                  type="date"
-                  min={businessTodayIso()}
-                  value={licenseExpiry}
-                  onChange={(e) => {
-                    setLicenseExpiry(e.target.value);
-                    submit.reset();
-                  }}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Must be today or later.
-                </p>
-              </div>
-            </div>
+      {v.status !== "unverified" && isDateOfBirthMissing(v) ? (
+        <DateOfBirthCard
+          onSaved={() => qc.invalidateQueries({ queryKey: verificationKeys.me() })}
+        />
+      ) : null}
 
-            {/* The submit resolves 200 even when the server AUTO-REJECTS an
-                expired licence — key the message off the returned status, never
-                assume success from a 200. */}
-            {submit.isError ? (
-              <p className="text-sm text-destructive">
-                {(submit.error as Error).message}
-              </p>
-            ) : submit.isSuccess ? (
-              submit.data.status === "rejected" ? (
-                <p className="text-sm text-destructive">
-                  {submit.data.rejectionReason ??
-                    "Your licence could not be accepted."}
-                </p>
-              ) : (
-                <p className="text-sm text-success">Licence details saved.</p>
-              )
-            ) : null}
-
-            <div className="flex items-center gap-3">
-              <Button type="submit" disabled={!ready || submit.isPending}>
-                {submit.isPending
-                  ? "Saving…"
-                  : v.status === "unverified"
-                    ? "Submit licence"
-                    : "Update licence"}
-              </Button>
-              <p className="text-xs text-muted-foreground">
-                Then upload your photos below.
-              </p>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+      <LicenseDetailsCard verification={v} />
 
       {/* Document uploaders */}
       <Card>
@@ -350,7 +546,7 @@ export function VerificationPanel() {
             Identity photos
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Upload a clear photo or PDF of each. The driver&apos;s licence is
+            Upload a clear photo or PDF of each. The driver&apos;s license is
             required.
           </p>
         </CardHeader>
@@ -388,8 +584,11 @@ export function VerificationPanel() {
                   </p>
                 ) : null}
                 {errorThis ? (
-                  <p className="text-sm text-destructive">
-                    {(upload.error as Error).message}
+                  <p className="text-sm text-destructive" role="alert">
+                    {getErrorMessage(
+                      upload.error,
+                      "Upload failed. Please try again.",
+                    )}
                   </p>
                 ) : null}
               </div>
@@ -407,7 +606,7 @@ export function VerificationPanel() {
           {docs.length === 0 ? (
             <EmptyState
               title="No documents uploaded yet"
-              description="Add your ID and driver's licence photos above."
+              description="Add your ID and driver's license photos above."
               className="py-10"
             />
           ) : (

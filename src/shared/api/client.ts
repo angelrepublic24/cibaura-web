@@ -84,10 +84,16 @@ type RetriableConfig = InternalAxiosRequestConfig & { _retried?: boolean };
  * On 401 (outside the credential endpoints): attempt ONE cookie-based
  * refresh, then replay the original request. A failed refresh ends the
  * session (state cleared, guard redirects to login).
+ *
+ * A 401 that carries a stable `code` (PASSWORD_INCORRECT, USER_SUSPENDED…)
+ * is a credential VERDICT about this request, not an expired access cookie:
+ * the session is either intact or definitively gone, so a refresh would be
+ * pointless (and the sign-out on its failure wrong). Those reject at once;
+ * only UNCODED 401s take the refresh path.
  */
 Api.interceptors.response.use(
   (response) => response,
-  async (error: AxiosError<{ message?: string | string[] }>) => {
+  async (error: AxiosError<{ message?: string | string[]; code?: unknown }>) => {
     const data = error.response?.data;
     const backendMessage = Array.isArray(data?.message)
       ? data?.message.join(", ")
@@ -96,8 +102,10 @@ Api.interceptors.response.use(
 
     const config = error.config as RetriableConfig | undefined;
     const url = config?.url ?? "";
+    const codedVerdict = typeof data?.code === "string";
     if (
       error.response?.status === 401 &&
+      !codedVerdict &&
       config &&
       !config._retried &&
       !NO_REFRESH_PATHS.some((p) => url.startsWith(p))

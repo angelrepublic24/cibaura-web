@@ -8,6 +8,11 @@ import { useMutation } from "@tanstack/react-query";
 import { AuthApi } from "@/features/auth/api";
 import { loginSchema, type LoginFormValues } from "@/features/auth/schemas";
 import { useAuthStore } from "@/shared/auth/store";
+import {
+  API_ERROR_CODES,
+  getErrorMessage,
+  isApiErrorCode,
+} from "@/shared/api/errors";
 import { Button } from "@/shared/components/ui/button";
 import {
   Card,
@@ -52,6 +57,12 @@ export function LoginForm({ next }: { next?: string }) {
     },
   });
 
+  const errorMessage = mutation.isError
+    ? isApiErrorCode(mutation.error, API_ERROR_CODES.USER_SUSPENDED)
+      ? "This account has been suspended. Contact support if you believe this is a mistake."
+      : getErrorMessage(mutation.error, "Could not log in. Please try again.")
+    : null;
+
   return (
     <Card>
       <CardHeader>
@@ -80,7 +91,15 @@ export function LoginForm({ next }: { next?: string }) {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="login-password">Password</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="login-password">Password</Label>
+              <Link
+                href="/auth/forgot-password"
+                className="text-xs text-primary underline-offset-2 hover:underline"
+              >
+                Forgot password?
+              </Link>
+            </div>
             <Input
               id="login-password"
               type="password"
@@ -94,8 +113,10 @@ export function LoginForm({ next }: { next?: string }) {
             ) : null}
           </div>
 
-          {mutation.isError ? (
-            <p className="text-sm text-red-600">{mutation.error.message}</p>
+          {errorMessage ? (
+            <p className="text-sm text-red-600" role="alert">
+              {errorMessage}
+            </p>
           ) : null}
 
           <Button type="submit" className="w-full" disabled={mutation.isPending}>
