@@ -19,6 +19,24 @@ export interface User {
   roles: Role[];
   /** Present when the user owns/works for an agency. */
   agencyId?: string;
+  /** `active | suspended | deleted` (wire `UserDto.status`). */
+  status?: string;
+  /** Terms version the user last accepted; null before any acceptance. */
+  termsVersion?: string | null;
+  createdAt: string;
+}
+
+/** `GET /users/me` (wire `UserDto`) — the serialized user, never the raw entity. */
+export interface UserDto {
+  id: string;
+  email: string;
+  name: string;
+  phone: string | null;
+  roles: string[];
+  agencyId: string | null;
+  isGuest: boolean;
+  status: string;
+  termsVersion: string | null;
   createdAt: string;
 }
 
@@ -90,7 +108,34 @@ export interface Agency {
   verificationStatus: AgencyVerificationStatus;
   /** Set when the application was rejected — shown on the access-revoked screen. */
   verificationReason?: string | null;
+  /** Free-text rental conditions the customer accepts at request time. */
+  rentalConditions: string | null;
+  minDriverAge: number;
+  depositNote: string | null;
   createdAt: string;
+}
+
+export type PayoutAccountType = "checking" | "savings";
+
+/** Bank account payouts are wired to — visible ONLY to `agency:settings` holders. */
+export interface PayoutBankDetails {
+  bankName: string;
+  accountHolder: string;
+  accountNumber: string;
+  accountType: PayoutAccountType;
+  currency: string;
+}
+
+/** `GET/PATCH /agency/settings` (wire `AgencySettingsDto`). */
+export interface AgencySettings {
+  id: string;
+  name: string;
+  description: string | null;
+  logoUrl: string | null;
+  rentalConditions: string | null;
+  minDriverAge: number;
+  depositNote: string | null;
+  payoutBankDetails: PayoutBankDetails | null;
 }
 
 export interface Branch {
@@ -109,6 +154,13 @@ export interface Branch {
   isActive: boolean;
   /** Embedded city ref (`{ id, name }`) from the serializer, or null. */
   city: CityRef | null;
+  /** Coordinates (delivery origin) + door-to-door delivery config. */
+  lat: number | null;
+  lng: number | null;
+  deliveryEnabled: boolean;
+  deliveryBaseFeeCents: number;
+  deliveryPerKmCents: number;
+  deliveryMaxKm: number | null;
 }
 
 export interface DeliveryZone {
@@ -223,10 +275,21 @@ export interface Car {
 }
 
 /**
+ * Agency ref on a car DETAIL (wire `CarDetailAgencyDto`): the public slug ref
+ * plus the rental conditions the customer accepts at request time.
+ */
+export interface CarDetailAgencyDto extends CarAgencyRef {
+  rentalConditions: string | null;
+  minDriverAge: number;
+  depositNote: string | null;
+}
+
+/**
  * `CarDetail` = `Car` + the full gallery, branch (with city), and the
  * branch's active delivery zones. Returned by `GET /cars/:id`.
  */
 export interface CarDetail extends Car {
+  agency: CarDetailAgencyDto;
   branch: {
     id: string;
     name: string;
@@ -304,6 +367,21 @@ export interface BookingPickup {
   deliveryFeeCents: number;
   /** Branch's exact address — present only once paid AND branch pickup. */
   branchAddress?: string;
+  /** Same gate as `branchAddress` (paid + branch pickup). */
+  branchPhone?: string;
+  /** `{ mon: "08:00-18:00", … }` — same gate as `branchAddress`. */
+  branchHours?: Record<string, string>;
+}
+
+/**
+ * The renter's identity as the AGENCY (or an admin) sees it — emitted on a
+ * booking only for viewer `agency`; the customer's own reads never carry it.
+ */
+export interface BookingCustomerDto {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
 }
 
 /**
@@ -363,8 +441,37 @@ export interface Booking {
     settledAt: string | null;
     updatedAt: string;
   };
-  /** Reason for rejected/cancelled states (e.g. "no_longer_available"). */
-  stateReason?: string;
+  /**
+   * Always emitted (null when unset). Machine reasons (`no_longer_available`,
+   * `request_expired`, `payment_failed`, `payment_canceled`, `account_deleted`,
+   * `period_started`) map to copy via `describeBookingReason`; anything else
+   * is free text shown verbatim.
+   */
+  rejectionReason: string | null;
+  cancellationReason: string | null;
+  /** Renter identity — present ONLY for the agency/admin viewer. */
+  customer?: BookingCustomerDto;
+}
+
+/** Renter block of the frozen rental agreement (license masked to last 4). */
+export interface BookingAgreementRenter {
+  fullName: string;
+  licenseMasked: string;
+  licenseExpiry: string | null; // YYYY-MM-DD
+}
+
+/**
+ * Snapshot of what the customer accepted at request time (wire
+ * `BookingAgreementDto`, ADR-0007): terms version, renter identity, the
+ * car's plate and the agency's rental conditions as they read that day.
+ * Null when the booking predates the snapshot (or is a walk-in).
+ */
+export interface BookingAgreement {
+  termsVersion: string;
+  acceptedAt: string;
+  renter: BookingAgreementRenter;
+  car: { plate: string | null };
+  agencyConditions: string | null;
 }
 
 /**
@@ -416,6 +523,8 @@ export interface BookingDetailPayment {
  */
 export interface BookingDetail extends Booking {
   payment?: BookingDetailPayment;
+  /** Rental agreement snapshot — for both parties; null when none exists. */
+  agreement: BookingAgreement | null;
 }
 
 /** Availability response: the blocked windows in `[from, to)`. */
@@ -452,7 +561,7 @@ export type CustomerVerificationStatus =
   | "verified"
   | "rejected";
 
-/** The four required identity photos (front/back of ID + driver's licence). */
+/** The four required identity photos (front/back of ID + driver's license). */
 export const CUSTOMER_DOCUMENT_TYPES = [
   "id_front",
   "id_back",
@@ -472,15 +581,17 @@ export interface CustomerDocument {
 
 /**
  * The customer's own verification view — drives the account page and the
- * booking gate. The licence flags are server-computed against "today":
+ * booking gate. The license flags are server-computed against "today":
  *  - `licenseExpired`     → already past expiry (blocks + auto-rejects on submit)
  *  - `licenseExpiresSoon` → within the 30-day alert window (warn, still valid)
- *  - `daysUntilExpiry`    → negative when expired, null when no licence on file
+ *  - `daysUntilExpiry`    → negative when expired, null when no license on file
  */
 export interface CustomerVerification {
   status: CustomerVerificationStatus;
   licenseNumber: string | null;
   licenseExpiry: string | null; // YYYY-MM-DD
+  /** YYYY-MM-DD; null until submitted (age gate needs it). */
+  dateOfBirth: string | null;
   rejectionReason: string | null;
   licenseExpired: boolean;
   licenseExpiresSoon: boolean;
@@ -501,6 +612,7 @@ export interface CustomerVerificationAdmin {
   status: CustomerVerificationStatus;
   licenseNumber: string | null;
   licenseExpiry: string | null;
+  dateOfBirth: string | null;
   licenseExpired: boolean;
   rejectionReason: string | null;
   reviewedAt: string | null;
@@ -532,14 +644,61 @@ export interface WalletAccount {
   currency: string;
 }
 
+/**
+ * Ledger movement kinds (backend `LedgerKind` + the cancellation-policy
+ * kinds). Rendered with labels via `ledgerKindLabel`; unknown kinds fall
+ * back to the raw string so a new backend kind never blanks a row.
+ */
+export type LedgerKind =
+  | "settlement"
+  | "payout"
+  | "refund"
+  | "late_cancellation_retention"
+  | "early_return_refund";
+
 export interface LedgerEntry {
   id: string;
   accountId: string;
   bookingId?: string;
   amountCents: number; // signed: credit > 0, debit < 0
   description: string;
+  /** `LedgerKind` on the wire as a plain string (forward-compatible). */
+  kind: string;
+  /** Set on `payout` debits — the payout the money left with. */
+  payoutId?: string;
   createdAt: string;
 }
+
+/** `GET /agency/wallet` (wire `AgencyWalletDto`). All cents, server-computed. */
+export interface AgencyWallet {
+  account: WalletAccount;
+  /** Sum of payouts still `requested` — money already spoken for. */
+  pendingPayoutCents: number;
+  /** balance − pending; the cap for a new payout request. */
+  availableCents: number;
+  entries: LedgerEntry[];
+}
+
+export const PAYOUT_STATUSES = ["requested", "paid", "rejected"] as const;
+export type PayoutStatus = (typeof PAYOUT_STATUSES)[number];
+
+/** One payout request (wire `PayoutDto`). `note` carries the reject reason. */
+export interface Payout {
+  id: string;
+  agencyId: string;
+  amountCents: number;
+  currency: string;
+  /** `PayoutStatus` on the wire as a plain string. */
+  status: string;
+  /** Bank transfer reference, set by the admin when paid. */
+  reference: string | null;
+  note: string | null;
+  requestedAt: string;
+  decidedAt: string | null;
+}
+
+/** Account lifecycle (backend `UserStatus`). */
+export type UserStatus = "active" | "suspended" | "deleted";
 
 export interface PlatformConfig {
   /** Commission % snapshotted into each booking at request time. */
@@ -570,6 +729,43 @@ export interface Message {
 export interface MessageThreadWithMessages {
   thread: MessageThread;
   messages: Message[];
+}
+
+// ------------------------------------------------------------------- legal
+
+/**
+ * Tiered cancellation policy — the NUMBERS come from the backend; no client
+ * ever hardcodes them in copy.
+ *  - free cancellation until `freeCancellationHours` before pickup;
+ *  - later, `lateCancellationRetentionPct` of the subtotal is retained
+ *    (goes to the agency) and the rest refunded;
+ *  - early return refunds unused full days minus `earlyReturnPenaltyDays`.
+ */
+export interface CancellationPolicyDto {
+  freeCancellationHours: number;
+  lateCancellationRetentionPct: number;
+  earlyReturnPenaltyDays: number;
+}
+
+/** `GET /legal/current` (wire `LegalCurrentDto`). */
+export interface LegalCurrentDto {
+  termsVersion: string;
+  termsUrl: string;
+  privacyUrl: string;
+  cancellationPolicy: CancellationPolicyDto;
+}
+
+/**
+ * `GET /bookings/:id/cancellation-quote` — the server's refund preview for
+ * cancelling NOW. Rendered verbatim in the confirmation dialog; the client
+ * never derives these amounts from the policy percentages itself.
+ */
+export interface CancellationQuoteDto {
+  refundCents: number;
+  retainedCents: number;
+  currency: string;
+  /** True when the free-cancellation window has already closed. */
+  isLate: boolean;
 }
 
 // -------------------------------------------------------------------- misc

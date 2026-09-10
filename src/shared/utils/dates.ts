@@ -24,7 +24,7 @@ export function todayIso(): string {
 
 /**
  * The platform's business timezone — must match the backend
- * (common/utils/business-date.ts). Licence-expiry gates compare date-only
+ * (common/utils/business-date.ts). License-expiry gates compare date-only
  * values, so the client must anchor "today" on the SAME calendar day the
  * authoritative server uses, not the device-local day (which diverges from the
  * server near midnight in UTC-negative markets like the DR).

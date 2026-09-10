@@ -52,3 +52,11 @@ export function formatPct(pct: number): string {
 export function wholeUnitsToCents(units: number): number {
   return Math.round(units * 100);
 }
+
+/**
+ * Inverse of `wholeUnitsToCents`, for SEEDING an editable amount field from
+ * a stored value (4500 -> "45.00"). Same input boundary, other direction.
+ */
+export function centsToWholeUnitsInput(cents: number): string {
+  return (Math.trunc(cents) / 100).toFixed(2);
+}
