@@ -1,5 +1,6 @@
 import { Api } from "@/shared/api/client";
 import type {
+  AgencyKind,
   AgencyVerificationStatus,
   Car,
   City,
@@ -48,6 +49,8 @@ export interface AgencyPublicProfile {
   rentalConditions: string | null;
   minDriverAge: number;
   depositNote: string | null;
+  /** `business | individual` — drives the "Private host" badge. */
+  kind: AgencyKind;
 }
 
 export interface Review {
@@ -97,9 +100,17 @@ export const agencyProfileKeys = {
     ["review", "booking", bookingId] as const,
 };
 
-// ── Application & KYC (ADR-0004) ─────────────────────────────────────────────
+// ── Application & KYC (ADR-0004 / ADR-0009) ──────────────────────────────────
 
-export type AgencyDocumentType = "business_registration" | "owner_id" | "other";
+/**
+ * Entity KYC document types. `owner_id` is the FRONT of the owner's ID;
+ * `owner_id_back` (individual hosts) the back of the same cédula.
+ */
+export type AgencyDocumentType =
+  | "business_registration"
+  | "owner_id"
+  | "owner_id_back"
+  | "other";
 
 export interface AgencyDocument {
   id: string;
@@ -129,6 +140,10 @@ export interface AgencyApplication {
   documents: AgencyDocument[];
   documentCount: number;
   createdAt: string;
+  /** `business | individual` (ADR-0009). */
+  kind: AgencyKind;
+  /** Registration documents awaiting admin review across the applicant's cars. */
+  carDocumentsPending: number;
 }
 
 export interface ApplyAgencyInput {
@@ -140,6 +155,29 @@ export interface ApplyAgencyInput {
   ownerIdNumber: string;
   phone: string;
   address: string;
+}
+
+/**
+ * `POST /agencies/apply-individual` body (backend `ApplyIndividualHostDto`,
+ * spec §4/B6). The cédula travels WITHOUT dashes; `dateOfBirth` is
+ * `YYYY-MM-DD` and must be ≥ 18 years ago; the address becomes the host's
+ * single "Home" branch (city + coordinates = pickup/delivery origin).
+ */
+export interface ApplyIndividualHostInput {
+  firstName: string;
+  lastName: string;
+  idNumber: string;
+  dateOfBirth: string;
+  phone: string;
+  address: {
+    cityId: string;
+    line: string;
+    lat: number;
+    lng: number;
+    reference?: string;
+  };
+  acceptTerms: true;
+  termsVersion: string;
 }
 
 export const applyKeys = {
@@ -187,6 +225,18 @@ export const AgenciesApi = {
 
   async apply(input: ApplyAgencyInput): Promise<AgencyApplication> {
     const res = await Api.post("/agencies/apply", input);
+    return res.data;
+  },
+
+  /**
+   * Individual-host application (ADR-0009): ONE transaction creates the
+   * `kind=individual` agency + its "Home" branch and links the caller as
+   * owner. 409 when the user already owns an agency.
+   */
+  async applyIndividual(
+    input: ApplyIndividualHostInput,
+  ): Promise<AgencyApplication> {
+    const res = await Api.post("/agencies/apply-individual", input);
     return res.data;
   },
 

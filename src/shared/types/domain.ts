@@ -65,14 +65,23 @@ export interface NamedRef {
 }
 
 /**
+ * Supply persona (ADR-0009): a rent-a-car `business` or an `individual`
+ * host renting their own car(s). Both are the same `Agency` model; the kind
+ * only changes onboarding, KYC documents and a few UI affordances.
+ */
+export type AgencyKind = "business" | "individual";
+
+/**
  * Agency ref embedded in a `Car` — `NamedRef` plus the URL `slug`, so the
  * client builds the canonical `/agencies/:slug/cars/:id` detail link
  * (store-scoped product URL, Beusun-style) without re-deriving it from the name.
+ * `kind` lets every list render the "Private host" badge.
  */
 export interface CarAgencyRef {
   id: string;
   name: string;
   slug: string;
+  kind: AgencyKind;
 }
 
 /** City reference embedded in `CarDetail.branch`. */
@@ -113,6 +122,11 @@ export interface Agency {
   minDriverAge: number;
   depositNote: string | null;
   createdAt: string;
+  /** `business | individual` (ADR-0009). */
+  kind: AgencyKind;
+  /** Host agreement (ADR-0010): signed at least once / a newer template version asks for a new signature. */
+  hostAgreementSigned: boolean;
+  hostAgreementResignRequired: boolean;
 }
 
 export type PayoutAccountType = "checking" | "savings";
@@ -239,6 +253,30 @@ export type FuelType = (typeof FUEL_TYPES)[number];
 
 export type CarStatus = "draft" | "active" | "paused";
 
+// Per-car documents (ADR-0009): the vehicle registration ("matrícula") an
+// individual host must have verified before the car can go `active`.
+export const CAR_DOCUMENT_STATUSES = ["pending", "verified", "rejected"] as const;
+export type CarDocumentStatus = (typeof CAR_DOCUMENT_STATUSES)[number];
+export const CAR_DOCUMENT_TYPE_REGISTRATION = "registration";
+
+/** `GET/POST /agency/fleet/:carId/documents` (wire `CarDocumentDto`). */
+export interface CarDocumentDto {
+  id: string;
+  type: string;
+  status: string;
+  filename: string;
+  contentType: string;
+  rejectionReason: string | null;
+  uploadedAt: string;
+  reviewedAt: string | null;
+}
+
+/** Admin review row (`GET /admin/cars/:carId/documents`). */
+export interface CarDocumentAdminDto extends CarDocumentDto {
+  carId: string;
+  agencyId: string;
+}
+
 /**
  * Public car shape — the canonical `Car` search/list item from the
  * serializer (docs/DOMAIN.md "Wire contract"). NOTE: `plate` is PRIVATE
@@ -304,6 +342,8 @@ export interface CarDetail extends Car {
   };
   /** Active delivery zones of the car's branch (id/name/fee only). */
   deliveryZones: { id: string; name: string; feeCents: number }[];
+  /** Security deposit held at check-in (car override or platform default), cents. */
+  depositCents: number;
 }
 
 /**
@@ -315,6 +355,10 @@ export interface AgencyCar extends Car {
   plate?: string;
   makeId?: string;
   modelId?: string;
+  /** Per-car deposit override in cents; `null` = the platform default applies. */
+  depositCents: number | null;
+  /** The car's registration document, or null when none was uploaded yet. */
+  registration: CarDocumentDto | null;
 }
 
 // ---------------------------------------------------- booking & availability
@@ -451,6 +495,10 @@ export interface Booking {
   cancellationReason: string | null;
   /** Renter identity — present ONLY for the agency/admin viewer. */
   customer?: BookingCustomerDto;
+  /** Deposit snapshotted at request time (car override or platform default), cents. */
+  depositCents: number;
+  /** Check-in / check-out inspections (ADR-0011), lightweight refs. */
+  inspections: { type: string; status: string; id: string }[];
 }
 
 /** Renter block of the frozen rental agreement (license masked to last 4). */
@@ -472,6 +520,8 @@ export interface BookingAgreement {
   renter: BookingAgreementRenter;
   car: { plate: string | null };
   agencyConditions: string | null;
+  /** The signed rental-agreement document (ADR-0010); null for walk-ins. */
+  document: BookingAgreementDocumentDto | null;
 }
 
 /**
@@ -525,6 +575,14 @@ export interface BookingDetail extends Booking {
   payment?: BookingDetailPayment;
   /** Rental agreement snapshot — for both parties; null when none exists. */
   agreement: BookingAgreement | null;
+  /** Security deposit hold (ADR-0013); null before check-in / for walk-ins. */
+  deposit: DepositDto | null;
+  /** Open or decided damage claim; parties + admin only. */
+  claim: ClaimDto | null;
+  /** Settlement outcome (ADR-0012); null until cancelled/settled. */
+  settlement: SettlementDto | null;
+  /** Refund preview — owning customer only, in `requested | accepted`. */
+  cancellationQuote?: CancellationQuoteDto;
 }
 
 /** Availability response: the blocked windows in `[from, to)`. */
@@ -654,7 +712,10 @@ export type LedgerKind =
   | "payout"
   | "refund"
   | "late_cancellation_retention"
-  | "early_return_refund";
+  | "early_return_refund"
+  | "retention"
+  | "claim"
+  | "payout_reversal";
 
 export interface LedgerEntry {
   id: string;
@@ -677,12 +738,41 @@ export interface AgencyWallet {
   /** balance − pending; the cap for a new payout request. */
   availableCents: number;
   entries: LedgerEntry[];
+  /** Stripe payout recipient (ADR-0012); null when the rail is not configured. */
+  payoutAccount: PayoutAccountDto | null;
 }
 
-export const PAYOUT_STATUSES = ["requested", "paid", "rejected"] as const;
+/**
+ * Payout lifecycle: manual bank transfers go `requested → paid | rejected`;
+ * Stripe payouts go `processing → paid | failed` (ADR-0012).
+ */
+export const PAYOUT_STATUSES = [
+  "requested",
+  "processing",
+  "paid",
+  "rejected",
+  "failed",
+] as const;
 export type PayoutStatus = (typeof PAYOUT_STATUSES)[number];
 
-/** One payout request (wire `PayoutDto`). `note` carries the reject reason. */
+export const PAYOUT_KINDS = ["withdrawal", "settlement", "advance"] as const;
+export type PayoutKind = (typeof PAYOUT_KINDS)[number];
+
+export const PAYOUT_METHODS = ["bank_transfer", "stripe_connect"] as const;
+export type PayoutMethod = (typeof PAYOUT_METHODS)[number];
+
+/** Stripe-side outbound payment status, mirrored by webhook. */
+export const PAYOUT_RAIL_STATUSES = [
+  "pending_submit",
+  "submitted",
+  "posted",
+  "failed",
+  "returned",
+  "canceled",
+] as const;
+export type PayoutRailStatus = (typeof PAYOUT_RAIL_STATUSES)[number];
+
+/** One payout (wire `PayoutDto`). `note` carries the reject reason. */
 export interface Payout {
   id: string;
   agencyId: string;
@@ -695,6 +785,51 @@ export interface Payout {
   note: string | null;
   requestedAt: string;
   decidedAt: string | null;
+  /** `PayoutMethod` on the wire (`bank_transfer | stripe_connect`). */
+  method: string;
+  /** `PayoutKind` on the wire (`withdrawal | settlement | advance`). */
+  kind: string;
+  /** The booking a settlement/advance payout belongs to; null for withdrawals. */
+  bookingId: string | null;
+  /** `PayoutRailStatus`, Stripe payouts only. */
+  railStatus: string | null;
+  /** What Stripe posted to the host's bank (minor units + currency, e.g. DOP). */
+  receivedAmount: { value: number; currency: string } | null;
+  failureReason: string | null;
+}
+
+// ── Stripe payout rail (ADR-0012) ──────────────────────────────────────────
+
+export const PAYOUT_ACCOUNT_STATUSES = [
+  "not_started",
+  "onboarding",
+  "restricted",
+  "active",
+  "disabled",
+] as const;
+export type PayoutAccountStatus = (typeof PAYOUT_ACCOUNT_STATUSES)[number];
+
+/** `GET /agency/payout-account` (wire `PayoutAccountDto`). */
+export interface PayoutAccountDto {
+  status: string;
+  rail: string;
+  /** Stripe requirement keys still due (shown verbatim as a hint list). */
+  requirementsDue: string[];
+  payoutMethod: {
+    bankName: string | null;
+    last4: string | null;
+    currency: string;
+  } | null;
+  /** False when the rail is disabled by platform config / driver. */
+  onboardingAvailable: boolean;
+  lastSyncedAt: string | null;
+}
+
+export interface PayoutAccountAdminDto extends PayoutAccountDto {
+  agencyId: string;
+  agencyName: string;
+  stripeAccountId: string | null;
+  disabledReason: string | null;
 }
 
 /** Account lifecycle (backend `UserStatus`). */
@@ -703,6 +838,205 @@ export type UserStatus = "active" | "suspended" | "deleted";
 export interface PlatformConfig {
   /** Commission % snapshotted into each booking at request time. */
   commissionPct: number;
+}
+
+/** `GET/PATCH /admin/config` (wire `PlatformConfigDto`) — every §0.7 key. */
+export interface PlatformConfigDto {
+  commissionPct: number;
+  freeCancellationHours: number;
+  lateCancellationRetentionPct: number;
+  earlyReturnPenaltyDays: number;
+  disputeWindowHours: number;
+  claimResponseHours: number;
+  defaultDepositCents: number;
+  checkinAdvancePct: number;
+  depositReauthLeadHours: number;
+  inspectionsRequired: boolean;
+  inspectionMinPhotos: number;
+  inspectionMediaRetentionMonths: number;
+  stripePayoutsEnabled: boolean;
+}
+
+// ── Contracts & e-sign (ADR-0010) ──────────────────────────────────────────
+
+/** Short-lived download link for a private file (PDFs, licences, media). */
+export interface SignedUrlDto {
+  url: string;
+  expiresAt: string;
+}
+
+/** `GET /legal/contracts/:kind` / the `current` block of the host agreement. */
+export interface ContractTemplatePublicDto {
+  kind: string;
+  version: number;
+  title: string;
+  /** Server-rendered, sanitized HTML (Markdown → HTML, variables substituted). */
+  html: string;
+}
+
+export interface ContractTemplateAdminDto {
+  id: string;
+  kind: string;
+  version: number | null;
+  title: string;
+  bodyMarkdown: string;
+  status: string;
+  changeNote: string | null;
+  requireResign: boolean;
+  createdAt: string;
+  publishedAt: string | null;
+}
+
+export interface ContractSignatureDto {
+  role: string;
+  method: string;
+  typedName: string;
+  signedAt: string;
+}
+
+/** An immutable signed snapshot (HTML + PDF) with its signatures. */
+export interface ContractDocumentDto {
+  id: string;
+  kind: string;
+  templateVersion: number;
+  status: string;
+  createdAt: string;
+  signatures: ContractSignatureDto[];
+}
+
+export interface ContractDocumentAdminDto extends ContractDocumentDto {
+  subjectType: string;
+  subjectId: string;
+  htmlSha256: string;
+  pdfSha256: string;
+}
+
+/** `GET /agency/host-agreement` (wire `HostAgreementStatusDto`). */
+export interface HostAgreementStatusDto {
+  /** The published version rendered with this host's variables. */
+  current: ContractTemplatePublicDto;
+  /** The host's signed document, or null before the first signature. */
+  signed: ContractDocumentDto | null;
+  /** A newer version was published with `requireResign` — nag, never block. */
+  resignRequired: boolean;
+}
+
+/** Rental-agreement document ref on a booking. */
+export interface BookingAgreementDocumentDto {
+  id: string;
+  templateVersion: number;
+  status: string;
+  signedAt: string;
+  countersignedAt: string | null;
+}
+
+// ── Inspections & media (ADR-0011) ─────────────────────────────────────────
+
+export interface InspectionMediaDto {
+  id: string;
+  kind: string;
+  label: string;
+  status: string;
+  /** Signed URL (parties + admin only); null until uploaded. */
+  url: string | null;
+  expiresAt: string | null;
+  durationSeconds: number | null;
+  position: number;
+}
+
+export interface InspectionMediaUploadDto {
+  media: InspectionMediaDto;
+  upload: {
+    url: string;
+    method: "PUT";
+    headers: Record<string, string>;
+    expiresAt: string;
+  };
+}
+
+export interface InspectionDto {
+  id: string;
+  bookingId: string;
+  type: string;
+  status: string;
+  odometerKm: number | null;
+  fuelLevelEighths: number | null;
+  damageNotes: string | null;
+  damageFlagged: boolean;
+  media: InspectionMediaDto[];
+  submittedAt: string | null;
+  customerConfirmedAt: string | null;
+  customerAbsentReason: string | null;
+  customerDisputeNote: string | null;
+  finalizedAt: string | null;
+}
+
+/** `GET /bookings/:bookingId/renter-license` (agency viewer, accepted..returned). */
+export interface RenterLicenseDto {
+  fullName: string;
+  licenseNumber: string;
+  licenseExpiry: string | null;
+  documents: { type: string; url: string; expiresAt: string }[];
+}
+
+// ── Deposits, claims & settlement (ADR-0012 / ADR-0013) ────────────────────
+
+export interface DepositDto {
+  amountCents: number;
+  currency: string;
+  status: string;
+  captureBefore: string | null;
+  capturedCents: number;
+  /** Owning customer only, while `requires_action` (resume 3DS). */
+  clientSecret?: string | null;
+}
+
+export interface ClaimDto {
+  id: string;
+  bookingId: string;
+  status: string;
+  requestedCents: number;
+  approvedCents: number | null;
+  capturedCents: number;
+  uncollectedCents: number;
+  description: string;
+  evidenceMediaIds: string[];
+  customerResponse: string | null;
+  customerNote: string | null;
+  respondBy: string;
+  decidedAt: string | null;
+  decisionNote: string | null;
+  createdAt: string;
+}
+
+export interface ClaimAdminDto extends ClaimDto {
+  agencyName: string;
+  customerName: string;
+  deposit: DepositDto | null;
+  inspections: InspectionDto[];
+}
+
+export interface SettlementLineDto {
+  code: string;
+  label: string;
+  amountCents: number;
+}
+
+/** Server-computed settlement outcome — rendered verbatim, never derived. */
+export interface SettlementDto {
+  status: string;
+  case: string;
+  refundCents: number;
+  retentionCents: number;
+  earlyReturnRefundCents: number;
+  unusedDays: number;
+  claimCents: number;
+  advanceCents: number;
+  hostNetCents: number;
+  platformNetCents: number;
+  breakdown: SettlementLineDto[];
+  disputeWindowEndsAt: string | null;
+  finalizedAt: string | null;
 }
 
 // ----------------------------------------------------------- communication
