@@ -2,15 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { AgencyApi, agencyKeys } from "@/features/agency/api";
-import { usePermission } from "@/features/agency/use-permission";
+import { useMutation } from "@tanstack/react-query";
+import { AgencyApi } from "@/features/agency/api";
+import { useAllFleet } from "@/features/agency/hooks";
+import { PermissionGate } from "@/features/agency/components/permission-gate";
 import { todayIso } from "@/shared/utils/dates";
 import {
   AddressAutocomplete,
   type PickedAddress,
 } from "@/shared/components/address-autocomplete";
-import { EmptyState } from "@/shared/components/states";
 import { Button } from "@/shared/components/ui/button";
 import {
   Card,
@@ -29,13 +29,18 @@ import { Select } from "@/shared/components/ui/select";
  * a clear error if the customer isn't verified or has no card on file.
  */
 export default function WalkInBookingPage() {
-  const router = useRouter();
-  const { can } = usePermission();
+  return (
+    <PermissionGate permission="bookings:handle">
+      <WalkInForm />
+    </PermissionGate>
+  );
+}
 
-  const fleetQuery = useQuery({
-    queryKey: agencyKeys.fleet({ status: "active" }),
-    queryFn: () => AgencyApi.fleet({ status: "active" }),
-  });
+function WalkInForm() {
+  const router = useRouter();
+
+  // Every ACTIVE car (all pages) — the picker is a plain <select>.
+  const fleet = useAllFleet({ status: "active" });
 
   const [carId, setCarId] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
@@ -71,15 +76,6 @@ export default function WalkInBookingPage() {
     onSuccess: () => router.push("/agency/calendar"),
   });
 
-  if (!can("bookings:handle")) {
-    return (
-      <EmptyState
-        title="Not available"
-        description="You need the bookings permission to create counter sales."
-      />
-    );
-  }
-
   const ready =
     !!carId &&
     /.+@.+\..+/.test(customerEmail) &&
@@ -88,7 +84,7 @@ export default function WalkInBookingPage() {
     to > from &&
     (!deliver || !!addr);
 
-  const cars = fleetQuery.data?.items ?? [];
+  const cars = fleet.cars;
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -96,7 +92,7 @@ export default function WalkInBookingPage() {
       <p className="mt-1 text-sm text-muted-foreground">
         Book a car for a customer at the counter. Enter an existing customer&apos;s
         email, or a new one&apos;s details to register them on the spot. This is
-        an offline sale — you collect payment and check the licence yourself; the
+        an offline sale — you collect payment and check the license yourself; the
         car is reserved so the app can&apos;t double-book it.
       </p>
 
@@ -156,10 +152,18 @@ export default function WalkInBookingPage() {
             <Select
               id="wi-car"
               value={carId}
-              disabled={fleetQuery.isLoading}
+              disabled={fleet.isLoading}
               onChange={(e) => setCarId(e.target.value)}
             >
-              <option value="">Select a car</option>
+              <option value="">
+                {fleet.isLoading
+                  ? "Loading cars…"
+                  : fleet.isError
+                    ? "Could not load your fleet"
+                    : cars.length === 0
+                      ? "No active cars"
+                      : "Select a car"}
+              </option>
               {cars.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.make.name} {c.model.name} {c.year}

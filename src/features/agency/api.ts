@@ -1,19 +1,21 @@
 import { Api } from "@/shared/api/client";
 import type {
-  Agency,
   AgencyCar,
+  AgencySettings,
+  AgencyWallet,
   Booking,
+  BookingDetail,
   Branch,
   CarCategory,
   CarColor,
   CarStatus,
   DeliveryZoneFull,
   FuelType,
-  LedgerEntry,
   OccupancyEntry,
   Paginated,
+  Payout,
+  PayoutBankDetails,
   Transmission,
-  WalletAccount,
 } from "@/shared/types/domain";
 import type {
   AgencyPermission,
@@ -26,11 +28,9 @@ import type {
  *
  * Expected backend endpoints (integrator: align with backend routes).
  * All routes are scoped to the CALLER's agency via RBAC — no agencyId in
- * the path:
- *  - GET    /agency/me                              -> Agency
+ * the path (the agency itself is read through `GET /agency/session`):
  *  - GET    /agency/fleet?status&page               -> Paginated<AgencyCar> (includes private plate)
  *  - POST   /agency/fleet  CreateCarInput           -> AgencyCar (status=draft)
- *  - PATCH  /agency/fleet/:carId  Partial<CreateCarInput> & { status? } -> AgencyCar
  *  - GET    /agency/calendar?carId&month=YYYY-MM    -> OccupancyEntry[] (bookings + manual blocks)
  *  - POST   /agency/manual-blocks { carId, from, to, note? } -> OccupancyEntry
  *      (offline/phone/WhatsApp rentals — inserted into CarOccupancy, so the
@@ -42,7 +42,7 @@ import type {
  *  - PATCH  /agency/requests/:bookingId/accept      -> Booking
  *      (server: state change + occupancy insert + payment capture in ONE
  *       transaction; may fail with reason "no_longer_available")
- *  - PATCH  /agency/requests/:bookingId/reject { reason } -> Booking
+ *  - PATCH  /agency/requests/:bookingId/reject { reason 2..160 } -> Booking
  *  - PATCH  /agency/requests/:bookingId/pickup      -> Booking (accepted→active)
  *  - PATCH  /agency/requests/:bookingId/return      -> Booking (active→returned)
  *  - PATCH  /agency/requests/:bookingId/settle      -> Booking (returned→settled;
@@ -53,25 +53,67 @@ import type {
  *  - GET    /agency/branches/:branchId/zones        -> DeliveryZoneFull[]
  *  - POST   /agency/branches/:branchId/zones { name, feeCents } -> DeliveryZoneFull
  *  - DELETE /agency/zones/:zoneId                   -> 204
- *  - GET    /agency/wallet                          -> { account: WalletAccount, entries: LedgerEntry[] }
+ *  - PATCH  /agency/requests/:bookingId/cancel { reason 2..160 } -> Booking
+ *      (accepted → cancelled; `bookings:handle`; the customer is refunded 100%)
+ *  - POST   /bookings/:bookingId/cancel-active { reason 2..160 } -> Booking
+ *      (active → cancelled mid-rental; same permission + full refund)
+ *  - GET    /agency/settings                        -> AgencySettings (`agency:settings`)
+ *  - PATCH  /agency/settings UpdateAgencySettingsInput -> AgencySettings
+ *  - GET    /agency/wallet                          -> AgencyWallet (`wallet:view`)
+ *  - GET    /agency/wallet/payouts                  -> Payout[] (`wallet:view`)
+ *  - POST   /agency/wallet/payouts { amountCents }  -> Payout (`wallet:withdraw`;
+ *       409 INSUFFICIENT_BALANCE / PAYOUT_BANK_DETAILS_MISSING)
  */
+
+/** `GET /agency/fleet` query — `pageSize` lets pickers walk the whole fleet. */
+export interface FleetFilters {
+  status?: CarStatus;
+  page?: number;
+  pageSize?: number;
+}
+
+/** `GET /agency/requests` query. */
+export interface RequestFilters {
+  state?: string;
+  page?: number;
+  pageSize?: number;
+}
 
 export const agencyKeys = {
   all: ["agency"] as const,
-  me: () => ["agency", "me"] as const,
-  fleet: (filters: { status?: CarStatus; page?: number } = {}) =>
-    ["agency", "fleet", filters] as const,
+  fleet: (filters: FleetFilters = {}) => ["agency", "fleet", filters] as const,
+  /** Infinite-query variant (page lives in the page params, not the key). */
+  fleetPages: (filters: Omit<FleetFilters, "page"> = {}) =>
+    ["agency", "fleet", "pages", filters] as const,
   calendar: (carId: string | null, month: string) =>
     ["agency", "calendar", carId, month] as const,
-  requests: (filters: { state?: string; page?: number } = {}) =>
+  requests: (filters: RequestFilters = {}) =>
     ["agency", "requests", filters] as const,
   carPhotos: (carId: string) => ["agency", "car-photos", carId] as const,
   branches: () => ["agency", "branches"] as const,
   zones: (branchId: string) => ["agency", "zones", branchId] as const,
   wallet: () => ["agency", "wallet"] as const,
+  payouts: () => ["agency", "wallet", "payouts"] as const,
+  settings: () => ["agency", "settings"] as const,
   session: () => ["agency", "session"] as const,
   staff: () => ["agency", "staff"] as const,
 };
+
+/**
+ * `PATCH /agency/settings` body (backend `UpdateAgencySettingsDto`). Every
+ * field is optional — send only what changed. `payoutBankDetails: null`
+ * clears the bank account, `logoUrl: null` removes the logo; an empty
+ * `rentalConditions` string clears the conditions server-side.
+ */
+export interface UpdateAgencySettingsInput {
+  name?: string;
+  description?: string;
+  logoUrl?: string | null;
+  rentalConditions?: string;
+  minDriverAge?: number;
+  depositNote?: string;
+  payoutBankDetails?: PayoutBankDetails | null;
+}
 
 export interface CreateStaffInput {
   name: string;
@@ -130,7 +172,8 @@ export interface CreateBranchInput {
   cityId: string;
   name: string;
   address: string;
-  phone?: string;
+  /** Omitted = unchanged/none; `null` (edit only) clears the stored number. */
+  phone?: string | null;
   /** `{ day: "HH:MM-HH:MM" }` map; omitted in the v1 branches form. */
   hours?: Record<string, string>;
   // ── Door-to-door delivery config ──
@@ -163,30 +206,15 @@ export interface ManualBlockInput {
 }
 
 export const AgencyApi = {
-  async me(): Promise<Agency> {
-    const res = await Api.get("/agency/me");
-    return res.data;
-  },
-
   // ------------------------------------------------------------- fleet
 
-  async fleet(
-    filters: { status?: CarStatus; page?: number } = {},
-  ): Promise<Paginated<AgencyCar>> {
+  async fleet(filters: FleetFilters = {}): Promise<Paginated<AgencyCar>> {
     const res = await Api.get("/agency/fleet", { params: filters });
     return res.data;
   },
 
   async createCar(input: CreateCarInput): Promise<AgencyCar> {
     const res = await Api.post("/agency/fleet", input);
-    return res.data;
-  },
-
-  async updateCar(
-    carId: string,
-    input: Partial<CreateCarInput> & { status?: CarStatus },
-  ): Promise<AgencyCar> {
-    const res = await Api.patch(`/agency/fleet/${carId}`, input);
     return res.data;
   },
 
@@ -261,7 +289,7 @@ export const AgencyApi = {
   // ---------------------------------------------------------- requests
 
   async requests(
-    filters: { state?: string; page?: number } = {},
+    filters: RequestFilters = {},
   ): Promise<Paginated<AgencyRequest>> {
     const res = await Api.get("/agency/requests", { params: filters });
     return res.data;
@@ -296,6 +324,37 @@ export const AgencyApi = {
   /** Close the money-path: returned → settled (payout hits the wallet). */
   async settleRequest(bookingId: string): Promise<Booking> {
     const res = await Api.patch(`/agency/requests/${bookingId}/settle`, {});
+    return res.data;
+  },
+
+  // ── Agency-side cancellation (reason required, customer refunded 100%) ──
+
+  /** accepted → cancelled, before the rental starts. */
+  async cancelBooking(bookingId: string, reason: string): Promise<Booking> {
+    const res = await Api.patch(`/agency/requests/${bookingId}/cancel`, {
+      reason,
+    });
+    return res.data;
+  },
+
+  /** active → cancelled mid-rental (the car came back early / incident). */
+  async cancelActiveBooking(
+    bookingId: string,
+    reason: string,
+  ): Promise<Booking> {
+    const res = await Api.post(`/bookings/${bookingId}/cancel-active`, {
+      reason,
+    });
+    return res.data;
+  },
+
+  /**
+   * The AGENCY view of one booking (viewer `agency`: carries `customer` and
+   * `agreement`, never `payment`). Same route the customer uses; the backend
+   * picks the viewer from who is asking.
+   */
+  async bookingDetail(bookingId: string): Promise<BookingDetail> {
+    const res = await Api.get(`/bookings/${bookingId}`);
     return res.data;
   },
 
@@ -358,8 +417,33 @@ export const AgencyApi = {
 
   // ------------------------------------------------------------ wallet
 
-  async wallet(): Promise<{ account: WalletAccount; entries: LedgerEntry[] }> {
+  async wallet(): Promise<AgencyWallet> {
     const res = await Api.get("/agency/wallet");
+    return res.data;
+  },
+
+  async payouts(): Promise<Payout[]> {
+    const res = await Api.get("/agency/wallet/payouts");
+    return res.data;
+  },
+
+  /** Ask for a bank transfer of `amountCents` (≤ `availableCents`, ≥ 1000). */
+  async requestPayout(amountCents: number): Promise<Payout> {
+    const res = await Api.post("/agency/wallet/payouts", { amountCents });
+    return res.data;
+  },
+
+  // ---------------------------------------------------------- settings
+
+  async settings(): Promise<AgencySettings> {
+    const res = await Api.get("/agency/settings");
+    return res.data;
+  },
+
+  async updateSettings(
+    input: UpdateAgencySettingsInput,
+  ): Promise<AgencySettings> {
+    const res = await Api.patch("/agency/settings", input);
     return res.data;
   },
 

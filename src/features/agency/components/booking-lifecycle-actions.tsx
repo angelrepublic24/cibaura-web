@@ -6,6 +6,8 @@ import { AgencyApi, agencyKeys } from "@/features/agency/api";
 import { usePermission } from "@/features/agency/use-permission";
 import { bookingKeys } from "@/features/bookings/api";
 import type { Booking } from "@/shared/types/domain";
+import { API_ERROR_CODES, isApiErrorCode } from "@/shared/api/errors";
+import { ReasonDialog } from "@/shared/components/reason-dialog";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
@@ -15,13 +17,19 @@ type LifecycleAction = "accept" | "reject" | "pickup" | "return" | "settle";
 /** Pending inline flow: the reject-reason form or a confirm step. */
 type Mode = null | "reject" | "confirm-pickup" | "confirm-return" | "confirm-settle";
 
+/** Backend `RejectBookingDto` / `CancelBookingDto`: reason 2..160. */
+const REASON_MIN = 2;
+const REASON_MAX = 160;
+
 /**
  * Agency-side booking lifecycle actions — the ONE component that moves a
  * booking through requested → accepted → active → returned → settled:
  *
  *  - requested: Accept / Reject (reject asks for a reason)
  *  - accepted:  "Mark picked up"  (confirm — the rental becomes active)
+ *               + "Cancel booking" (reason required; customer refunded 100%)
  *  - active:    "Mark returned"   (confirm — the car is back)
+ *               + "Cancel booking" (mid-rental; reason required; full refund)
  *  - returned:  "Settle payout"   (confirm — releases earnings to the wallet)
  *
  * Rendered in the requests inbox rows AND the agency booking detail. Requires
@@ -35,6 +43,14 @@ export function BookingLifecycleActions({ booking }: { booking: Booking }) {
   const { can } = usePermission();
   const [mode, setMode] = useState<Mode>(null);
   const [reason, setReason] = useState("");
+  const [cancelOpen, setCancelOpen] = useState(false);
+
+  function invalidateAll() {
+    // Inbox lists, calendar occupancy and the wallet all shift on a
+    // lifecycle transition; the detail view reads bookingKeys.detail.
+    qc.invalidateQueries({ queryKey: agencyKeys.all });
+    qc.invalidateQueries({ queryKey: bookingKeys.all });
+  }
 
   const mutation = useMutation({
     mutationFn: (action: LifecycleAction) => {
@@ -54,10 +70,7 @@ export function BookingLifecycleActions({ booking }: { booking: Booking }) {
     onSuccess: () => {
       setMode(null);
       setReason("");
-      // Inbox lists, calendar occupancy and the wallet all shift on a
-      // lifecycle transition; the detail view reads bookingKeys.detail.
-      qc.invalidateQueries({ queryKey: agencyKeys.all });
-      qc.invalidateQueries({ queryKey: bookingKeys.all });
+      invalidateAll();
     },
   });
 
@@ -94,6 +107,18 @@ export function BookingLifecycleActions({ booking }: { booking: Booking }) {
       </Button>
     );
 
+  const cancelButton = (
+    <Button
+      variant="outline"
+      size="sm"
+      disabled={busy}
+      className="text-destructive hover:text-destructive"
+      onClick={() => setCancelOpen(true)}
+    >
+      Cancel booking
+    </Button>
+  );
+
   let actions: React.ReactNode = null;
 
   switch (booking.state) {
@@ -105,6 +130,7 @@ export function BookingLifecycleActions({ booking }: { booking: Booking }) {
             <Input
               id={`reason-${booking.id}`}
               placeholder="e.g. Car unavailable for these dates"
+              maxLength={REASON_MAX}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
             />
@@ -148,19 +174,29 @@ export function BookingLifecycleActions({ booking }: { booking: Booking }) {
         );
       break;
     case "accepted":
-      actions = confirm(
-        "Mark picked up",
-        "The customer collected the car — the rental becomes active.",
-        "pickup",
-        "confirm-pickup",
+      actions = (
+        <div className="flex flex-wrap items-start gap-2">
+          {confirm(
+            "Mark picked up",
+            "The customer collected the car — the rental becomes active.",
+            "pickup",
+            "confirm-pickup",
+          )}
+          {cancelButton}
+        </div>
       );
       break;
     case "active":
-      actions = confirm(
-        "Mark returned",
-        "The car is back with you — the rental is over.",
-        "return",
-        "confirm-return",
+      actions = (
+        <div className="flex flex-wrap items-start gap-2">
+          {confirm(
+            "Mark returned",
+            "The car is back with you — the rental is over.",
+            "return",
+            "confirm-return",
+          )}
+          {cancelButton}
+        </div>
       );
       break;
     case "returned":
@@ -180,8 +216,44 @@ export function BookingLifecycleActions({ booking }: { booking: Booking }) {
     <div className="space-y-2">
       {actions}
       {mutation.isError ? (
-        <p className="text-sm text-destructive">{mutation.error.message}</p>
+        <p className="text-sm text-destructive">
+          {isApiErrorCode(mutation.error, API_ERROR_CODES.PERIOD_ALREADY_STARTED)
+            ? "The rental start date has already passed — this request can no longer be accepted."
+            : mutation.error.message}
+        </p>
       ) : null}
+
+      <ReasonDialog
+        open={cancelOpen}
+        onClose={() => setCancelOpen(false)}
+        title={
+          booking.state === "active"
+            ? "Cancel this rental now?"
+            : "Cancel this booking?"
+        }
+        description="The customer will be refunded in full. This cannot be undone."
+        field={{
+          label: "Reason",
+          placeholder:
+            booking.state === "active"
+              ? "e.g. Car returned early after a breakdown"
+              : "e.g. The car needs unexpected repairs",
+          hint: "Shown to the customer with the cancellation notice.",
+          minLength: REASON_MIN,
+          maxLength: REASON_MAX,
+        }}
+        confirmLabel="Cancel booking"
+        destructive
+        onConfirm={async (value) => {
+          const text = value ?? "";
+          if (booking.state === "active") {
+            await AgencyApi.cancelActiveBooking(booking.id, text);
+          } else {
+            await AgencyApi.cancelBooking(booking.id, text);
+          }
+          invalidateAll();
+        }}
+      />
     </div>
   );
 }

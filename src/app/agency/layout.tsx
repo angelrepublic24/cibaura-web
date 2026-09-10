@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   Store,
   MapPin,
+  Settings,
   Users,
   Wallet,
 } from "lucide-react";
@@ -45,6 +46,7 @@ const NAV: NavItem[] = [
   { href: "/agency/zones", label: "Delivery zones", icon: MapPin, permission: "zones:manage" },
   { href: "/agency/wallet", label: "Wallet", icon: Wallet, permission: "wallet:view" },
   { href: "/agency/staff", label: "Staff", icon: Users, permission: "staff:manage" },
+  { href: "/agency/settings", label: "Settings", icon: Settings, permission: "agency:settings" },
 ];
 
 /**

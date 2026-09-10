@@ -3,13 +3,18 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
-import { BookingsApi, bookingKeys } from "@/features/bookings/api";
+import { AgencyApi } from "@/features/agency/api";
+import { bookingKeys } from "@/features/bookings/api";
 import { ChatPanel } from "@/features/bookings/components/chat-panel";
 import {
   PricingCard,
   StateTimeline,
 } from "@/features/bookings/components/booking-summary";
 import { BookingLifecycleActions } from "@/features/agency/components/booking-lifecycle-actions";
+import {
+  AgreementCard,
+  CustomerCard,
+} from "@/features/agency/components/booking-parties";
 import { BookingStateBadge } from "@/shared/components/booking-state-badge";
 import { formatIsoDate } from "@/shared/utils/dates";
 import { ErrorState, LoadingState } from "@/shared/components/states";
@@ -24,14 +29,16 @@ import {
  * AGENCY-side booking detail (/agency/requests/[bookingId]) — staff stay in
  * the dashboard chrome instead of being routed through the customer account
  * shell. Reuses the shared summary cards + per-booking chat (the backend
- * grants `GET /bookings/:id` and the thread to the managing agency), and
- * mounts the lifecycle actions (accept/reject → pickup → return → settle).
- * No customer-only surface here (no cancel, no review).
+ * grants `GET /bookings/:id` and the thread to the managing agency), mounts
+ * the lifecycle actions (accept/reject → pickup → return → settle → cancel)
+ * and shows what only the agency viewer gets: the renter's identity and the
+ * frozen rental agreement. No customer-only surface here (no payment, no
+ * review).
  */
 export function AgencyBookingDetail({ bookingId }: { bookingId: string }) {
   const query = useQuery({
     queryKey: bookingKeys.detail(bookingId),
-    queryFn: () => BookingsApi.findById(bookingId),
+    queryFn: () => AgencyApi.bookingDetail(bookingId),
   });
 
   if (query.isLoading) return <LoadingState label="Loading booking…" />;
@@ -110,6 +117,10 @@ export function AgencyBookingDetail({ bookingId }: { bookingId: string }) {
               ) : null}
             </CardContent>
           </Card>
+
+          {booking.customer ? <CustomerCard customer={booking.customer} /> : null}
+
+          <AgreementCard agreement={booking.agreement} />
 
           <PricingCard booking={booking} />
         </div>
