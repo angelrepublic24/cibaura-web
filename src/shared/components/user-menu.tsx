@@ -13,6 +13,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useAuthStore } from "@/shared/auth/store";
+import { useLogout } from "@/features/auth/hooks";
 import { cn } from "@/lib/utils";
 
 /**
@@ -26,7 +27,7 @@ export function UserMenu() {
   const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
   const hasRole = useAuthStore((s) => s.hasRole);
-  const signOut = useAuthStore((s) => s.signOut);
+  const logout = useLogout();
 
   const isAgency = hasRole("agency_owner", "agency_staff");
   const isAdmin = hasRole("platform_admin");
@@ -127,7 +128,8 @@ export function UserMenu() {
               role="menuitem"
               onClick={() => {
                 setOpen(false);
-                signOut();
+                // Server logout (revoke + clear httpOnly cookies) then local.
+                void logout();
               }}
               className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-foreground transition-colors hover:bg-muted"
             >

@@ -45,8 +45,10 @@ export function RegisterForm() {
         fullName: values.fullName,
         phone: values.phone || undefined,
       }),
-    onSuccess: ({ user, accessToken }) => {
-      signIn(user, accessToken);
+    onSuccess: ({ user }) => {
+      // The response set the httpOnly session cookies; only the user
+      // snapshot is kept client-side.
+      signIn(user);
       router.push("/account");
     },
   });
@@ -132,6 +134,24 @@ export function RegisterForm() {
           {mutation.isError ? (
             <p className="text-sm text-red-600">{mutation.error.message}</p>
           ) : null}
+
+          <p className="text-xs text-muted-foreground">
+            By creating an account you agree to our{" "}
+            <Link
+              href="/legal/terms"
+              className="text-primary underline underline-offset-2"
+            >
+              Terms of Service
+            </Link>{" "}
+            and{" "}
+            <Link
+              href="/legal/privacy"
+              className="text-primary underline underline-offset-2"
+            >
+              Privacy Policy
+            </Link>
+            .
+          </p>
 
           <Button type="submit" className="w-full" disabled={mutation.isPending}>
             {mutation.isPending ? "Creating account…" : "Create account"}

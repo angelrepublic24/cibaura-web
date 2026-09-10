@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
-  AlertTriangle,
   Building2,
   CalendarDays,
   CarFront,
@@ -18,6 +17,12 @@ import {
 } from "lucide-react";
 import { RoleGuard } from "@/shared/auth/guard";
 import { AgencyApi, agencyKeys } from "@/features/agency/api";
+import {
+  AgencyAccessRevoked,
+  isAgencyAccessRevokedError,
+  isRevokedStatus,
+  useAgencyAccessRevokedWatcher,
+} from "@/features/agency/access-revoked";
 import { usePermission } from "@/features/agency/use-permission";
 import type { AgencyPermission } from "@/features/agency/rbac";
 import { cn } from "@/lib/utils";
@@ -43,13 +48,15 @@ const NAV: NavItem[] = [
 ];
 
 /**
- * Verification notice shown above the dashboard content whenever the caller's
- * agency is NOT yet verified. Reads the same `GET /agency/session` cache entry
+ * Verification notice shown above the dashboard content while the caller's
+ * agency is still PENDING. Reads the same `GET /agency/session` cache entry
  * the nav already loads (identical key + staleTime → one request, not two).
  *
  * This is a secondary, informational read: while it loads or if it errors we
  * render nothing rather than blocking or alarming — the dashboard's own queries
- * surface real failures. Verified agencies see no banner.
+ * surface real failures. Verified agencies see no banner. Rejected/suspended
+ * never reach it: the layout swaps the WHOLE surface for
+ * {@link AgencyAccessRevoked} before rendering any chrome.
  */
 function VerificationBanner() {
   const { data } = useQuery({
@@ -59,41 +66,8 @@ function VerificationBanner() {
   });
 
   const agency = data?.agency;
-  if (!agency || agency.verificationStatus === "verified") return null;
+  if (!agency || agency.verificationStatus !== "pending") return null;
 
-  // `verificationReason` lives on the application record, not the dashboard
-  // `Agency` type — read it defensively in case the session includes it.
-  const reason =
-    (agency as { verificationReason?: string | null }).verificationReason ??
-    null;
-
-  if (agency.verificationStatus === "rejected") {
-    return (
-      <div
-        role="alert"
-        className="mb-6 flex items-start gap-3 rounded-[var(--radius)] border border-destructive/30 bg-destructive/10 p-4"
-      >
-        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
-        <div className="space-y-1 text-sm">
-          <p className="font-medium text-destructive">
-            Your application was rejected.
-          </p>
-          {reason ? <p className="text-muted-foreground">{reason}</p> : null}
-          <p className="text-muted-foreground">
-            <Link
-              href="/become-agency"
-              className="font-medium text-destructive underline underline-offset-2 hover:no-underline"
-            >
-              Re-submit your documents
-            </Link>{" "}
-            to apply again.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // pending
   return (
     <div
       role="status"
@@ -120,7 +94,17 @@ function VerificationBanner() {
   );
 }
 
-/** /agency route group — agency owners and staff only, nav gated by permission. */
+/**
+ * /agency route group — agency owners and staff only, nav gated by permission.
+ *
+ * REVOKED-ACCESS gate (owner rule): when `GET /agency/session` — the one read
+ * the backend keeps answering for a rejected/suspended agency — says the
+ * agency is rejected, the ENTIRE dashboard chrome is replaced by the
+ * access-revoked state (gated ONCE here, not per page: every child query
+ * would just 403 with AGENCY_ACCESS_REVOKED anyway). The watcher covers the
+ * mid-session case: any child 403 with that code refetches the session so
+ * this layout flips over instead of panels erroring one by one.
+ */
 export default function AgencyLayout({
   children,
 }: {
@@ -128,11 +112,32 @@ export default function AgencyLayout({
 }) {
   const pathname = usePathname();
   const { can } = usePermission();
+  useAgencyAccessRevokedWatcher();
+
+  // Same cache entry as usePermission/VerificationBanner — one request total.
+  const sessionQuery = useQuery({
+    queryKey: agencyKeys.session(),
+    queryFn: () => AgencyApi.session(),
+    staleTime: 60_000,
+  });
+  const agency = sessionQuery.data?.agency;
+  const revoked =
+    isRevokedStatus(agency?.verificationStatus) ||
+    // Defensive: if the session read itself ever returns the revoked 403.
+    isAgencyAccessRevokedError(sessionQuery.error);
 
   // Fail CLOSED: while the session loads, `can` is false, so only unrestricted
   // items (Dashboard) show and the rest appear once permissions resolve. For an
   // RBAC surface a brief under-render beats flashing links the user can't use.
   const items = NAV.filter((item) => !item.permission || can(item.permission));
+
+  if (revoked) {
+    return (
+      <RoleGuard allow={["agency_owner", "agency_staff"]}>
+        <AgencyAccessRevoked reason={agency?.verificationReason} />
+      </RoleGuard>
+    );
+  }
 
   return (
     <RoleGuard allow={["agency_owner", "agency_staff"]}>

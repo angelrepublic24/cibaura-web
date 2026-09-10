@@ -15,6 +15,14 @@ import { Button } from "@/shared/components/ui/button";
 const stripePromise = getStripe();
 
 /**
+ * Show the "use 4242…" helper ONLY when the publishable key is a Stripe TEST
+ * key — a live key must never render test-card instructions to real customers.
+ */
+const isStripeTestMode = (
+  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ""
+).startsWith("pk_test_");
+
+/**
  * Add-card form backed by Stripe Elements. The PAN is entered inside Stripe's
  * iframe and tokenized in the browser (`stripe.createPaymentMethod`) — our code
  * only ever sees the resulting `pm_...` id, which we exchange for a saved card
@@ -96,10 +104,12 @@ function CardForm({ onDone }: { onDone: () => void }) {
         </Button>
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        Test mode — use <span className="font-medium">4242 4242 4242 4242</span>,
-        any future expiry, any CVC.
-      </p>
+      {isStripeTestMode ? (
+        <p className="text-xs text-muted-foreground">
+          Test mode — use <span className="font-medium">4242 4242 4242 4242</span>,
+          any future expiry, any CVC.
+        </p>
+      ) : null}
     </form>
   );
 }

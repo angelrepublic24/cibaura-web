@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { ImagePlus } from "lucide-react";
 import { AgencyApi, agencyKeys } from "@/features/agency/api";
 import { usePermission } from "@/features/agency/use-permission";
+import { carPhoto } from "@/features/cars/photos";
+import { CarPhotoPlaceholder } from "@/features/cars/components/car-photo-placeholder";
 import { formatMoneyCents } from "@/shared/utils/money";
 import {
   EmptyState,
@@ -64,30 +67,60 @@ export default function AgencyFleetPage() {
           />
         ) : (
           <div className="space-y-3">
-            {query.data!.items.map((car) => (
-              <Card key={car.id}>
-                <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
-                  <div>
-                    <p className="font-medium">
-                      {car.make?.name ?? "Make"} {car.model?.name ?? "Model"}{" "}
-                      {car.year}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {car.plate ? `${car.plate} · ` : ""}
-                      {car.color} · {car.transmission} · {car.seats} seats
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="font-semibold">
-                      {formatMoneyCents(car.pricePerDayCents)}/day
-                    </span>
-                    <Badge variant={STATUS_VARIANT[car.status]}>
-                      {car.status}
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            {query.data!.items.map((car) => {
+              const photo = carPhoto(car);
+              return (
+                <Card key={car.id}>
+                  <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+                    <div className="flex min-w-0 items-center gap-3">
+                      {/* Cover thumb — real photo or the branded placeholder. */}
+                      <div className="relative h-14 w-20 shrink-0 overflow-hidden rounded-[var(--radius-sm)] border border-border bg-muted">
+                        {photo ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={photo}
+                            alt=""
+                            className="absolute inset-0 h-full w-full object-cover"
+                          />
+                        ) : (
+                          <CarPhotoPlaceholder />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">
+                          {car.make?.name ?? "Make"} {car.model?.name ?? "Model"}{" "}
+                          {car.year}
+                        </p>
+                        <p className="truncate text-sm text-muted-foreground">
+                          {car.plate ? `${car.plate} · ` : ""}
+                          {car.color} · {car.transmission} · {car.seats} seats
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      {canWrite ? (
+                        <Link
+                          href={`/agency/fleet/${car.id}/photos`}
+                          className={buttonVariants({
+                            variant: "outline",
+                            size: "sm",
+                          })}
+                        >
+                          <ImagePlus className="mr-1.5 h-4 w-4" />
+                          Photos
+                        </Link>
+                      ) : null}
+                      <span className="font-semibold">
+                        {formatMoneyCents(car.pricePerDayCents)}/day
+                      </span>
+                      <Badge variant={STATUS_VARIANT[car.status]}>
+                        {car.status}
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>

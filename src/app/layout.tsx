@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import QueryProvider from "@/shared/providers/query-provider";
@@ -65,7 +66,20 @@ export default function RootLayout({
                     the server.
                   </p>
                 </div>
-                <SiteFooterNav />
+                <div className="flex flex-col gap-8 sm:flex-row sm:gap-16">
+                  <SiteFooterNav />
+                  <nav className="flex flex-col gap-2 text-sm text-cream/80">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-cream/50">
+                      Legal
+                    </span>
+                    <Link href="/legal/terms" className="hover:text-cream">
+                      Terms of Service
+                    </Link>
+                    <Link href="/legal/privacy" className="hover:text-cream">
+                      Privacy Policy
+                    </Link>
+                  </nav>
+                </div>
               </div>
               <div className="mt-10 flex flex-col items-center gap-2 border-t border-cream/10 pt-6 text-xs text-cream/60 sm:flex-row sm:justify-between">
                 <span>

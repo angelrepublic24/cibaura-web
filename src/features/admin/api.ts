@@ -1,5 +1,4 @@
 import { Api } from "@/shared/api/client";
-import { getAccessToken, setAccessToken } from "@/shared/auth/token";
 import type {
   AgencyVerificationStatus,
   BookingState,
@@ -227,20 +226,13 @@ export const AdminApi = {
   /**
    * Change the current user's password (204 No Content on success).
    *
-   * A wrong current password returns 401, and the shared axios interceptor
-   * treats every 401 as a dead session and clears the access token. Here the
-   * session is still valid — only the supplied current password was wrong — so
-   * we snapshot the token and restore it on failure, keeping the admin signed
-   * in to see the error and retry instead of being silently logged out.
+   * A wrong current password returns 401 while the session itself is still
+   * valid. The shared axios interceptor knows this: `/auth/change-password`
+   * is on its no-refresh list, so that 401 just surfaces as an error here —
+   * no refresh attempt, no forced sign-out.
    */
   async changePassword(input: ChangePasswordInput): Promise<void> {
-    const token = getAccessToken();
-    try {
-      await Api.patch("/auth/change-password", input);
-    } catch (err) {
-      if (token && !getAccessToken()) setAccessToken(token);
-      throw err;
-    }
+    await Api.patch("/auth/change-password", input);
   },
 
   // ── Catalog (read = public endpoints; write = admin-gated POSTs) ──────────

@@ -1,11 +1,21 @@
 "use client";
 
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AgencyApi, agencyKeys } from "@/features/agency/api";
+import { ImagePlus, X } from "lucide-react";
+import {
+  AgencyApi,
+  agencyKeys,
+  MAX_PHOTOS_PER_CAR,
+} from "@/features/agency/api";
+import {
+  uploadCarPhotosSequentially,
+  validateCarPhotoFile,
+} from "@/features/agency/car-photo-upload";
 import { CatalogApi, catalogKeys } from "@/features/catalog/api";
 import {
   CAR_CATEGORIES,
@@ -82,9 +92,41 @@ export function NewCarForm() {
     enabled: !!makeId,
   });
 
+  // ── Photos: picked before submit, uploaded right after the car exists ──────
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const [photoErrors, setPhotoErrors] = useState<string[]>([]);
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+
+  // Object-URL previews, revoked whenever the selection changes/unmounts.
+  const previews = useMemo(
+    () => photoFiles.map((f) => URL.createObjectURL(f)),
+    [photoFiles],
+  );
+  useEffect(
+    () => () => previews.forEach((url) => URL.revokeObjectURL(url)),
+    [previews],
+  );
+
+  function addPhotos(list: FileList | null) {
+    if (!list) return;
+    const errors: string[] = [];
+    const accepted = Array.from(list).filter((f) => {
+      const reason = validateCarPhotoFile(f);
+      if (reason) errors.push(`${f.name}: ${reason}`);
+      return !reason;
+    });
+    const merged = [...photoFiles, ...accepted];
+    if (merged.length > MAX_PHOTOS_PER_CAR) {
+      errors.push(`A car can have at most ${MAX_PHOTOS_PER_CAR} photos.`);
+    }
+    setPhotoErrors(errors);
+    setPhotoFiles(merged.slice(0, MAX_PHOTOS_PER_CAR));
+  }
+
   const mutation = useMutation({
-    mutationFn: (values: NewCarFormValues) =>
-      AgencyApi.createCar({
+    mutationFn: async (values: NewCarFormValues) => {
+      const car = await AgencyApi.createCar({
         branchId: values.branchId,
         makeId: values.makeId,
         modelId: values.modelId,
@@ -97,10 +139,33 @@ export function NewCarForm() {
         plate: values.plate,
         // Unit conversion at the input boundary (agency-entered price).
         pricePerDayCents: wholeUnitsToCents(Number(values.pricePerDay)),
-      }),
-    onSuccess: () => {
+      });
+
+      // The car exists — now upload its photos one by one (per-file errors
+      // never lose the car; a failure just leaves the gallery incomplete).
+      let uploaded = 0;
+      if (photoFiles.length > 0) {
+        uploaded = await uploadCarPhotosSequentially(
+          car.id,
+          photoFiles,
+          (u) =>
+            setUploadStatus(
+              `Uploading photo ${u.index + 1} of ${photoFiles.length}… ${u.percent}%`,
+            ),
+        );
+        setUploadStatus(null);
+      }
+      return { car, uploaded };
+    },
+    onSuccess: ({ car, uploaded }) => {
       qc.invalidateQueries({ queryKey: agencyKeys.all });
-      router.push("/agency/fleet");
+      // Some photos failed → land on the manage-photos surface to retry;
+      // otherwise back to the fleet list.
+      if (uploaded < photoFiles.length) {
+        router.push(`/agency/fleet/${car.id}/photos`);
+      } else {
+        router.push("/agency/fleet");
+      }
     },
   });
 
@@ -271,11 +336,85 @@ export function NewCarForm() {
         </div>
       </div>
 
-      {/* Photo upload placeholder — media pipeline lands later. */}
-      <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-        Photo upload placeholder — the media pipeline lands in a later
-        iteration. Cars can be saved as drafts without photos.
+      {/* Photos — picked here, uploaded right after the car is created. */}
+      <div className="space-y-2">
+        <Label>Photos</Label>
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          multiple
+          hidden
+          onChange={(e) => {
+            addPhotos(e.target.files);
+            e.target.value = "";
+          }}
+        />
+
+        {photoFiles.length > 0 ? (
+          <ul className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+            {photoFiles.map((file, i) => (
+              <li
+                key={`${file.name}-${i}`}
+                className="relative aspect-[4/3] overflow-hidden rounded-[var(--radius-sm)] border border-border bg-muted"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={previews[i]}
+                  alt={file.name}
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
+                {i === 0 ? (
+                  <span className="absolute left-1 top-1 rounded bg-surface/90 px-1.5 py-0.5 text-[10px] font-medium">
+                    Cover
+                  </span>
+                ) : null}
+                <button
+                  type="button"
+                  aria-label={`Remove ${file.name}`}
+                  className="absolute right-1 top-1 rounded-full bg-surface/90 p-1 shadow-sm hover:bg-surface"
+                  disabled={mutation.isPending}
+                  onClick={() =>
+                    setPhotoFiles((prev) => prev.filter((_, j) => j !== i))
+                  }
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={() => photoInputRef.current?.click()}
+          disabled={mutation.isPending || photoFiles.length >= MAX_PHOTOS_PER_CAR}
+          className="flex w-full flex-col items-center gap-1 rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground transition-colors hover:border-border-strong hover:text-foreground disabled:opacity-60"
+        >
+          <ImagePlus className="h-5 w-5" />
+          {photoFiles.length >= MAX_PHOTOS_PER_CAR
+            ? `Maximum of ${MAX_PHOTOS_PER_CAR} photos selected`
+            : "Add photos of this exact car — JPEG, PNG or WEBP, up to 5 MB each"}
+        </button>
+        <p className="text-xs text-muted-foreground">
+          {photoFiles.length}/{MAX_PHOTOS_PER_CAR} selected · the first photo
+          becomes the cover. You can also manage photos later from the fleet
+          list. Cars can be saved as drafts without photos.
+        </p>
+        {photoErrors.length > 0 ? (
+          <ul className="space-y-0.5 text-sm text-red-600">
+            {photoErrors.map((msg) => (
+              <li key={msg}>{msg}</li>
+            ))}
+          </ul>
+        ) : null}
       </div>
+
+      {uploadStatus ? (
+        <p className="text-sm text-muted-foreground" role="status">
+          {uploadStatus}
+        </p>
+      ) : null}
 
       {mutation.isError ? (
         <p className="text-sm text-red-600">{mutation.error.message}</p>
@@ -283,7 +422,11 @@ export function NewCarForm() {
 
       <div className="flex gap-2">
         <Button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending ? "Saving…" : "Save as draft"}
+          {mutation.isPending
+            ? uploadStatus
+              ? "Uploading photos…"
+              : "Saving…"
+            : "Save as draft"}
         </Button>
         <Button
           type="button"

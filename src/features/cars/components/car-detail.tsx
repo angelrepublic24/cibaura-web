@@ -9,6 +9,7 @@ import {
   CalendarDays,
   Fuel,
   Gauge,
+  Loader2,
   MapPin,
   Palette,
   ShieldCheck,
@@ -16,6 +17,7 @@ import {
 } from "lucide-react";
 import { CarsApi, carKeys } from "@/features/cars/api";
 import { BookingsApi } from "@/features/bookings/api";
+import { useRequestPayment } from "@/features/bookings/use-request-payment";
 import {
   PaymentMethodsApi,
   paymentMethodKeys,
@@ -26,8 +28,13 @@ import {
   type PickedAddress,
 } from "@/shared/components/address-autocomplete";
 import { carGallery } from "@/features/cars/photos";
+import { CarPhotoPlaceholder } from "@/features/cars/components/car-photo-placeholder";
 import { useAuthStore } from "@/shared/auth/store";
-import type { CarDetail as CarDetailShape, PickupType } from "@/shared/types/domain";
+import type {
+  CarDetail as CarDetailShape,
+  PaymentMethod,
+  PickupType,
+} from "@/shared/types/domain";
 import { formatMoneyCents, formatPct } from "@/shared/utils/money";
 import { formatIsoDate, todayIso } from "@/shared/utils/dates";
 import { ErrorState, LoadingState } from "@/shared/components/states";
@@ -149,9 +156,10 @@ export function CarDetail({
 }
 
 /**
- * Photo gallery from `carGallery(car)` — real uploaded photos when present,
- * otherwise deterministic category stock images (never bare). Large hero
- * lead image + a thumbnail strip.
+ * Photo gallery from `carGallery(car)` — the car's REAL uploaded photos.
+ * Large hero lead image + a thumbnail strip. When the agency hasn't uploaded
+ * any, a branded neutral placeholder fills the hero slot (never stock — we
+ * never show someone else's car).
  */
 function PhotoGallery({ photos, alt }: { photos: string[]; alt: string }) {
   const [active, setActive] = useState(0);
@@ -160,19 +168,23 @@ function PhotoGallery({ photos, alt }: { photos: string[]; alt: string }) {
   return (
     <div className="space-y-3">
       <div className="relative aspect-[16/10] w-full overflow-hidden rounded-[var(--radius-lg)] bg-muted shadow-sm">
-        <Image
-          src={lead}
-          alt={alt}
-          fill
-          sizes="(max-width: 1024px) 100vw, 60vw"
-          className="object-cover"
-          priority
-          unoptimized
-        />
+        {lead ? (
+          <Image
+            src={lead}
+            alt={alt}
+            fill
+            sizes="(max-width: 1024px) 100vw, 60vw"
+            className="object-cover"
+            priority
+            unoptimized
+          />
+        ) : (
+          <CarPhotoPlaceholder label="Photos coming soon" />
+        )}
       </div>
       {photos.length > 1 ? (
         <div className="grid grid-cols-4 gap-3">
-          {photos.slice(0, 4).map((src, i) => (
+          {photos.slice(0, 8).map((src, i) => (
             <button
               key={src}
               type="button"
@@ -204,8 +216,8 @@ function PhotoGallery({ photos, alt }: { photos: string[]; alt: string }) {
 /**
  * Availability list for the next ~60 days: renders the server's blocked
  * windows (`Availability.occupied`, `Period[]`). The server owns
- * availability; this UI only reflects it. A real month-grid replaces the
- * list later — the `{ start, end }` contract is already final.
+ * availability; this UI only reflects it — the booking panel's server
+ * quote has the final word on any conflict.
  */
 function AvailabilityCalendar({ carId }: { carId: string }) {
   const from = todayIso();
@@ -249,9 +261,8 @@ function AvailabilityCalendar({ carId }: { carId: string }) {
           </ul>
         )}
         <p className="mt-3 text-xs text-muted-foreground">
-          Calendar grid placeholder — month navigation and day-level view
-          land with the booking flow iteration. Occupied ranges are
-          half-open: the car is free again on the end date.
+          Occupied ranges are half-open: the car is free again on the end
+          date.
         </p>
       </CardContent>
     </Card>
@@ -260,8 +271,11 @@ function AvailabilityCalendar({ carId }: { carId: string }) {
 
 /**
  * Booking panel: date range + pickup choice (branch | delivery-with-zone)
- * + SERVER-computed quote (POST /bookings/quote). The client never
- * multiplies days x rate — it renders the returned Pricing verbatim.
+ * + SERVER-computed quote (POST /bookings/quote) + saved-card choice (the
+ * selected id travels as `paymentMethodId`; the hold is placed on exactly
+ * that card, defaulting to the backend's default = most recently saved).
+ * The client never multiplies days x rate — it renders the returned Pricing
+ * verbatim.
  *
  * Delivery zones come embedded in `CarDetail` — no extra request.
  */
@@ -284,7 +298,16 @@ function BookingPanel({
     queryFn: PaymentMethodsApi.findMine,
     enabled: status === "authenticated",
   });
-  const hasCard = (cardsQuery.data?.length ?? 0) > 0;
+  const cards = cardsQuery.data ?? [];
+  const hasCard = cards.length > 0;
+
+  // Which saved card the hold goes on. The list arrives newest-first, and the
+  // backend's no-id fallback is the most recently saved card — so defaulting
+  // to `cards[0]` shows exactly what the server would charge. The chosen id
+  // travels as `paymentMethodId` (server-validated: 404 foreign, 400 expired).
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const selectedCard =
+    cards.find((c) => c.id === selectedCardId) ?? cards[0] ?? null;
 
   // Identity gate: only a VERIFIED customer with a valid licence can rent.
   // The server enforces it (assertCanRent); we read `/verification/me` to show
@@ -347,6 +370,12 @@ function BookingPanel({
     enabled: quoteReady,
   });
 
+  // Payment outcome state machine: `authorized` → redirect; `requires_action`
+  // → Stripe 3DS challenge + "Verifying…" poll; `failed` → honest error.
+  const payment = useRequestPayment({
+    onAuthorized: (bookingId) => router.push(`/account/bookings/${bookingId}`),
+  });
+
   const requestMutation = useMutation({
     mutationFn: () =>
       BookingsApi.request({
@@ -355,9 +384,15 @@ function BookingPanel({
         end: to,
         pickupType: pickup,
         ...deliveryParams,
+        // Always send the card the customer sees selected — even the default —
+        // so what's displayed is exactly what gets the hold.
+        paymentMethodId: selectedCard?.id,
       }),
-    onSuccess: (booking) => router.push(`/account/bookings/${booking.id}`),
+    onSuccess: (booking) => payment.start(booking),
   });
+
+  const paymentBusy =
+    payment.phase.step === "challenge" || payment.phase.step === "verifying";
 
   const quote = quoteQuery.data;
 
@@ -538,6 +573,29 @@ function BookingPanel({
           </p>
         )}
 
+        {/* Which saved card takes the hold — compact selector, defaulting to
+            the backend's own default (the most recently saved card). */}
+        {status === "authenticated" && isVerified && hasCard ? (
+          <div className="space-y-1.5">
+            <Label htmlFor="bp-card">Pay with</Label>
+            <Select
+              id="bp-card"
+              value={selectedCard?.id ?? ""}
+              onChange={(e) => setSelectedCardId(e.target.value)}
+            >
+              {cards.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {formatCardOption(c)}
+                </option>
+              ))}
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              The hold is placed on this card and only captured when the
+              agency accepts.
+            </p>
+          </div>
+        ) : null}
+
         {/* Proactive licence-window warning (server blocks it too). */}
         {licenceExpiresBeforeReturn ? (
           <p className="flex items-start gap-2 rounded-[var(--radius-sm)] border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
@@ -568,6 +626,23 @@ function BookingPanel({
           <Button className="w-full" disabled>
             Checking eligibility…
           </Button>
+        ) : verifQuery.isError || cardsQuery.isError ? (
+          <div className="space-y-2 rounded-[var(--radius-sm)] border border-red-200 bg-red-50 p-3">
+            <p className="text-xs text-red-700">
+              We could not check your booking eligibility. Please try again.
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                if (verifQuery.isError) void verifQuery.refetch();
+                if (cardsQuery.isError) void cardsQuery.refetch();
+              }}
+            >
+              Try again
+            </Button>
+          </div>
         ) : !isVerified ? (
           <Button
             className="w-full"
@@ -591,13 +666,56 @@ function BookingPanel({
               !quoteReady ||
               quoteQuery.isLoading ||
               licenceExpiresBeforeReturn ||
-              requestMutation.isPending
+              requestMutation.isPending ||
+              paymentBusy
             }
-            onClick={() => requestMutation.mutate()}
+            onClick={() => {
+              payment.reset(); // clear a previous failed attempt, if any
+              requestMutation.mutate();
+            }}
           >
-            {requestMutation.isPending ? "Sending request…" : "Request to book"}
+            {requestMutation.isPending
+              ? "Sending request…"
+              : payment.phase.step === "challenge"
+                ? "Waiting for your bank…"
+                : payment.phase.step === "verifying"
+                  ? "Verifying your payment…"
+                  : "Request to book"}
           </Button>
         )}
+
+        {/* 3DS in flight: the bank challenge is open in Stripe's window. */}
+        {payment.phase.step === "challenge" ? (
+          <p className="flex items-start gap-2 rounded-[var(--radius-sm)] border border-border bg-muted/60 p-3 text-xs text-muted-foreground">
+            <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin" />
+            Your bank asked for extra verification. Complete the challenge in
+            the window that just opened — we&apos;ll take it from there.
+          </p>
+        ) : null}
+
+        {/* Challenge passed; the payment is being confirmed server-side. */}
+        {payment.phase.step === "verifying" ? (
+          <p className="flex items-start gap-2 rounded-[var(--radius-sm)] border border-border bg-muted/60 p-3 text-xs text-muted-foreground">
+            <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin" />
+            Verifying your payment… this usually takes a few seconds. Please
+            keep this page open.
+          </p>
+        ) : null}
+
+        {/* Payment failed / could not be verified — honest, no charge made. */}
+        {payment.phase.step === "failed" ? (
+          <div className="space-y-2 rounded-[var(--radius-sm)] border border-red-200 bg-red-50 p-3">
+            <p className="text-xs text-red-700">{payment.phase.message}</p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => payment.reset()}
+            >
+              Try again
+            </Button>
+          </div>
+        ) : null}
 
         {status !== "authenticated" ? null : !isVerified &&
           !verifQuery.isLoading ? (
@@ -618,6 +736,15 @@ function BookingPanel({
       </CardContent>
     </Card>
   );
+}
+
+/** "Visa •••• 4242 — expires 12/2027" for the card `<option>` rows. */
+function formatCardOption(c: PaymentMethod): string {
+  const brand = c.brand
+    ? c.brand.charAt(0).toUpperCase() + c.brand.slice(1)
+    : "Card";
+  const month = String(c.expMonth).padStart(2, "0");
+  return `${brand} •••• ${c.last4} — expires ${month}/${c.expYear}`;
 }
 
 /** Add N days to a YYYY-MM-DD string (UTC-safe, display/query helper only). */

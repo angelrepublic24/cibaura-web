@@ -30,8 +30,10 @@ export function LoginForm({ next }: { next?: string }) {
 
   const mutation = useMutation({
     mutationFn: AuthApi.login,
-    onSuccess: ({ user, accessToken }) => {
-      signIn(user, accessToken);
+    onSuccess: ({ user }) => {
+      // The response set the httpOnly session cookies; only the user
+      // snapshot is kept client-side.
+      signIn(user);
       // An explicit ?next wins; otherwise land people in THEIR ecosystem —
       // agency owners/staff go straight to the agency workspace, admins to
       // the admin console, everyone else to their customer account.
