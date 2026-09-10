@@ -1,17 +1,25 @@
 import { Api } from "@/shared/api/client";
 import type {
+  AgencyCar,
   AgencyKind,
   AgencyVerificationStatus,
   BookingDetail,
   BookingState,
+  CarDocumentAdminDto,
   CatalogMake,
   CatalogModel,
   City,
+  ClaimAdminDto,
+  ContractKind,
+  ContractTemplateAdminDto,
   Country,
+  InspectionDto,
   Paginated,
   Payout,
+  PayoutAccountAdminDto,
   PayoutBankDetails,
-  PlatformConfig,
+  PlatformConfigDto,
+  SignedUrlDto,
 } from "@/shared/types/domain";
 import type { AgencyApplication } from "@/features/agencies/api";
 
@@ -70,6 +78,52 @@ export type AdminAgencyStatusTarget = "suspended" | "verified";
  */
 export interface AdminBookingDetail extends BookingDetail {
   paymentStatus: string | null;
+}
+
+// ── v1 expansion (spec §4/B6, B7, B9, B10, B11) ──────────────────────────────
+
+/** `PATCH /admin/config` body — every §0.7 key optional; absent = unchanged. */
+export type UpdatePlatformConfigInput = Partial<PlatformConfigDto>;
+
+/** `POST /admin/contract-templates` body (spec §4/B7). */
+export interface CreateContractTemplateInput {
+  kind: ContractKind;
+  title: string;
+  /** ≤ 60000 characters of Markdown with `{{variable}}` placeholders. */
+  bodyMarkdown: string;
+  changeNote?: string;
+}
+
+/** `PATCH /admin/contract-templates/:id` body — drafts only (409 TEMPLATE_NOT_DRAFT). */
+export interface UpdateContractTemplateInput {
+  title?: string;
+  bodyMarkdown?: string;
+  changeNote?: string;
+}
+
+/** Query params for the claims queue. */
+export interface AdminClaimsQuery {
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+/**
+ * `POST /admin/claims/:id/decide` body. `approvedCents = 0` rejects the
+ * claim; anything above captures `min(approvedCents, deposit)` from the
+ * held deposit (or closes it `approved_uncollectible` when nothing is held).
+ */
+export interface DecideClaimInput {
+  approvedCents: number;
+  /** 2..1000 — shown to both parties. */
+  note: string;
+}
+
+/** Query params for the Stripe payout-accounts directory. */
+export interface AdminPayoutAccountsQuery {
+  status?: string;
+  page?: number;
+  pageSize?: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -191,10 +245,11 @@ export interface AdminRevenueQuery {
  * Platform admin API module (platform_admin only).
  *
  * Real backend routes (verified against the controllers):
- *  - GET   /admin/config                    -> { commissionPct }
- *  - PATCH /admin/config/commission { commissionPct } -> { commissionPct }
+ *  - GET   /admin/config                    -> PlatformConfigDto (spec §0.7)
+ *  - PATCH /admin/config { ...partial }     -> PlatformConfigDto
  *      (commission is SNAPSHOTTED into each booking at request time —
- *       changing it never rewrites existing bookings)
+ *       changing it never rewrites existing bookings; the policy figures are
+ *       snapshotted into each settlement when it is computed)
  *  - POST  /catalog/makes { name }                 -> CatalogMake  (admin)
  *  - POST  /catalog/makes/:makeId/models { name }  -> CatalogModel (admin)
  *
@@ -216,6 +271,30 @@ export interface AdminRevenueQuery {
  *  - GET   /admin/bookings/:id                     -> AdminBookingDetail
  *  - POST  /admin/bookings/:id/cancel { reason }   -> BookingDetail (agency viewer;
  *       requested|accepted → cancelled, active → cancelled mid-rental, else 409)
+ *
+ * v1 expansion routes (IMPLEMENTATION-SPEC-V1-EXPANSION §4, coded against
+ * the spec — the backend blocks land separately):
+ *  - GET   /admin/contract-templates?kind=          -> ContractTemplateAdminDto[] (newest first)
+ *  - POST  /admin/contract-templates                -> draft (version null)
+ *  - PATCH /admin/contract-templates/:id            -> draft only (409 TEMPLATE_NOT_DRAFT)
+ *  - POST  /admin/contract-templates/:id/publish { requireResign? }
+ *        (400 TEMPLATE_UNKNOWN_VARIABLE lists the offenders)
+ *  - GET   /admin/contract-templates/:id/preview    -> { html } (sample variables)
+ *  - GET   /admin/contract-documents/:id/pdf        -> SignedUrlDto
+ *  - GET   /admin/claims?status&page&pageSize       -> Paginated<ClaimAdminDto>
+ *  - GET   /admin/claims/:id                        -> ClaimAdminDto (+ inspections w/ signed media)
+ *  - POST  /admin/claims/:id/decide { approvedCents, note } -> ClaimAdminDto
+ *  - GET   /bookings/:bookingId/inspections         -> InspectionDto[] (admin allowed, §4/B8)
+ *  - GET   /admin/cars/:carId/documents             -> CarDocumentAdminDto[]
+ *  - GET   /admin/cars/:carId/documents/:docId      -> file bytes
+ *  - PATCH /admin/cars/:carId/documents/:docId/verify | /reject { reason 2..300 }
+ *  - GET   /admin/payout-accounts?status&page&pageSize -> Paginated<PayoutAccountAdminDto>
+ *  - POST  /admin/payout-accounts/:agencyId/disable { reason } | /enable
+ *  - POST  /admin/payouts/:id/retry                 -> AdminPayout (failed Stripe payouts)
+ *
+ * ASSUMED (not in the spec — flagged for the backend): the applicant's cars
+ * for the registration-document review:
+ *  - GET   /admin/agencies/:agencyId/cars           -> AgencyCarDto[]
  */
 
 export const adminKeys = {
@@ -239,16 +318,199 @@ export const adminKeys = {
   applications: (status?: string) =>
     ["admin", "applications", status ?? "pending"] as const,
   application: (id: string) => ["admin", "applications", id] as const,
+  // ── v1 expansion ──
+  contractTemplates: (kind?: ContractKind) =>
+    ["admin", "contract-templates", kind ?? "all"] as const,
+  contractPreview: (id: string) =>
+    ["admin", "contract-templates", "preview", id] as const,
+  claims: (query: AdminClaimsQuery = {}) => ["admin", "claims", query] as const,
+  claim: (id: string) => ["admin", "claim", id] as const,
+  bookingInspections: (bookingId: string) =>
+    ["admin", "booking", bookingId, "inspections"] as const,
+  agencyCars: (agencyId: string) =>
+    ["admin", "agency-cars", agencyId] as const,
+  carDocuments: (carId: string) => ["admin", "car-documents", carId] as const,
+  payoutAccounts: (query: AdminPayoutAccountsQuery = {}) =>
+    ["admin", "payout-accounts", query] as const,
 };
 
 export const AdminApi = {
-  async getConfig(): Promise<PlatformConfig> {
+  async getConfig(): Promise<PlatformConfigDto> {
     const res = await Api.get("/admin/config");
     return res.data;
   },
 
-  async setCommission(commissionPct: number): Promise<PlatformConfig> {
-    const res = await Api.patch("/admin/config/commission", { commissionPct });
+  /** Partial update — only the keys present change (spec §4/B10). */
+  async updateConfig(
+    input: UpdatePlatformConfigInput,
+  ): Promise<PlatformConfigDto> {
+    const res = await Api.patch("/admin/config", input);
+    return res.data;
+  },
+
+  // ── Contract templates (ADR-0010, spec §4/B7) ────────────────────────────
+
+  async listContractTemplates(
+    kind?: ContractKind,
+  ): Promise<ContractTemplateAdminDto[]> {
+    const res = await Api.get("/admin/contract-templates", {
+      params: { kind },
+    });
+    return res.data;
+  },
+
+  async createContractTemplate(
+    input: CreateContractTemplateInput,
+  ): Promise<ContractTemplateAdminDto> {
+    const res = await Api.post("/admin/contract-templates", input);
+    return res.data;
+  },
+
+  async updateContractTemplate(
+    id: string,
+    input: UpdateContractTemplateInput,
+  ): Promise<ContractTemplateAdminDto> {
+    const res = await Api.patch(`/admin/contract-templates/${id}`, input);
+    return res.data;
+  },
+
+  /**
+   * Validates every `{{variable}}`, archives the current published version
+   * and assigns the next version number. `requireResign` (host kind only)
+   * flags every signed host for a new signature — nagged, never blocked.
+   */
+  async publishContractTemplate(
+    id: string,
+    requireResign?: boolean,
+  ): Promise<ContractTemplateAdminDto> {
+    const res = await Api.post(`/admin/contract-templates/${id}/publish`, {
+      requireResign,
+    });
+    return res.data;
+  },
+
+  /** Server-rendered HTML of the SAVED template with sample variables. */
+  async previewContractTemplate(id: string): Promise<{ html: string }> {
+    const res = await Api.get(`/admin/contract-templates/${id}/preview`);
+    return res.data;
+  },
+
+  /** Short-lived link to a signed document's PDF (countersigned when present). */
+  async contractDocumentPdf(documentId: string): Promise<SignedUrlDto> {
+    const res = await Api.get(`/admin/contract-documents/${documentId}/pdf`);
+    return res.data;
+  },
+
+  // ── Damage claims (ADR-0013, spec §4/B9) ─────────────────────────────────
+
+  async listClaims(
+    query: AdminClaimsQuery = {},
+  ): Promise<Paginated<ClaimAdminDto>> {
+    const res = await Api.get("/admin/claims", {
+      params: {
+        status: query.status,
+        page: query.page,
+        pageSize: query.pageSize,
+      },
+    });
+    return res.data;
+  },
+
+  async getClaim(id: string): Promise<ClaimAdminDto> {
+    const res = await Api.get(`/admin/claims/${id}`);
+    return res.data;
+  },
+
+  async decideClaim(
+    id: string,
+    input: DecideClaimInput,
+  ): Promise<ClaimAdminDto> {
+    const res = await Api.post(`/admin/claims/${id}/decide`, input);
+    return res.data;
+  },
+
+  // ── Inspections (ADR-0011, spec §4/B8 — admin has booking visibility) ───
+
+  async listBookingInspections(bookingId: string): Promise<InspectionDto[]> {
+    const res = await Api.get(`/bookings/${bookingId}/inspections`);
+    return res.data;
+  },
+
+  // ── Car registration documents (ADR-0009, spec §4/B6) ────────────────────
+
+  /** ASSUMED route (see the module header): the applicant's fleet. */
+  async listAgencyCars(agencyId: string): Promise<AgencyCar[]> {
+    const res = await Api.get(`/admin/agencies/${agencyId}/cars`);
+    return res.data;
+  },
+
+  async listCarDocuments(carId: string): Promise<CarDocumentAdminDto[]> {
+    const res = await Api.get(`/admin/cars/${carId}/documents`);
+    return res.data;
+  },
+
+  /** Fetch a car document's bytes (with auth) as a Blob to view. */
+  async downloadCarDocument(carId: string, docId: string): Promise<Blob> {
+    const res = await Api.get(`/admin/cars/${carId}/documents/${docId}`, {
+      responseType: "blob",
+    });
+    return res.data;
+  },
+
+  async verifyCarDocument(
+    carId: string,
+    docId: string,
+  ): Promise<CarDocumentAdminDto> {
+    const res = await Api.patch(
+      `/admin/cars/${carId}/documents/${docId}/verify`,
+      {},
+    );
+    return res.data;
+  },
+
+  async rejectCarDocument(
+    carId: string,
+    docId: string,
+    reason: string,
+  ): Promise<CarDocumentAdminDto> {
+    const res = await Api.patch(
+      `/admin/cars/${carId}/documents/${docId}/reject`,
+      { reason },
+    );
+    return res.data;
+  },
+
+  // ── Stripe payout accounts (ADR-0012, spec §4/B11) ───────────────────────
+
+  async listPayoutAccounts(
+    query: AdminPayoutAccountsQuery = {},
+  ): Promise<Paginated<PayoutAccountAdminDto>> {
+    const res = await Api.get("/admin/payout-accounts", {
+      params: {
+        status: query.status,
+        page: query.page,
+        pageSize: query.pageSize,
+      },
+    });
+    return res.data;
+  },
+
+  /** Stops automatic Stripe payouts for the agency (money accrues in the wallet). */
+  async disablePayoutAccount(
+    agencyId: string,
+    reason: string,
+  ): Promise<PayoutAccountAdminDto> {
+    const res = await Api.post(`/admin/payout-accounts/${agencyId}/disable`, {
+      reason,
+    });
+    return res.data;
+  },
+
+  async enablePayoutAccount(agencyId: string): Promise<PayoutAccountAdminDto> {
+    const res = await Api.post(
+      `/admin/payout-accounts/${agencyId}/enable`,
+      {},
+    );
     return res.data;
   },
 
@@ -400,6 +662,15 @@ export const AdminApi = {
 
   async rejectPayout(id: string, reason: string): Promise<AdminPayout> {
     const res = await Api.post(`/admin/payouts/${id}/reject`, { reason });
+    return res.data;
+  },
+
+  /**
+   * Re-submit a FAILED Stripe payout: a new payout row + wallet debit is
+   * created; the failed one stays as history (spec §4/B11).
+   */
+  async retryPayout(id: string): Promise<AdminPayout> {
+    const res = await Api.post(`/admin/payouts/${id}/retry`, {});
     return res.data;
   },
 

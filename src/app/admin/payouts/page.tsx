@@ -1,28 +1,46 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, ExternalLink } from "lucide-react";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { Building2, ExternalLink, RefreshCw } from "lucide-react";
 import { AdminApi, adminKeys, type AdminPayout } from "@/features/admin/api";
 import { PAYOUT_STATUSES, type PayoutStatus } from "@/shared/types/domain";
-import { API_ERROR_CODES, isApiErrorCode } from "@/shared/api/errors";
+import {
+  API_ERROR_CODES,
+  getErrorMessage,
+  isApiErrorCode,
+} from "@/shared/api/errors";
 import { RoleGuard } from "@/shared/auth/guard";
 import { ReasonDialog } from "@/shared/components/reason-dialog";
 import { EmptyState, ErrorState } from "@/shared/components/states";
-import { PayoutStatusBadge } from "@/shared/components/wallet-labels";
+import {
+  payoutKindLabel,
+  payoutMethodLabel,
+  PayoutRailStatusBadge,
+  PayoutStatusBadge,
+} from "@/shared/components/wallet-labels";
 import { Button } from "@/shared/components/ui/button";
 import { Card } from "@/shared/components/ui/card";
+import { Dialog } from "@/shared/components/ui/dialog";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { formatMoneyCents } from "@/shared/utils/money";
 import { cn } from "@/lib/utils";
 
 /**
- * /admin/payouts — the manual payout queue. Agencies request transfers from
- * their wallet; an admin wires the money at the bank, then records the
- * transfer reference here ("Pay" — ONE server transaction that debits the
- * agency wallet and marks the payout paid) or rejects with a reason (the
- * reservation is released back to the agency's available balance).
+ * /admin/payouts — every payout across both rails (ADR-0008 / ADR-0012).
+ * Manual bank transfers: agencies request them, an admin wires the money
+ * and records the reference ("Pay" — ONE server transaction that debits the
+ * wallet and marks the payout paid) or rejects with a reason. Stripe
+ * payouts (settlements, check-in advances) are created by the settlement
+ * engine and mirrored from Stripe: `railStatus`, the amount the bank
+ * received, and the failure reason; a failed one can be retried (a new
+ * payout row + debit — the failed one stays as history).
  */
 
 const PAGE_SIZE = 20;
@@ -69,8 +87,9 @@ export default function AdminPayoutsPage() {
         <div>
           <h1 className="font-display text-2xl text-foreground">Payouts</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Wire each requested payout at the bank, then record the transfer
-            reference here. Rejecting releases the amount back to the agency.
+            Wire each requested bank transfer, then record the reference here
+            (rejecting releases the amount back to the agency). Stripe payouts
+            run automatically — watch their rail status and retry failures.
           </p>
         </div>
 
@@ -135,7 +154,7 @@ export default function AdminPayoutsPage() {
                 <div className="overflow-x-auto">
                   <table
                     className={cn(
-                      "w-full min-w-[880px] border-collapse text-sm",
+                      "w-full min-w-[1180px] border-collapse text-sm",
                       listQuery.isFetching && "opacity-60 transition-opacity",
                     )}
                   >
@@ -143,9 +162,11 @@ export default function AdminPayoutsPage() {
                       <tr className="border-b border-border text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
                         <th className="px-4 py-3 font-medium">Agency</th>
                         <th className="px-4 py-3 text-right font-medium">Amount</th>
-                        <th className="px-4 py-3 font-medium">Bank account</th>
+                        <th className="px-4 py-3 font-medium">Method</th>
+                        <th className="px-4 py-3 font-medium">Destination</th>
                         <th className="px-4 py-3 font-medium">Requested</th>
                         <th className="px-4 py-3 font-medium">Status</th>
+                        <th className="px-4 py-3 text-right font-medium">Received</th>
                         <th className="px-4 py-3 font-medium">
                           <span className="sr-only">Actions</span>
                         </th>
@@ -193,25 +214,34 @@ export default function AdminPayoutsPage() {
   );
 }
 
+function mapPayoutError(error: unknown): string | undefined {
+  if (isApiErrorCode(error, API_ERROR_CODES.PAYOUT_NOT_PENDING)) {
+    return "This payout was already decided — refresh the queue.";
+  }
+  if (isApiErrorCode(error, API_ERROR_CODES.INSUFFICIENT_BALANCE)) {
+    return "The agency's wallet no longer covers this amount. Reject it and let them request again.";
+  }
+  if (isApiErrorCode(error, API_ERROR_CODES.PAYOUT_ACCOUNT_NOT_ACTIVE)) {
+    return "The agency's Stripe payout account is not active — the money stays in their wallet.";
+  }
+  if (isApiErrorCode(error, API_ERROR_CODES.PAYOUT_RAIL_DISABLED)) {
+    return "Stripe payouts are switched off in Settings.";
+  }
+  return undefined;
+}
+
 function PayoutRow({ payout: p }: { payout: AdminPayout }) {
   const qc = useQueryClient();
-  const [action, setAction] = useState<null | "pay" | "reject">(null);
-  const pending = p.status === "requested";
+  const [action, setAction] = useState<null | "pay" | "reject" | "retry">(null);
+  const stripe = p.method === "stripe_connect";
+  const pending = p.status === "requested" && !stripe;
+  const retryable = p.status === "failed" && stripe;
 
   function invalidate() {
     qc.invalidateQueries({ queryKey: adminKeys.payouts() });
     qc.invalidateQueries({ queryKey: adminKeys.overview() });
   }
 
-  const mapError = (error: unknown) => {
-    if (isApiErrorCode(error, API_ERROR_CODES.PAYOUT_NOT_PENDING)) {
-      return "This payout was already decided — refresh the queue.";
-    }
-    if (isApiErrorCode(error, API_ERROR_CODES.INSUFFICIENT_BALANCE)) {
-      return "The agency's wallet no longer covers this amount. Reject it and let them request again.";
-    }
-    return undefined;
-  };
 
   return (
     <tr className="align-top transition-colors hover:bg-muted/40">
@@ -243,7 +273,21 @@ function PayoutRow({ payout: p }: { payout: AdminPayout }) {
         {formatMoneyCents(p.amountCents, p.currency)}
       </td>
       <td className="px-4 py-3 text-xs text-muted-foreground">
-        {p.bankDetails ? (
+        <p className="text-foreground">{payoutMethodLabel(p.method)}</p>
+        <p>{payoutKindLabel(p.kind)}</p>
+        {p.bookingId ? (
+          <Link
+            href={`/admin/orders/${p.bookingId}`}
+            className="text-primary hover:underline"
+          >
+            View order
+          </Link>
+        ) : null}
+      </td>
+      <td className="px-4 py-3 text-xs text-muted-foreground">
+        {stripe ? (
+          <span>Stripe payout account</span>
+        ) : p.bankDetails ? (
           <div className="space-y-0.5">
             <p className="text-foreground">{p.bankDetails.bankName}</p>
             <p>{p.bankDetails.accountHolder}</p>
@@ -262,11 +306,17 @@ function PayoutRow({ payout: p }: { payout: AdminPayout }) {
       <td className="px-4 py-3">
         <div className="space-y-1">
           <PayoutStatusBadge status={p.status} />
+          {p.railStatus ? <PayoutRailStatusBadge status={p.railStatus} /> : null}
           {p.status === "paid" && p.reference ? (
             <p className="font-mono text-xs text-foreground">{p.reference}</p>
           ) : null}
           {p.status === "rejected" && p.note ? (
             <p className="max-w-56 text-xs text-destructive">{p.note}</p>
+          ) : null}
+          {p.status === "failed" ? (
+            <p className="max-w-56 text-xs text-destructive">
+              {p.failureReason ?? "Failed — the amount was returned to the wallet."}
+            </p>
           ) : null}
           {p.decidedAt ? (
             <p className="text-xs text-muted-foreground">
@@ -275,6 +325,11 @@ function PayoutRow({ payout: p }: { payout: AdminPayout }) {
             </p>
           ) : null}
         </div>
+      </td>
+      <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-muted-foreground">
+        {p.receivedAmount
+          ? formatMoneyCents(p.receivedAmount.value, p.receivedAmount.currency)
+          : "—"}
       </td>
       <td className="whitespace-nowrap px-4 py-3 text-right">
         {pending ? (
@@ -290,7 +345,19 @@ function PayoutRow({ payout: p }: { payout: AdminPayout }) {
               Reject
             </Button>
           </div>
+        ) : retryable ? (
+          <Button size="sm" variant="outline" onClick={() => setAction("retry")}>
+            <RefreshCw className="h-3.5 w-3.5" />
+            Retry
+          </Button>
         ) : null}
+
+        <RetryDialog
+          open={action === "retry"}
+          onClose={() => setAction(null)}
+          payout={p}
+          onDone={invalidate}
+        />
 
         <ReasonDialog
           open={action === "pay"}
@@ -310,7 +377,7 @@ function PayoutRow({ payout: p }: { payout: AdminPayout }) {
             await AdminApi.payPayout(p.id, value ?? "");
             invalidate();
           }}
-          mapError={mapError}
+          mapError={mapPayoutError}
         />
         <ReasonDialog
           open={action === "reject"}
@@ -330,9 +397,61 @@ function PayoutRow({ payout: p }: { payout: AdminPayout }) {
             await AdminApi.rejectPayout(p.id, value ?? "");
             invalidate();
           }}
-          mapError={mapError}
+          mapError={mapPayoutError}
         />
       </td>
     </tr>
+  );
+}
+
+/** Confirmation for re-submitting a failed Stripe payout (no extra input). */
+function RetryDialog({
+  open,
+  onClose,
+  payout: p,
+  onDone,
+}: {
+  open: boolean;
+  onClose: () => void;
+  payout: AdminPayout;
+  onDone: () => void;
+}) {
+  const mutation = useMutation({
+    mutationFn: () => AdminApi.retryPayout(p.id),
+    onSuccess: () => {
+      onDone();
+      onClose();
+    },
+  });
+  const { reset } = mutation;
+  useEffect(() => {
+    if (open) reset();
+  }, [open, reset]);
+  const busy = mutation.isPending;
+
+  return (
+    <Dialog
+      open={open}
+      onClose={() => {
+        if (!busy) onClose();
+      }}
+      title={`Retry ${formatMoneyCents(p.amountCents, p.currency)} to ${p.agencyName}?`}
+      description="A new Stripe payout is created and the amount leaves the agency's wallet again. This failed payout stays in the history."
+    >
+      {mutation.isError ? (
+        <p className="mb-4 text-sm text-destructive" role="alert">
+          {mapPayoutError(mutation.error) ??
+            getErrorMessage(mutation.error, "Could not retry the payout.")}
+        </p>
+      ) : null}
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="outline" disabled={busy} onClick={onClose}>
+          Keep as is
+        </Button>
+        <Button type="button" disabled={busy} onClick={() => mutation.mutate()}>
+          {busy ? "Submitting…" : "Retry payout"}
+        </Button>
+      </div>
+    </Dialog>
   );
 }

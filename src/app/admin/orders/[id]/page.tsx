@@ -12,6 +12,13 @@ import {
   MapPin,
 } from "lucide-react";
 import { AdminApi, adminKeys, type AdminBookingDetail } from "@/features/admin/api";
+import {
+  ClaimCard,
+  ContractPdfButton,
+  DepositCard,
+  InspectionsCard,
+  SettlementCard,
+} from "@/features/admin/components/order-lifecycle-cards";
 import { bookingKeys } from "@/features/bookings/api";
 import { ChatPanel } from "@/features/bookings/components/chat-panel";
 import {
@@ -35,7 +42,8 @@ import { formatIsoDate } from "@/shared/utils/dates";
  * rental agreement, never a client secret) plus the payment's lifecycle
  * status, the read-only oversight chat, and the one intervention an admin
  * has — cancelling on behalf of the platform with a reason (the customer is
- * refunded in full).
+ * refunded in full). The v1-expansion blocks (deposit, claim, inspections
+ * with evidence, settlement) render verbatim from the DTO.
  */
 
 const CANCELLABLE_STATES = new Set(["requested", "accepted", "active"]);
@@ -167,6 +175,29 @@ function OrderDetail({ booking }: { booking: AdminBookingDetail }) {
         {booking.customer ? <CustomerCard customer={booking.customer} /> : null}
 
         <AgreementCard agreement={booking.agreement} />
+        {booking.agreement?.document ? (
+          <div className="-mt-3 flex flex-wrap items-center gap-3 px-1 text-xs text-muted-foreground">
+            <span>
+              Signed document v{booking.agreement.document.templateVersion} ·{" "}
+              {booking.agreement.document.countersignedAt
+                ? "countersigned by the host"
+                : "awaiting the host's countersignature"}
+            </span>
+            <ContractPdfButton document={booking.agreement.document} />
+          </div>
+        ) : null}
+
+        <DepositCard
+          deposit={booking.deposit}
+          bookingDepositCents={booking.depositCents}
+          currency={p.currency}
+        />
+        <ClaimCard
+          claim={booking.claim}
+          currency={booking.deposit?.currency ?? p.currency}
+        />
+        <InspectionsCard bookingId={booking.id} refs={booking.inspections} />
+        <SettlementCard settlement={booking.settlement} currency={p.currency} />
 
         {/* Pricing breakdown */}
         <Card>
