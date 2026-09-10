@@ -18,8 +18,9 @@ import {
   getErrorMessage,
   isApiErrorCode,
 } from "@/shared/api/errors";
-import type { Booking } from "@/shared/types/domain";
+import type { Booking, CancellationQuoteDto } from "@/shared/types/domain";
 import { formatMoneyCents } from "@/shared/utils/money";
+import { formatDateTime } from "@/shared/utils/dates";
 import { Button } from "@/shared/components/ui/button";
 import { Dialog } from "@/shared/components/ui/dialog";
 import { Label } from "@/shared/components/ui/label";
@@ -27,12 +28,41 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
 import { Textarea } from "@/shared/components/ui/textarea";
 
 /**
+ * Tier copy driven by the SERVER's quote: the tier/free-until/policy fields
+ * are additive (spec §5) and used when present; otherwise the legacy
+ * `isLate` flag + the figures from `GET /legal/current` tell the story.
+ * Amounts never come from here — only the explanation.
+ */
+function tierExplanation(
+  quote: CancellationQuoteDto,
+  fallbackPolicy:
+    | { freeCancellationHours: number; lateCancellationRetentionPct: number }
+    | undefined,
+): string {
+  const tier = quote.tier ?? (quote.isLate ? "late" : "free");
+  const policy = quote.policy ?? fallbackPolicy;
+
+  if (tier === "late") {
+    return policy
+      ? `This is a late cancellation (less than ${formatHours(policy.freeCancellationHours)} before pickup): ${policy.lateCancellationRetentionPct}% of the rental subtotal is retained and the rest is refunded.`
+      : "This is a late cancellation: part of the rental subtotal is retained and the rest is refunded.";
+  }
+  if (quote.freeUntil) {
+    return `Free cancellation — you are still before ${formatDateTime(quote.freeUntil)}, so the full amount is refunded.`;
+  }
+  return policy
+    ? `Free cancellation — you are more than ${formatHours(policy.freeCancellationHours)} before pickup, so the full amount is refunded.`
+    : "Free cancellation — the full amount is refunded.";
+}
+
+/**
  * Customer cancellation confirmation. Before anything is sent, the dialog
  * fetches `GET /bookings/:id/cancellation-quote` and shows the SERVER's
  * refund / retained amounts (never derived from the policy percentages
  * client-side). Confirming posts `POST /bookings/:id/cancel { reason }`.
- * A 409 CANCELLATION_WINDOW_CLOSED means the booking can no longer be
- * cancelled online (the customer contacts the agency instead).
+ * A 409 CANCELLATION_WINDOW_CLOSED (or a `closed` tier on the quote) means
+ * the booking can no longer be cancelled online (the customer contacts the
+ * agency instead).
  */
 export function CancelBookingDialog({
   booking,
@@ -81,8 +111,10 @@ export function CancelBookingDialog({
   const quote = quoteQuery.data;
   const policy = legal.data?.cancellationPolicy;
   // The server may refuse at either step: the quote (window already closed
-  // when the dialog opens) or the cancel itself (closed in the meantime).
+  // when the dialog opens — as a 409 or as tier `closed`) or the cancel
+  // itself (closed in the meantime).
   const windowClosed =
+    quote?.tier === "closed" ||
     (mutation.isError &&
       isApiErrorCode(
         mutation.error,
@@ -173,13 +205,7 @@ export function CancelBookingDialog({
                   </dd>
                 </div>
                 <p className="pt-1 text-xs text-muted-foreground">
-                  {quote.isLate
-                    ? policy
-                      ? `This is a late cancellation (less than ${formatHours(policy.freeCancellationHours)} before pickup): ${policy.lateCancellationRetentionPct}% of the rental subtotal is retained and the rest is refunded.`
-                      : "This is a late cancellation: part of the rental subtotal is retained and the rest is refunded."
-                    : policy
-                      ? `Free cancellation — you are more than ${formatHours(policy.freeCancellationHours)} before pickup, so the full amount is refunded.`
-                      : "Free cancellation — the full amount is refunded."}{" "}
+                  {tierExplanation(quote, policy)}{" "}
                   {quote.retainedCents > 0
                     ? "The retained amount is charged to your card; any refund goes back to the original card within a few business days."
                     : booking.state === "requested"
