@@ -10,15 +10,23 @@ import type {
   CarColor,
   CarDocumentDto,
   CarStatus,
+  ClaimDto,
   ContractDocumentDto,
   DeliveryZoneFull,
   FuelType,
   HostAgreementStatusDto,
+  InspectionDto,
+  InspectionMediaDto,
+  InspectionMediaUploadDto,
+  InspectionType,
+  MediaKind,
+  MediaLabel,
   OccupancyEntry,
   Paginated,
   Payout,
   PayoutAccountDto,
   PayoutBankDetails,
+  RenterLicenseDto,
   SignedUrlDto,
   Transmission,
 } from "@/shared/types/domain";
@@ -84,6 +92,39 @@ import type {
  *  - POST   /agency/payout-account/onboarding-link  -> SignedUrlDto (`wallet:withdraw`
  *       + owner: 403 OWNER_ONLY, 409 PAYOUT_RAIL_DISABLED)
  *  - POST   /agency/payout-account/sync             -> PayoutAccountDto (`wallet:view`)
+ *
+ * v1 expansion — agency operations (spec §4 B8/B9/B10, ADR-0011/0013;
+ * coded against the spec, backend pending). Reads need `bookings:read`,
+ * actions `bookings:handle`, all branch-scoped:
+ *  - GET    /agency/requests/:bookingId/inspections -> InspectionDto[] (signed media URLs)
+ *  - POST   /agency/requests/:bookingId/inspections { type } -> 201 InspectionDto (draft;
+ *       409 INSPECTION_EXISTS / INSPECTION_WRONG_STATE — checkin needs `accepted`
+ *       on/after the pickup day, checkout needs `active`; checkin also starts
+ *       the deposit hold)
+ *  - PATCH  /agency/inspections/:id { odometerKm?, fuelLevelEighths?, damageNotes?,
+ *       damageFlagged? } -> InspectionDto (draft only)
+ *  - POST   /agency/inspections/:id/media { kind, label, contentType, sizeBytes,
+ *       durationSeconds? } -> 201 InspectionMediaUploadDto (a pending row + a
+ *       signed PUT; 400 MEDIA_LIMIT_EXCEEDED / MEDIA_TOO_LARGE / MEDIA_TYPE_UNSUPPORTED)
+ *  - POST   /agency/inspections/:id/media/:mediaId/complete -> InspectionMediaDto
+ *       (server HEADs the object; 400 MEDIA_TOO_LARGE / MEDIA_TYPE_UNSUPPORTED)
+ *  - DELETE /agency/inspections/:id/media/:mediaId  -> 204 (draft only)
+ *  - POST   /agency/inspections/:id/submit          -> InspectionDto (`submitted`;
+ *       400 INSPECTION_INCOMPLETE, 409 MEDIA_NOT_UPLOADED / DEPOSIT_NOT_HELD /
+ *       DEPOSIT_REQUIRES_ACTION / INSPECTION_WRONG_STATE)
+ *  - POST   /agency/inspections/:id/customer-absent { reason 2..300 } -> InspectionDto
+ *       (`confirmed_absent` + finalize → the booking moves on)
+ *  - PATCH  /agency/requests/:bookingId/pickup|return -> Booking (legacy; 409
+ *       INSPECTION_REQUIRED for online bookings without a finalized inspection)
+ *  - PATCH  /agency/requests/:bookingId/settle      -> Booking (409 DISPUTE_WINDOW_OPEN /
+ *       CLAIM_OPEN / SETTLEMENT_ALREADY_FINALIZED)
+ *  - GET    /agency/requests/:bookingId/claims      -> ClaimDto[]
+ *  - POST   /agency/requests/:bookingId/claims { requestedCents, description 10..4000,
+ *       evidenceMediaIds ≤20 } -> 201 ClaimDto (409 DISPUTE_WINDOW_CLOSED / CLAIM_EXISTS,
+ *       400 CLAIM_AMOUNT_EXCEEDS_LIMIT)
+ *  - POST   /agency/claims/:id/withdraw             -> ClaimDto (409 CLAIM_NOT_OPEN)
+ *  - GET    /bookings/:bookingId/renter-license     -> RenterLicenseDto (agency viewer,
+ *       states accepted..returned else 409 IDENTITY_NOT_AVAILABLE; every read is logged)
  */
 
 /** `GET /agency/fleet` query — `pageSize` lets pickers walk the whole fleet. */
@@ -112,6 +153,12 @@ export const agencyKeys = {
     ["agency", "calendar", carId, month] as const,
   requests: (filters: RequestFilters = {}) =>
     ["agency", "requests", filters] as const,
+  /** Inspections of one booking (signed media URLs — short TTL). */
+  inspections: (bookingId: string) =>
+    ["agency", "requests", bookingId, "inspections"] as const,
+  /** Damage claims of one booking (current + history). */
+  claims: (bookingId: string) =>
+    ["agency", "requests", bookingId, "claims"] as const,
   carPhotos: (carId: string) => ["agency", "car-photos", carId] as const,
   carDocuments: (carId: string) => ["agency", "car-documents", carId] as const,
   branches: () => ["agency", "branches"] as const,
@@ -252,6 +299,47 @@ export interface ManualBlockInput {
   from: string; // ISO date
   to: string; // ISO date, half-open [from, to)
   note?: string;
+}
+
+// ── Inspections & claims (ADR-0011 / ADR-0013) ─────────────────────────────
+
+/** `POST /agency/requests/:bookingId/inspections` body. */
+export interface CreateInspectionInput {
+  type: InspectionType;
+}
+
+/** `PATCH /agency/inspections/:id` body — every field optional, draft only. */
+export interface UpdateInspectionInput {
+  odometerKm?: number;
+  /** 0 (empty) … 8 (full). */
+  fuelLevelEighths?: number;
+  /** ≤ 4000 characters. */
+  damageNotes?: string;
+  damageFlagged?: boolean;
+}
+
+/**
+ * `POST /agency/inspections/:id/media` body. The server pins `contentType`
+ * and `sizeBytes` into the signed PUT, so the browser must send exactly
+ * that file (its Content-Length is set automatically from the blob).
+ */
+export interface RegisterInspectionMediaInput {
+  kind: MediaKind;
+  label: MediaLabel;
+  contentType: string;
+  sizeBytes: number;
+  /** Required for videos (≤ the platform's max seconds). */
+  durationSeconds?: number;
+}
+
+/** `POST /agency/requests/:bookingId/claims` body. */
+export interface FileClaimInput {
+  /** Integer cents, > 0 (server cap: 400 CLAIM_AMOUNT_EXCEEDS_LIMIT). */
+  requestedCents: number;
+  /** 10..4000 characters. */
+  description: string;
+  /** Inspection media ids of THIS booking, ≤ 20. */
+  evidenceMediaIds: string[];
 }
 
 export const AgencyApi = {
@@ -431,6 +519,128 @@ export const AgencyApi = {
    */
   async bookingDetail(bookingId: string): Promise<BookingDetail> {
     const res = await Api.get(`/bookings/${bookingId}`);
+    return res.data;
+  },
+
+  // ── Inspections (ADR-0011) ──
+  // Direct-to-storage media: register → PUT the bytes to the signed URL →
+  // complete. The API never buffers the files (see inspection-media-upload.ts).
+
+  async inspections(bookingId: string): Promise<InspectionDto[]> {
+    const res = await Api.get<InspectionDto[]>(
+      `/agency/requests/${bookingId}/inspections`,
+    );
+    return res.data;
+  },
+
+  /** Open a check-in / check-out draft (check-in also starts the deposit hold). */
+  async createInspection(
+    bookingId: string,
+    input: CreateInspectionInput,
+  ): Promise<InspectionDto> {
+    const res = await Api.post<InspectionDto>(
+      `/agency/requests/${bookingId}/inspections`,
+      input,
+    );
+    return res.data;
+  },
+
+  async updateInspection(
+    inspectionId: string,
+    input: UpdateInspectionInput,
+  ): Promise<InspectionDto> {
+    const res = await Api.patch<InspectionDto>(
+      `/agency/inspections/${inspectionId}`,
+      input,
+    );
+    return res.data;
+  },
+
+  /** Reserve a media slot: a `pending_upload` row + a single-use signed PUT. */
+  async registerInspectionMedia(
+    inspectionId: string,
+    input: RegisterInspectionMediaInput,
+  ): Promise<InspectionMediaUploadDto> {
+    const res = await Api.post<InspectionMediaUploadDto>(
+      `/agency/inspections/${inspectionId}/media`,
+      input,
+    );
+    return res.data;
+  },
+
+  /** After the PUT: the server verifies the object and marks it `uploaded`. */
+  async completeInspectionMedia(
+    inspectionId: string,
+    mediaId: string,
+  ): Promise<InspectionMediaDto> {
+    const res = await Api.post<InspectionMediaDto>(
+      `/agency/inspections/${inspectionId}/media/${mediaId}/complete`,
+    );
+    return res.data;
+  },
+
+  async deleteInspectionMedia(
+    inspectionId: string,
+    mediaId: string,
+  ): Promise<void> {
+    await Api.delete(`/agency/inspections/${inspectionId}/media/${mediaId}`);
+  },
+
+  /** Hand the record to the customer for confirmation (`submitted`). */
+  async submitInspection(inspectionId: string): Promise<InspectionDto> {
+    const res = await Api.post<InspectionDto>(
+      `/agency/inspections/${inspectionId}/submit`,
+    );
+    return res.data;
+  },
+
+  /** The customer is not there to confirm: finalize as `confirmed_absent`. */
+  async markCustomerAbsent(
+    inspectionId: string,
+    reason: string,
+  ): Promise<InspectionDto> {
+    const res = await Api.post<InspectionDto>(
+      `/agency/inspections/${inspectionId}/customer-absent`,
+      { reason },
+    );
+    return res.data;
+  },
+
+  // ── Damage claims (ADR-0013) ──
+
+  async claims(bookingId: string): Promise<ClaimDto[]> {
+    const res = await Api.get<ClaimDto[]>(
+      `/agency/requests/${bookingId}/claims`,
+    );
+    return res.data;
+  },
+
+  /** File a claim against the deposit within the dispute window. */
+  async fileClaim(bookingId: string, input: FileClaimInput): Promise<ClaimDto> {
+    const res = await Api.post<ClaimDto>(
+      `/agency/requests/${bookingId}/claims`,
+      input,
+    );
+    return res.data;
+  },
+
+  /** Withdraw an `open | under_review` claim (releases the deposit hold). */
+  async withdrawClaim(claimId: string): Promise<ClaimDto> {
+    const res = await Api.post<ClaimDto>(`/agency/claims/${claimId}/withdraw`);
+    return res.data;
+  },
+
+  // ── Renter identity (ADR-0011) ──
+
+  /**
+   * Short-lived signed URLs of the renter's licence (front/back) plus the
+   * licence facts. Only from acceptance until the booking settles; the
+   * server logs every read for the "who saw my licence" audit.
+   */
+  async renterLicense(bookingId: string): Promise<RenterLicenseDto> {
+    const res = await Api.get<RenterLicenseDto>(
+      `/bookings/${bookingId}/renter-license`,
+    );
     return res.data;
   },
 

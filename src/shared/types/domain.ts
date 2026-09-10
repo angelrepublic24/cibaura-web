@@ -424,7 +424,12 @@ export interface BookingPickup {
 export interface BookingCustomerDto {
   id: string;
   name: string;
-  email: string;
+  /**
+   * Contact details are exposed to the agency viewer ONLY while the booking
+   * is `accepted | active | returned` (ADR-0011 identity exposure); null
+   * outside those states. The name is always present.
+   */
+  email: string | null;
   phone: string | null;
 }
 
@@ -1006,6 +1011,9 @@ export const INSPECTION_STATUSES = [
   "void",
 ] as const;
 export type InspectionStatus = (typeof INSPECTION_STATUSES)[number];
+
+export const MEDIA_KINDS = ["photo", "video"] as const;
+export type MediaKind = (typeof MEDIA_KINDS)[number];
 
 export const MEDIA_LABELS = [
   "front",

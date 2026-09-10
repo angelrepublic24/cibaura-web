@@ -1,8 +1,13 @@
 "use client";
 
 import { useEffect } from "react";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useQuery,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { AgencyApi, agencyKeys, type FleetFilters } from "./api";
+import { bookingKeys } from "@/features/bookings/api";
 import type { AgencyCar, Paginated } from "@/shared/types/domain";
 
 /**
@@ -78,4 +83,41 @@ export function useAllFleet(filters: Omit<FleetFilters, "page" | "pageSize"> = {
     error: query.error,
     refetch: query.refetch,
   };
+}
+
+// ── Booking operations (ADR-0011 / ADR-0013) ────────────────────────────────
+
+/**
+ * Check-in / check-out records of a booking with SIGNED media URLs (short
+ * TTL — refetched after a minute so expired links are replaced before the
+ * viewer needs them). `enabled` lets the panel skip the request until the
+ * booking says a record exists.
+ */
+export function useAgencyInspections(bookingId: string, enabled = true) {
+  return useQuery({
+    queryKey: agencyKeys.inspections(bookingId),
+    queryFn: () => AgencyApi.inspections(bookingId),
+    staleTime: 60_000,
+    enabled: enabled && !!bookingId,
+  });
+}
+
+/** Every damage claim filed on a booking (the current one + withdrawn history). */
+export function useAgencyClaims(bookingId: string, enabled = true) {
+  return useQuery({
+    queryKey: agencyKeys.claims(bookingId),
+    queryFn: () => AgencyApi.claims(bookingId),
+    enabled: enabled && !!bookingId,
+  });
+}
+
+/**
+ * After anything that moves a booking on the agency side (an inspection
+ * finalizes, a claim is filed, the booking settles): the inbox, calendar
+ * and wallet shift, the booking's own sub-resources are stale, and the
+ * detail (`GET /bookings/:id`, keyed under `bookings`) must refetch too.
+ */
+export function invalidateAgencyBooking(qc: QueryClient, bookingId: string): void {
+  void qc.invalidateQueries({ queryKey: agencyKeys.all });
+  void qc.invalidateQueries({ queryKey: bookingKeys.detail(bookingId) });
 }
