@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminApi, adminKeys } from "@/features/admin/api";
+import { useLegalCurrent } from "@/features/legal/hooks";
 import { ErrorState, LoadingState } from "@/shared/components/states";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -16,9 +17,10 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 
 /**
- * /admin/settings — platform settings. Today this hosts the single
- * "Commission" section (moved out of the old /admin index, which is now the
- * Overview screen); future platform-wide settings sections slot in below it.
+ * /admin/settings — platform settings: the editable commission plus the
+ * cancellation policy the backend currently publishes (read-only here — the
+ * numbers come from `GET /legal/current` and are set in backend config, so
+ * this card exists to make what customers are promised visible to admins).
  */
 export default function AdminSettingsPage() {
   return (
@@ -31,6 +33,81 @@ export default function AdminSettingsPage() {
       </div>
 
       <CommissionSettings />
+      <CancellationPolicyCard />
+    </div>
+  );
+}
+
+/**
+ * Read-only view of the tiered cancellation policy — the same numbers the
+ * legal pages, booking flows and refund logic key off. No edit path: the
+ * platform config endpoint carries only the commission today.
+ */
+function CancellationPolicyCard() {
+  const legal = useLegalCurrent();
+
+  return (
+    <Card className="max-w-lg">
+      <CardHeader>
+        <CardTitle>Cancellation policy</CardTitle>
+        <CardDescription>
+          Published under terms version{" "}
+          {legal.data?.termsVersion ?? "…"}. Configured on the backend; shown
+          here so support and finance read the same numbers customers see.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {legal.isLoading ? (
+          <LoadingState label="Loading policy…" className="py-4" />
+        ) : legal.isError ? (
+          <ErrorState
+            title="Could not load the policy"
+            message={legal.error.message}
+            onRetry={() => legal.refetch()}
+            className="py-6"
+          />
+        ) : (
+          <dl className="grid gap-4 sm:grid-cols-3">
+            <PolicyStat
+              label="Free cancellation"
+              value={`${legal.data!.cancellationPolicy.freeCancellationHours} h`}
+              hint="before pickup"
+            />
+            <PolicyStat
+              label="Late cancellation"
+              value={`${legal.data!.cancellationPolicy.lateCancellationRetentionPct}%`}
+              hint="retained by the agency"
+            />
+            <PolicyStat
+              label="Early return penalty"
+              value={`${legal.data!.cancellationPolicy.earlyReturnPenaltyDays} day${
+                legal.data!.cancellationPolicy.earlyReturnPenaltyDays === 1 ? "" : "s"
+              }`}
+              hint="not refunded"
+            />
+          </dl>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PolicyStat({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+}) {
+  return (
+    <div className="space-y-0.5">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="text-xl font-semibold tabular-nums text-foreground">
+        {value}
+      </dd>
+      <dd className="text-xs text-muted-foreground">{hint}</dd>
     </div>
   );
 }

@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, ExternalLink } from "lucide-react";
 import { AdminApi, adminKeys, type AdminAgencyRow } from "@/features/admin/api";
 import type { AgencyVerificationStatus } from "@/shared/types/domain";
 import { RoleGuard } from "@/shared/auth/guard";
+import { ReasonDialog } from "@/shared/components/reason-dialog";
 import { EmptyState, ErrorState } from "@/shared/components/states";
 import { StarRating } from "@/shared/components/star-rating";
 import { Badge } from "@/shared/components/ui/badge";
@@ -20,11 +21,13 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
  * /admin/agencies — the platform-wide agencies directory (all statuses).
  *
  * Unlike /admin/agency-applications (the KYC review QUEUE, one status at a
- * time), this is the read-only master list of every agency the platform knows
- * about — verified, pending, or rejected — with their footprint (cities,
- * branches, cars), rating, and a jump to their public storefront. Admins pick
- * a status filter ("all" by default) and page through the results. The /admin
- * layout already gates platform_admin; we wrap again defensively.
+ * time), this is the master list of every agency the platform knows about —
+ * verified, pending, rejected or suspended — with their footprint (cities,
+ * branches, cars), rating, a jump to their public storefront, and the
+ * oversight switch: suspend a verified agency (its dashboard locks and its
+ * cars leave search) or reinstate a suspended one. Pending/rejected agencies
+ * are decided on the applications queue, not here. The /admin layout already
+ * gates platform_admin; we wrap again defensively.
  */
 
 const PAGE_SIZE = 20;
@@ -37,6 +40,7 @@ const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
   { value: "verified", label: "Verified" },
   { value: "pending", label: "Pending" },
   { value: "rejected", label: "Rejected" },
+  { value: "suspended", label: "Suspended" },
 ];
 
 /** ISO datetime (createdAt) → "Aug 1, 2026". */
@@ -54,6 +58,8 @@ function StatusBadge({ status }: { status: AgencyVerificationStatus }) {
   if (status === "verified") return <Badge variant="success">Verified</Badge>;
   if (status === "rejected")
     return <Badge variant="destructive">Rejected</Badge>;
+  if (status === "suspended")
+    return <Badge variant="destructive">Suspended</Badge>;
   return <Badge variant="warning">Pending</Badge>;
 }
 
@@ -93,7 +99,8 @@ export default function AdminAgenciesPage() {
             <h1 className="font-display text-2xl text-foreground">Agencies</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Every agency on the platform across all statuses — their
-              footprint, rating, and a link to each public storefront.
+              footprint, rating, a link to each public storefront, and the
+              suspend switch.
             </p>
           </div>
           <div className="w-44 space-y-1.5">
@@ -124,7 +131,7 @@ export default function AdminAgenciesPage() {
           ) : query.isError ? (
             <ErrorState
               title="Could not load agencies"
-              message={(query.error as Error).message}
+              message={query.error.message}
               onRetry={() => query.refetch()}
             />
           ) : agencies.length === 0 ? (
@@ -145,7 +152,7 @@ export default function AdminAgenciesPage() {
 
               <Card className="overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[720px] border-collapse text-sm">
+                  <table className="w-full min-w-[860px] border-collapse text-sm">
                     <thead>
                       <tr className="border-b border-border text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
                         <th className="px-4 py-3 font-medium">Agency</th>
@@ -160,7 +167,7 @@ export default function AdminAgenciesPage() {
                         <th className="px-4 py-3 font-medium">Rating</th>
                         <th className="px-4 py-3 font-medium">Created</th>
                         <th className="px-4 py-3 font-medium">
-                          <span className="sr-only">Storefront</span>
+                          <span className="sr-only">Actions</span>
                         </th>
                       </tr>
                     </thead>
@@ -205,6 +212,14 @@ export default function AdminAgenciesPage() {
 }
 
 function AgencyRow({ agency }: { agency: AdminAgencyRow }) {
+  const qc = useQueryClient();
+  const [action, setAction] = useState<null | "suspend" | "reactivate">(null);
+
+  function invalidate() {
+    // Directory, overview counts AND the applications queue (same agency row).
+    qc.invalidateQueries({ queryKey: adminKeys.all });
+  }
+
   return (
     <tr className="align-middle transition-colors hover:bg-muted/40">
       {/* Agency identity */}
@@ -260,17 +275,75 @@ function AgencyRow({ agency }: { agency: AdminAgencyRow }) {
         {fmtDate(agency.createdAt)}
       </td>
 
-      {/* Public storefront link (opens in a new tab so the admin keeps place) */}
+      {/* Storefront link + oversight actions */}
       <td className="whitespace-nowrap px-4 py-3 text-right">
-        <Link
-          href={`/agencies/${agency.slug}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-        >
-          Storefront
-          <ExternalLink className="h-3.5 w-3.5" />
-        </Link>
+        <div className="flex items-center justify-end gap-3">
+          <Link
+            href={`/agencies/${agency.slug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+          >
+            Storefront
+            <ExternalLink className="h-3.5 w-3.5" />
+          </Link>
+          {agency.verificationStatus === "verified" ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-destructive hover:text-destructive"
+              onClick={() => setAction("suspend")}
+            >
+              Suspend
+            </Button>
+          ) : agency.verificationStatus === "suspended" ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setAction("reactivate")}
+            >
+              Reactivate
+            </Button>
+          ) : null}
+        </div>
+
+        <ReasonDialog
+          open={action === "suspend"}
+          onClose={() => setAction(null)}
+          title={`Suspend ${agency.name}?`}
+          description="Their dashboard locks immediately, their cars leave public search and staff cannot act on bookings. Existing bookings are not cancelled."
+          field={{
+            label: "Reason",
+            placeholder: "e.g. Repeated no-shows under investigation",
+            hint: "Shown to the agency on their locked dashboard.",
+            minLength: 2,
+            maxLength: 300,
+          }}
+          confirmLabel="Suspend agency"
+          destructive
+          onConfirm={async (value) => {
+            await AdminApi.setAgencyStatus(agency.id, "suspended", value);
+            invalidate();
+          }}
+        />
+        <ReasonDialog
+          open={action === "reactivate"}
+          onClose={() => setAction(null)}
+          title={`Reactivate ${agency.name}?`}
+          description="Restores full dashboard access and puts their cars back in search."
+          field={{
+            label: "Note",
+            placeholder: "e.g. Issue resolved with the owner",
+            minLength: 2,
+            maxLength: 300,
+            optional: true,
+          }}
+          confirmLabel="Reactivate agency"
+          onConfirm={async (value) => {
+            await AdminApi.setAgencyStatus(agency.id, "verified", value);
+            invalidate();
+          }}
+        />
       </td>
     </tr>
   );
