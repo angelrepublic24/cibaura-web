@@ -7,6 +7,7 @@ import {
   type Booking,
 } from "@/shared/types/domain";
 import { formatMoneyCents, formatPct } from "@/shared/utils/money";
+import { closedBookingReason } from "@/shared/utils/booking-reasons";
 import {
   Card,
   CardContent,
@@ -27,6 +28,7 @@ import { cn } from "@/lib/utils";
 export function StateTimeline({ booking }: { booking: Booking }) {
   const isTerminal = BOOKING_TERMINAL_STATES.includes(booking.state);
   const currentIdx = BOOKING_HAPPY_PATH.indexOf(booking.state);
+  const reason = closedBookingReason(booking);
 
   return (
     <Card>
@@ -37,7 +39,7 @@ export function StateTimeline({ booking }: { booking: Booking }) {
         {isTerminal ? (
           <div className="rounded-lg bg-red-50 p-3 text-sm text-red-800">
             This booking ended as <strong>{booking.state}</strong>
-            {booking.stateReason ? ` — ${booking.stateReason}` : ""}.
+            {reason ? ` — ${reason}` : ""}.
           </div>
         ) : (
           <ol className="flex flex-wrap items-center gap-2">

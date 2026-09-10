@@ -44,6 +44,10 @@ export interface AgencyPublicProfile {
   /** Average star rating (0 when no reviews) + how many. */
   ratingAvg: number;
   reviewCount: number;
+  /** Rental conditions the agency publishes (also on every car detail). */
+  rentalConditions: string | null;
+  minDriverAge: number;
+  depositNote: string | null;
 }
 
 export interface Review {

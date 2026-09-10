@@ -1,19 +1,36 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Clock,
+  FileSignature,
+  MapPin,
+  Phone,
+  XCircle,
+} from "lucide-react";
 import { BookingsApi, bookingKeys } from "@/features/bookings/api";
 import { ChatPanel } from "@/features/bookings/components/chat-panel";
+import { CancelBookingDialog } from "@/features/bookings/components/cancel-booking-dialog";
 import {
   PricingCard,
   StateTimeline,
 } from "@/features/bookings/components/booking-summary";
 import { useRequestPayment } from "@/features/bookings/use-request-payment";
 import { AgenciesApi, agencyProfileKeys } from "@/features/agencies/api";
-import type { Booking, BookingDetail as BookingDetailData } from "@/shared/types/domain";
+import { useLegalCurrent } from "@/features/legal/hooks";
+import { formatDays } from "@/features/legal/components/cancellation-policy";
+import {
+  BOOKING_TERMINAL_STATES,
+  type Booking,
+  type BookingAgreement,
+  type BookingDetail as BookingDetailData,
+} from "@/shared/types/domain";
 import { BookingStateBadge } from "@/shared/components/booking-state-badge";
 import { StarPicker, StarRating } from "@/shared/components/star-rating";
 import { formatIsoDate } from "@/shared/utils/dates";
+import { closedBookingReason } from "@/shared/utils/booking-reasons";
 import { ErrorState, LoadingState } from "@/shared/components/states";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -42,6 +59,7 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
   }
 
   const booking = query.data!;
+  const isTerminal = BOOKING_TERMINAL_STATES.includes(booking.state);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
@@ -60,21 +78,6 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
                   : `Delivery: ${booking.pickup.deliveryZoneName ?? "zone"}`
                 : "Branch pickup"}
             </p>
-            {booking.pickup.type === "delivery" &&
-            booking.pickup.deliveryAddress ? (
-              <p className="text-sm font-medium text-foreground">
-                Deliver to: {booking.pickup.deliveryAddress}
-                {booking.pickup.deliveryReference
-                  ? ` (${booking.pickup.deliveryReference})`
-                  : ""}
-              </p>
-            ) : null}
-            {booking.pickup.type !== "delivery" &&
-            booking.pickup.branchAddress ? (
-              <p className="text-sm font-medium text-foreground">
-                Pickup address: {booking.pickup.branchAddress}
-              </p>
-            ) : null}
             <p className="text-sm text-muted-foreground">{booking.agency.name}</p>
           </div>
           <BookingStateBadge state={booking.state} />
@@ -82,9 +85,20 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
 
         <PaymentNotice booking={booking} />
 
-        <StateTimeline booking={booking} />
+        {isTerminal ? (
+          <ClosedBookingNotice booking={booking} />
+        ) : (
+          <>
+            <RequestWindowNotice booking={booking} />
+            <StateTimeline booking={booking} />
+          </>
+        )}
+
+        <PickupCard booking={booking} />
 
         <PricingCard booking={booking} />
+
+        <AgreementCard agreement={booking.agreement} />
 
         <ReviewSection booking={booking} />
 
@@ -93,6 +107,271 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
 
       <ChatPanel booking={booking} />
     </div>
+  );
+}
+
+/**
+ * While the request is open: the agency's response window. Unanswered
+ * requests expire automatically and the card hold is released — the
+ * customer should know nothing is stuck.
+ */
+function RequestWindowNotice({ booking }: { booking: Booking }) {
+  if (booking.state !== "requested") return null;
+  return (
+    <div
+      className="flex items-start gap-2.5 rounded-[var(--radius-sm)] border border-border bg-muted/60 p-4 text-sm text-muted-foreground"
+      role="status"
+    >
+      <Clock className="mt-0.5 h-4 w-4 shrink-0 text-foreground" />
+      <span>
+        <span className="font-medium text-foreground">
+          Waiting for {booking.agency.name} to respond.
+        </span>{" "}
+        The agency has 24 hours from your request to accept or decline. If
+        they do not answer in time (or the pickup date passes first), the
+        request expires automatically and the hold on your card is released.
+        You can cancel meanwhile — you will see the exact refund before
+        confirming.
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Honest terminal-state banner (rejected / expired / cancelled) with the
+ * stored reason. Machine reasons are mapped to copy; free text is shown as
+ * written by the agency, an admin or the customer.
+ */
+function ClosedBookingNotice({ booking }: { booking: Booking }) {
+  const reason = closedBookingReason(booking);
+  const title =
+    booking.state === "rejected"
+      ? `${booking.agency.name} declined this request`
+      : booking.state === "expired"
+        ? "This request expired"
+        : "This booking was cancelled";
+  const body =
+    booking.state === "rejected"
+      ? "The hold on your card was released — you have not been charged. You can request another car for the same dates."
+      : booking.state === "expired"
+        ? "It was not accepted before the deadline, so it closed automatically and the hold on your card was released. Nothing was charged."
+        : "Any refund follows the cancellation policy in effect at the time and goes back to the original card within a few business days; a released hold never shows as a charge.";
+
+  return (
+    <div
+      className="rounded-[var(--radius-sm)] border border-red-200 bg-red-50 p-4"
+      role="status"
+    >
+      <p className="flex items-center gap-2 text-sm font-semibold text-red-800">
+        <XCircle className="h-4 w-4" />
+        {title}
+      </p>
+      {reason ? (
+        <p className="mt-1 text-sm text-red-800">
+          <span className="font-medium">Reason: </span>
+          {reason}
+        </p>
+      ) : null}
+      <p className="mt-1 text-sm text-red-700">{body}</p>
+    </div>
+  );
+}
+
+const DAY_LABELS: Record<string, string> = {
+  mon: "Mon",
+  tue: "Tue",
+  wed: "Wed",
+  thu: "Thu",
+  fri: "Fri",
+  sat: "Sat",
+  sun: "Sun",
+};
+const DAY_ORDER = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+
+/**
+ * "Your pickup" — where and how the customer gets the car. Branch address,
+ * phone and hours are emitted by the API only once the booking is paid
+ * (accepted onwards) AND it's a branch pickup; before that we say so.
+ */
+function PickupCard({ booking }: { booking: Booking }) {
+  const p = booking.pickup;
+  const hours = p.branchHours
+    ? Object.entries(p.branchHours).sort(
+        ([a], [b]) => DAY_ORDER.indexOf(a) - DAY_ORDER.indexOf(b),
+      )
+    : [];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <MapPin className="h-4 w-4" />
+          Your pickup
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        {p.type === "delivery" ? (
+          <>
+            <p className="font-medium text-foreground">
+              {p.deliveryAddress
+                ? "Door-to-door delivery"
+                : `Delivery to ${p.deliveryZoneName ?? "your zone"}`}
+            </p>
+            {p.deliveryAddress ? (
+              <p className="text-muted-foreground">
+                {p.deliveryAddress}
+                {p.deliveryReference ? ` (${p.deliveryReference})` : ""}
+              </p>
+            ) : null}
+            <p className="text-xs text-muted-foreground">
+              {booking.agency.name} brings the car to you; coordinate the
+              exact time in the chat.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="font-medium text-foreground">
+              {booking.branch.name} · {booking.agency.name}
+            </p>
+            {p.branchAddress ? (
+              <p className="text-muted-foreground">{p.branchAddress}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                The exact address, phone and opening hours are shared once the
+                agency accepts your request.
+              </p>
+            )}
+            {p.branchPhone ? (
+              <p>
+                <a
+                  href={`tel:${p.branchPhone.replace(/\s+/g, "")}`}
+                  className="inline-flex items-center gap-1.5 text-primary underline-offset-2 hover:underline"
+                >
+                  <Phone className="h-3.5 w-3.5" />
+                  {p.branchPhone}
+                </a>
+              </p>
+            ) : null}
+            {hours.length > 0 ? (
+              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                {hours.map(([day, range]) => (
+                  <div key={day} className="contents">
+                    <dt className="font-medium text-foreground">
+                      {DAY_LABELS[day] ?? day}
+                    </dt>
+                    <dd>{range}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : null}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * The frozen rental agreement (ADR-0007): what the customer accepted, who
+ * they were and the car's plate at request time. Absent for bookings made
+ * before the snapshot existed (and for walk-ins).
+ */
+function AgreementCard({ agreement }: { agreement: BookingAgreement | null }) {
+  const [showConditions, setShowConditions] = useState(false);
+  if (!agreement) return null;
+
+  const acceptedAt = new Date(agreement.acceptedAt);
+  const acceptedLabel = Number.isNaN(acceptedAt.getTime())
+    ? agreement.acceptedAt
+    : acceptedAt.toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <FileSignature className="h-4 w-4" />
+          Rental agreement
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+              Terms accepted
+            </dt>
+            <dd className="text-foreground">
+              <Link
+                href="/legal/terms"
+                className="text-primary underline-offset-2 hover:underline"
+              >
+                Version {agreement.termsVersion}
+              </Link>{" "}
+              <span className="text-muted-foreground">on {acceptedLabel}</span>
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+              Renter
+            </dt>
+            <dd className="text-foreground">{agreement.renter.fullName}</dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+              Driver&apos;s license
+            </dt>
+            <dd className="text-foreground">
+              {agreement.renter.licenseMasked}
+              {agreement.renter.licenseExpiry ? (
+                <span className="text-muted-foreground">
+                  {" "}
+                  · valid until {formatIsoDate(agreement.renter.licenseExpiry)}
+                </span>
+              ) : null}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+              Vehicle plate
+            </dt>
+            <dd className="text-foreground">
+              {agreement.car.plate ?? (
+                <span className="text-muted-foreground">Not recorded</span>
+              )}
+            </dd>
+          </div>
+        </dl>
+
+        {agreement.agencyConditions ? (
+          <div>
+            <button
+              type="button"
+              className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+              aria-expanded={showConditions}
+              onClick={() => setShowConditions((v) => !v)}
+            >
+              {showConditions
+                ? "Hide agency conditions"
+                : "Show the agency conditions you accepted"}
+            </button>
+            {showConditions ? (
+              <p className="mt-2 whitespace-pre-line rounded-[var(--radius-sm)] bg-muted/60 p-3 leading-relaxed text-muted-foreground">
+                {agreement.agencyConditions}
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            The agency had no additional conditions at request time.
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -138,7 +417,7 @@ function PaymentNotice({ booking }: { booking: BookingDetailData }) {
         <p className="text-sm font-semibold text-red-700">Payment failed</p>
         <p className="mt-1 text-sm text-red-700">
           Your card could not be authorized, so this request cannot proceed and
-          is rejected automatically. You have not been charged — any temporary
+          is closed automatically. You have not been charged — any temporary
           hold is released. You can request the car again with a different
           card.
         </p>
@@ -329,37 +608,56 @@ function ReviewSection({ booking }: { booking: Booking }) {
   );
 }
 
+/**
+ * Cancellation entry point:
+ *  - `requested` / `accepted` → "Cancel booking" opens the quote dialog
+ *    (server refund preview + reason + confirm).
+ *  - `active` → no self-service cancel; explain early return (recorded by
+ *    the agency) with the policy figures from the API.
+ */
 function CancelSection({ booking }: { booking: Booking }) {
-  const qc = useQueryClient();
-  const cancellable = booking.state === "requested" || booking.state === "accepted";
+  const [open, setOpen] = useState(false);
+  const legal = useLegalCurrent();
+  const policy = legal.data?.cancellationPolicy;
 
-  const mutation = useMutation({
-    mutationFn: () => BookingsApi.cancel(booking.id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: bookingKeys.detail(booking.id) });
-      qc.invalidateQueries({ queryKey: bookingKeys.all });
-    },
-  });
+  if (booking.state === "active") {
+    return (
+      <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
+        <span className="font-medium text-foreground">Returning early?</span>{" "}
+        Hand the car back to {booking.agency.name} and they will record the
+        return.{" "}
+        {policy
+          ? `Unused full days are refunded minus a penalty of ${formatDays(policy.earlyReturnPenaltyDays)}.`
+          : "Unused full days are refunded minus the early-return penalty in our cancellation policy."}
+      </div>
+    );
+  }
 
+  const cancellable =
+    booking.state === "requested" || booking.state === "accepted";
   if (!cancellable) return null;
 
   return (
-    <div className="flex items-center justify-between rounded-lg border border-border p-4">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-4">
       <p className="text-sm text-muted-foreground">
-        Need to cancel? The refund follows the cancellation policy.
+        Need to cancel? You will see the exact refund before confirming.
+        {policy
+          ? ` Free until ${policy.freeCancellationHours} hour${policy.freeCancellationHours === 1 ? "" : "s"} before pickup.`
+          : ""}
       </p>
       <Button
+        type="button"
         variant="destructive"
         size="sm"
-        disabled={mutation.isPending}
-        onClick={() => mutation.mutate()}
+        onClick={() => setOpen(true)}
       >
-        {mutation.isPending ? "Cancelling…" : "Cancel booking"}
+        Cancel booking
       </Button>
-      {mutation.isError ? (
-        <p className="text-sm text-red-600">{mutation.error.message}</p>
-      ) : null}
+      <CancelBookingDialog
+        booking={booking}
+        open={open}
+        onClose={() => setOpen(false)}
+      />
     </div>
   );
 }
-

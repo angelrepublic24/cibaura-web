@@ -4,17 +4,13 @@ import { HeroSearch } from "@/features/cars/components/hero-search";
 export default function HomePage() {
   return (
     <div>
-      {/* Hero — big, airy, photo-forward. The car is the hero. */}
+      {/* Hero — big, airy, brand-toned. No third-party stock imagery: the
+          backdrop is a warm layered gradient built from the brand tokens
+          (cream → copper glow → olive haze), so nothing external loads. */}
       <section className="relative overflow-hidden">
-        {/* Large background car image behind a warm gradient scrim. */}
-        <div className="absolute inset-0 -z-10">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="https://images.unsplash.com/photo-1502877338535-766e1452684a?auto=format&fit=crop&w=2000&q=70"
-            alt=""
-            className="h-full w-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-background via-background/95 to-background/40" />
+        <div className="absolute inset-0 -z-10" aria-hidden>
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,var(--accent-soft)_0%,transparent_55%),radial-gradient(ellipse_at_bottom_left,var(--olive-soft)_0%,transparent_50%),linear-gradient(180deg,var(--gold-soft)_0%,var(--background)_70%)]" />
+          <div className="absolute inset-0 bg-gradient-to-r from-background via-background/70 to-transparent" />
           <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
         </div>
 
