@@ -835,12 +835,10 @@ export interface PayoutAccountAdminDto extends PayoutAccountDto {
 /** Account lifecycle (backend `UserStatus`). */
 export type UserStatus = "active" | "suspended" | "deleted";
 
-export interface PlatformConfig {
-  /** Commission % snapshotted into each booking at request time. */
-  commissionPct: number;
-}
-
-/** `GET/PATCH /admin/config` (wire `PlatformConfigDto`) — every §0.7 key. */
+/**
+ * `GET/PATCH /admin/config` (wire `PlatformConfigDto`) — every §0.7 key.
+ * `commissionPct` is snapshotted into each booking at request time.
+ */
 export interface PlatformConfigDto {
   commissionPct: number;
   freeCancellationHours: number;
@@ -864,6 +862,18 @@ export interface SignedUrlDto {
   url: string;
   expiresAt: string;
 }
+
+/** Backend `ContractKind` (spec §0.1). */
+export const CONTRACT_KINDS = ["host_agreement", "rental_agreement"] as const;
+export type ContractKind = (typeof CONTRACT_KINDS)[number];
+
+/** Backend `ContractTemplateStatus`: one `published` row per kind. */
+export const CONTRACT_TEMPLATE_STATUSES = [
+  "draft",
+  "published",
+  "archived",
+] as const;
+export type ContractTemplateStatus = (typeof CONTRACT_TEMPLATE_STATUSES)[number];
 
 /** `GET /legal/contracts/:kind` / the `current` block of the host agreement. */
 export interface ContractTemplatePublicDto {
@@ -980,6 +990,69 @@ export interface RenterLicenseDto {
 }
 
 // ── Deposits, claims & settlement (ADR-0012 / ADR-0013) ────────────────────
+
+// Enum literals (spec §0.1) — wire values the customer/host screens branch
+// on. Kept as `as const` arrays so copy maps stay exhaustive; DTO fields
+// stay plain strings (forward-compatible with new backend values).
+export const INSPECTION_TYPES = ["checkin", "checkout"] as const;
+export type InspectionType = (typeof INSPECTION_TYPES)[number];
+
+export const INSPECTION_STATUSES = [
+  "draft",
+  "submitted",
+  "confirmed",
+  "confirmed_absent",
+  "disputed",
+  "void",
+] as const;
+export type InspectionStatus = (typeof INSPECTION_STATUSES)[number];
+
+export const MEDIA_LABELS = [
+  "front",
+  "rear",
+  "left",
+  "right",
+  "interior",
+  "odometer",
+  "fuel",
+  "damage",
+  "other",
+] as const;
+export type MediaLabel = (typeof MEDIA_LABELS)[number];
+
+export const DEPOSIT_STATUSES = [
+  "pending_hold",
+  "requires_action",
+  "held",
+  "reauthorizing",
+  "released",
+  "captured",
+  "lapsed",
+  "failed",
+  "waived",
+] as const;
+export type DepositStatus = (typeof DEPOSIT_STATUSES)[number];
+
+export const CLAIM_STATUSES = [
+  "open",
+  "under_review",
+  "approved",
+  "approved_uncollectible",
+  "rejected",
+  "withdrawn",
+] as const;
+export type ClaimStatus = (typeof CLAIM_STATUSES)[number];
+
+export const SETTLEMENT_CASES = [
+  "completed",
+  "early_return",
+  "cancelled_free",
+  "cancelled_late",
+  "cancelled_by_host",
+  "cancelled_mid_rental",
+  "cancelled_requested",
+] as const;
+export type SettlementCase = (typeof SETTLEMENT_CASES)[number];
 
 export interface DepositDto {
   amountCents: number;
@@ -1100,6 +1173,19 @@ export interface CancellationQuoteDto {
   currency: string;
   /** True when the free-cancellation window has already closed. */
   isLate: boolean;
+  /**
+   * v1-expansion additions (spec §5) — OPTIONAL until the backend ships
+   * them; clients render these only when present and never derive them:
+   *  - `tier`      the policy tier the server applied for cancelling NOW;
+   *  - `freeUntil` the instant free cancellation ends (null when none);
+   *  - `policy`    the figures the tier was computed with.
+   */
+  tier?: "free" | "late" | "closed";
+  freeUntil?: string | null;
+  policy?: {
+    freeCancellationHours: number;
+    lateCancellationRetentionPct: number;
+  };
 }
 
 // -------------------------------------------------------------------- misc
