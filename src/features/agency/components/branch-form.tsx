@@ -12,7 +12,11 @@ import {
 import { PHONE_MESSAGE, PHONE_REGEX } from "@/features/auth/schemas";
 import { CatalogApi, catalogKeys } from "@/features/catalog/api";
 import type { Branch } from "@/shared/types/domain";
-import { getErrorMessage } from "@/shared/api/errors";
+import {
+  API_ERROR_CODES,
+  getErrorMessage,
+  isApiErrorCode,
+} from "@/shared/api/errors";
 import { centsToWholeUnitsInput, wholeUnitsToCents } from "@/shared/utils/money";
 import {
   AddressAutocomplete,
@@ -474,7 +478,12 @@ export function BranchForm(props: BranchFormProps) {
 
           {mutation.isError ? (
             <p className="mt-3 text-sm text-destructive" role="alert">
-              {getErrorMessage(mutation.error, "Could not save the branch.")}
+              {isApiErrorCode(
+                mutation.error,
+                API_ERROR_CODES.INDIVIDUAL_SINGLE_BRANCH,
+              )
+                ? "Private hosts rent from a single address — edit your existing one instead of adding another."
+                : getErrorMessage(mutation.error, "Could not save the branch.")}
             </p>
           ) : null}
 

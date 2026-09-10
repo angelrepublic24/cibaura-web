@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { ImagePlus } from "lucide-react";
-import { useFleetPages } from "@/features/agency/hooks";
+import { ImagePlus, Settings2 } from "lucide-react";
+import { useAgencySession, useFleetPages } from "@/features/agency/hooks";
+import { CarDocumentStatusBadge } from "@/features/agency/components/car-registration-document";
 import { PermissionGate } from "@/features/agency/components/permission-gate";
 import { usePermission } from "@/features/agency/use-permission";
 import { carPhoto } from "@/features/cars/photos";
@@ -35,6 +36,9 @@ export default function AgencyFleetPage() {
 function FleetList() {
   const { can } = usePermission();
   const canWrite = can("fleet:write");
+  // Individual hosts need a verified registration per car — surface it here.
+  const session = useAgencySession();
+  const showRegistration = session.data?.agency.kind === "individual";
 
   const query = useFleetPages();
   const cars = query.data?.pages.flatMap((p) => p.items) ?? [];
@@ -95,17 +99,36 @@ function FleetList() {
                           )}
                         </div>
                         <div className="min-w-0">
-                          <p className="truncate font-medium">
+                          <Link
+                            href={`/agency/fleet/${car.id}`}
+                            className="block truncate font-medium hover:text-primary hover:underline"
+                          >
                             {car.make?.name ?? "Make"} {car.model?.name ?? "Model"}{" "}
                             {car.year}
-                          </p>
+                          </Link>
                           <p className="truncate text-sm text-muted-foreground">
                             {car.plate ? `${car.plate} · ` : ""}
                             {car.color} · {car.transmission} · {car.seats} seats
                           </p>
+                          {showRegistration ? (
+                            <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                              Registration
+                              <CarDocumentStatusBadge document={car.registration ?? null} />
+                            </p>
+                          ) : null}
                         </div>
                       </div>
                       <div className="flex items-center gap-4">
+                        <Link
+                          href={`/agency/fleet/${car.id}`}
+                          className={buttonVariants({
+                            variant: "outline",
+                            size: "sm",
+                          })}
+                        >
+                          <Settings2 className="mr-1.5 h-4 w-4" />
+                          Manage
+                        </Link>
                         {canWrite ? (
                           <Link
                             href={`/agency/fleet/${car.id}/photos`}

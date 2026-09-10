@@ -1,9 +1,23 @@
 "use client";
 
 import { useEffect } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { AgencyApi, agencyKeys, type FleetFilters } from "./api";
 import type { AgencyCar, Paginated } from "@/shared/types/domain";
+
+/**
+ * The caller's agency session (`GET /agency/session`): the agency (kind,
+ * verification, host-agreement flags) + membership. Same key/staleTime as
+ * `usePermission`, so the layout, nav and pages share ONE request.
+ */
+export function useAgencySession(enabled = true) {
+  return useQuery({
+    queryKey: agencyKeys.session(),
+    queryFn: AgencyApi.session,
+    staleTime: 60_000,
+    enabled,
+  });
+}
 
 /** Page size for fleet pickers — large enough that one page covers most agencies. */
 export const FLEET_PICKER_PAGE_SIZE = 100;

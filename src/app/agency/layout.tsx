@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
 import {
   Building2,
   CalendarDays,
   CarFront,
   Clock,
+  FilePenLine,
   Inbox,
   LayoutDashboard,
   Store,
@@ -17,13 +17,13 @@ import {
   Wallet,
 } from "lucide-react";
 import { RoleGuard } from "@/shared/auth/guard";
-import { AgencyApi, agencyKeys } from "@/features/agency/api";
 import {
   AgencyAccessRevoked,
   isAgencyAccessRevokedError,
   isRevokedStatus,
   useAgencyAccessRevokedWatcher,
 } from "@/features/agency/access-revoked";
+import { useAgencySession } from "@/features/agency/hooks";
 import { usePermission } from "@/features/agency/use-permission";
 import type { AgencyPermission } from "@/features/agency/rbac";
 import { cn } from "@/lib/utils";
@@ -61,14 +61,11 @@ const NAV: NavItem[] = [
  * {@link AgencyAccessRevoked} before rendering any chrome.
  */
 function VerificationBanner() {
-  const { data } = useQuery({
-    queryKey: agencyKeys.session(),
-    queryFn: () => AgencyApi.session(),
-    staleTime: 60_000,
-  });
+  const { data } = useAgencySession();
 
   const agency = data?.agency;
   if (!agency || agency.verificationStatus !== "pending") return null;
+  const individual = agency.kind === "individual";
 
   return (
     <div
@@ -78,18 +75,73 @@ function VerificationBanner() {
       <Clock className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
       <div className="space-y-1 text-sm">
         <p className="font-medium text-warning">
-          Your agency is pending verification
+          {individual
+            ? "Your host profile is pending verification"
+            : "Your agency is pending verification"}
         </p>
         <p className="text-muted-foreground">
           Your cars won&apos;t appear in public search yet. Upload your
           documents from the{" "}
           <Link
-            href="/become-agency"
+            href={individual ? "/become-host" : "/become-agency"}
             className="font-medium text-warning underline underline-offset-2 hover:no-underline"
           >
             application page
           </Link>
           .
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Host-agreement nudges (ADR-0010): never signed → cars cannot be published
+ * or requests accepted; a newer version with `requireResign` → sign again
+ * (listings stay live). Both point at Settings, where the owner signs. Read
+ * defensively: a session that predates the flags shows nothing.
+ */
+function HostAgreementBanner() {
+  const { data } = useAgencySession();
+  const { can } = usePermission();
+  const agency = data?.agency;
+  if (!agency) return null;
+
+  const unsigned = agency.hostAgreementSigned === false;
+  const resign = agency.hostAgreementResignRequired === true;
+  if (!unsigned && !resign) return null;
+
+  return (
+    <div
+      role="status"
+      className="mb-6 flex items-start gap-3 rounded-[var(--radius)] border border-warning/30 bg-warning-soft p-4"
+    >
+      <FilePenLine className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
+      <div className="space-y-1 text-sm">
+        <p className="font-medium text-warning">
+          {unsigned
+            ? "The host agreement has not been signed"
+            : "A new version of the host agreement needs your signature"}
+        </p>
+        <p className="text-muted-foreground">
+          {unsigned
+            ? "Cars cannot be published and requests cannot be accepted until the owner signs it"
+            : "Your listings stay live meanwhile — the owner can sign the new version"}
+          {can("agency:settings") ? (
+            <>
+              {" "}
+              in{" "}
+              <Link
+                href="/agency/settings"
+                className="font-medium text-warning underline underline-offset-2 hover:no-underline"
+              >
+                Settings
+              </Link>
+              .
+            </>
+          ) : (
+            "."
+          )}
         </p>
       </div>
     </div>
@@ -117,11 +169,7 @@ export default function AgencyLayout({
   useAgencyAccessRevokedWatcher();
 
   // Same cache entry as usePermission/VerificationBanner — one request total.
-  const sessionQuery = useQuery({
-    queryKey: agencyKeys.session(),
-    queryFn: () => AgencyApi.session(),
-    staleTime: 60_000,
-  });
+  const sessionQuery = useAgencySession();
   const agency = sessionQuery.data?.agency;
   const revoked =
     isRevokedStatus(agency?.verificationStatus) ||
@@ -131,7 +179,13 @@ export default function AgencyLayout({
   // Fail CLOSED: while the session loads, `can` is false, so only unrestricted
   // items (Dashboard) show and the rest appear once permissions resolve. For an
   // RBAC surface a brief under-render beats flashing links the user can't use.
-  const items = NAV.filter((item) => !item.permission || can(item.permission));
+  // Individual hosts have no staff (ADR-0009) — the Staff surface is hidden.
+  const individual = agency?.kind === "individual";
+  const items = NAV.filter(
+    (item) =>
+      (!item.permission || can(item.permission)) &&
+      !(individual && item.href === "/agency/staff"),
+  );
 
   if (revoked) {
     return (
@@ -172,6 +226,7 @@ export default function AgencyLayout({
         </aside>
         <div>
           <VerificationBanner />
+          <HostAgreementBanner />
           {children}
         </div>
       </div>
