@@ -23,9 +23,11 @@ import {
   ClaimStatusBadge,
   DepositStatusBadge,
   InspectionStatusBadge,
+} from "@/shared/components/claim-deposit-labels";
+import {
   inspectionTypeLabel,
   settlementCaseLabel,
-} from "@/shared/components/claim-deposit-labels";
+} from "@/shared/utils/lifecycle-labels";
 import { useNow } from "@/shared/hooks/use-now";
 import { useOpenSignedUrl } from "@/shared/hooks/use-open-signed-url";
 import { ErrorState, LoadingState } from "@/shared/components/states";

@@ -2,11 +2,11 @@
 
 import { Camera, Video } from "lucide-react";
 import type { InspectionDto, InspectionMediaDto } from "@/shared/types/domain";
+import { InspectionStatusBadge } from "@/shared/components/claim-deposit-labels";
 import {
-  InspectionStatusBadge,
   inspectionTypeLabel,
   mediaLabelText,
-} from "@/shared/components/claim-deposit-labels";
+} from "@/shared/utils/lifecycle-labels";
 import { Badge } from "@/shared/components/ui/badge";
 import { formatDateTime } from "@/shared/utils/dates";
 import { cn } from "@/lib/utils";

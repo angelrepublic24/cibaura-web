@@ -3,9 +3,6 @@ import type {
   ClaimStatus,
   DepositStatus,
   InspectionStatus,
-  InspectionType,
-  MediaLabel,
-  SettlementCase,
 } from "@/shared/types/domain";
 
 type BadgeVariant =
@@ -17,10 +14,13 @@ type BadgeVariant =
   | "outline";
 
 /**
- * Copy + badge variants for the ADR-0011/0012/0013 lifecycles (inspections,
- * deposits, claims, settlement). Wire values arrive as plain strings; a
- * value newer than this client renders verbatim in a neutral badge so a
- * new backend state never blanks a row.
+ * Status copy + badges for the ADR-0011/0012/0013 lifecycles as the HOST
+ * and the ADMIN read them ("Awaiting customer", "Customer absent"). The
+ * customer's own wording lives in `features/bookings/labels.ts`; the
+ * viewer-neutral labels (inspection type, media label, fuel gauge,
+ * settlement case) in `shared/utils/lifecycle-labels.ts`. Wire values
+ * arrive as plain strings; a value newer than this client renders verbatim
+ * in a neutral badge so a new backend state never blanks a row.
  */
 
 // ── Deposit ─────────────────────────────────────────────────────────────────
@@ -106,48 +106,4 @@ export function InspectionStatusBadge({ status }: { status: string }) {
   }
   const meta = INSPECTION_STATUS_META[status];
   return <Badge variant={meta.variant}>{meta.label}</Badge>;
-}
-
-const INSPECTION_TYPE_LABELS: Record<InspectionType, string> = {
-  checkin: "Check-in",
-  checkout: "Check-out",
-};
-
-export function inspectionTypeLabel(type: string): string {
-  const labels: Record<string, string | undefined> = INSPECTION_TYPE_LABELS;
-  return labels[type] ?? type;
-}
-
-const MEDIA_LABEL_TEXT: Record<MediaLabel, string> = {
-  front: "Front",
-  rear: "Rear",
-  left: "Left side",
-  right: "Right side",
-  interior: "Interior",
-  odometer: "Odometer",
-  fuel: "Fuel gauge",
-  damage: "Damage",
-  other: "Other",
-};
-
-export function mediaLabelText(label: string): string {
-  const labels: Record<string, string | undefined> = MEDIA_LABEL_TEXT;
-  return labels[label] ?? label;
-}
-
-// ── Settlement ──────────────────────────────────────────────────────────────
-
-const SETTLEMENT_CASE_LABELS: Record<SettlementCase, string> = {
-  completed: "Completed rental",
-  early_return: "Early return",
-  cancelled_free: "Free cancellation",
-  cancelled_late: "Late cancellation",
-  cancelled_by_host: "Cancelled by the host",
-  cancelled_mid_rental: "Cancelled mid-rental",
-  cancelled_requested: "Cancelled before acceptance",
-};
-
-export function settlementCaseLabel(settlementCase: string): string {
-  const labels: Record<string, string | undefined> = SETTLEMENT_CASE_LABELS;
-  return labels[settlementCase] ?? settlementCase;
 }

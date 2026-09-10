@@ -2,15 +2,16 @@ import type {
   ClaimStatus,
   DepositStatus,
   InspectionStatus,
-  InspectionType,
-  MediaLabel,
-  SettlementCase,
 } from "@/shared/types/domain";
 
 /**
- * Human labels for the v1-expansion wire enums (spec §0.1). Every DTO
- * carries these as plain strings, so each helper falls back to the raw
- * value — a new backend value never blanks a badge.
+ * CUSTOMER-facing status copy for the v1-expansion lifecycles (deposit,
+ * inspection, claim) — worded from the renter's point of view ("Awaiting
+ * your confirmation"). Viewer-neutral labels (inspection type, media label,
+ * fuel gauge, settlement case) live in `shared/utils/lifecycle-labels.ts`;
+ * the host/admin wording in `shared/components/claim-deposit-labels.tsx`.
+ * Every DTO carries these as plain strings, so each helper falls back to
+ * the raw value — a new backend value never blanks a badge.
  */
 
 type BadgeTone = "secondary" | "success" | "warning" | "destructive";
@@ -34,15 +35,6 @@ export function depositStatusMeta(status: string): { label: string; tone: BadgeT
       tone: "secondary",
     }
   );
-}
-
-const INSPECTION_TYPE_LABELS: Record<InspectionType, string> = {
-  checkin: "Check-in",
-  checkout: "Check-out",
-};
-
-export function inspectionTypeLabel(type: string): string {
-  return INSPECTION_TYPE_LABELS[type as InspectionType] ?? type;
 }
 
 const INSPECTION_STATUS_META: Record<
@@ -69,30 +61,6 @@ export function inspectionStatusMeta(status: string): {
   );
 }
 
-const MEDIA_LABEL_LABELS: Record<MediaLabel, string> = {
-  front: "Front",
-  rear: "Rear",
-  left: "Left side",
-  right: "Right side",
-  interior: "Interior",
-  odometer: "Odometer",
-  fuel: "Fuel gauge",
-  damage: "Damage",
-  other: "Other",
-};
-
-export function mediaLabelText(label: string): string {
-  return MEDIA_LABEL_LABELS[label as MediaLabel] ?? label;
-}
-
-/** "Full" / "Empty" / "3/8" — the gauge reading as the host recorded it. */
-export function fuelLevelText(eighths: number | null): string {
-  if (eighths === null) return "Not recorded";
-  if (eighths >= 8) return "Full";
-  if (eighths <= 0) return "Empty";
-  return `${eighths}/8`;
-}
-
 const CLAIM_STATUS_META: Record<ClaimStatus, { label: string; tone: BadgeTone }> = {
   open: { label: "Awaiting your response", tone: "warning" },
   under_review: { label: "Under admin review", tone: "warning" },
@@ -109,18 +77,4 @@ export function claimStatusMeta(status: string): { label: string; tone: BadgeTon
       tone: "secondary",
     }
   );
-}
-
-const SETTLEMENT_CASE_LABELS: Record<SettlementCase, string> = {
-  completed: "Rental completed",
-  early_return: "Returned early",
-  cancelled_free: "Cancelled within the free window",
-  cancelled_late: "Late cancellation",
-  cancelled_by_host: "Cancelled by the host",
-  cancelled_mid_rental: "Cancelled during the rental",
-  cancelled_requested: "Cancelled before acceptance",
-};
-
-export function settlementCaseLabel(settlementCase: string): string {
-  return SETTLEMENT_CASE_LABELS[settlementCase as SettlementCase] ?? settlementCase;
 }

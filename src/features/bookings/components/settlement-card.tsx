@@ -1,7 +1,7 @@
 "use client";
 
 import { Clock, Receipt } from "lucide-react";
-import { settlementCaseLabel } from "@/features/bookings/labels";
+import { settlementCaseLabel } from "@/shared/utils/lifecycle-labels";
 import type { BookingDetail, SettlementDto } from "@/shared/types/domain";
 import { useNow } from "@/shared/hooks/use-now";
 import { formatMoneyCents } from "@/shared/utils/money";

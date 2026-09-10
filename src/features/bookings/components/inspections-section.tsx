@@ -10,11 +10,11 @@ import {
   invalidateBooking,
   useBookingInspections,
 } from "@/features/bookings/hooks";
+import { inspectionStatusMeta } from "@/features/bookings/labels";
 import {
   fuelLevelText,
-  inspectionStatusMeta,
   inspectionTypeLabel,
-} from "@/features/bookings/labels";
+} from "@/shared/utils/lifecycle-labels";
 import {
   INSPECTION_DISPUTE_NOTE_MAX,
   disputeInspectionSchema,

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ChevronLeft, ChevronRight, ImageOff, Play } from "lucide-react";
-import { mediaLabelText } from "@/features/bookings/labels";
+import { mediaLabelText } from "@/shared/utils/lifecycle-labels";
 import type { InspectionMediaDto } from "@/shared/types/domain";
 import { Button } from "@/shared/components/ui/button";
 import { Dialog } from "@/shared/components/ui/dialog";
