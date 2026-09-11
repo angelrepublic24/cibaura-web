@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { AdminApi, adminKeys } from "@/features/admin/api";
 import {
   EmptyState,
@@ -31,8 +36,9 @@ export default function AdminCatalogPage() {
 
   const modelsQuery = useQuery({
     queryKey: adminKeys.models(selectedMakeId ?? ""),
-    queryFn: () => AdminApi.listModels(selectedMakeId!),
-    enabled: !!selectedMakeId,
+    queryFn: selectedMakeId
+      ? () => AdminApi.listModels(selectedMakeId)
+      : skipToken,
   });
 
   const createMake = useMutation({
@@ -44,7 +50,7 @@ export default function AdminCatalogPage() {
   });
 
   const createModel = useMutation({
-    mutationFn: () => AdminApi.createModel(selectedMakeId!, newModel.trim()),
+    mutationFn: (makeId: string) => AdminApi.createModel(makeId, newModel.trim()),
     onSuccess: () => {
       setNewModel("");
       qc.invalidateQueries({ queryKey: adminKeys.models(selectedMakeId ?? "") });
@@ -102,7 +108,7 @@ export default function AdminCatalogPage() {
                 <EmptyState title="No makes yet" className="py-6" />
               ) : (
                 <ul className="divide-y divide-border rounded-lg border border-border">
-                  {makesQuery.data!.map((m) => (
+                  {(makesQuery.data ?? []).map((m) => (
                     <li key={m.id}>
                       <button
                         type="button"
@@ -141,7 +147,9 @@ export default function AdminCatalogPage() {
                   className="mt-3 flex gap-2"
                   onSubmit={(e) => {
                     e.preventDefault();
-                    if (newModel.trim().length >= 1) createModel.mutate();
+                    if (newModel.trim().length >= 1) {
+                      createModel.mutate(selectedMakeId);
+                    }
                   }}
                 >
                   <Input
@@ -180,7 +188,7 @@ export default function AdminCatalogPage() {
                     />
                   ) : (
                     <ul className="divide-y divide-border rounded-lg border border-border">
-                      {modelsQuery.data!.map((m) => (
+                      {(modelsQuery.data ?? []).map((m) => (
                         <li
                           key={m.id}
                           className="flex items-center justify-between px-3 py-2 text-sm"

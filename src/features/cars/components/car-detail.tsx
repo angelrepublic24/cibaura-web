@@ -64,7 +64,7 @@ import type {
   PickupType,
 } from "@/shared/types/domain";
 import { formatMoneyCents, formatPct } from "@/shared/utils/money";
-import { formatIsoDate, todayIso } from "@/shared/utils/dates";
+import { formatIsoDate, isoDateParts, todayIso } from "@/shared/utils/dates";
 import { ErrorState, LoadingState } from "@/shared/components/states";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -109,7 +109,7 @@ export function CarDetail({
     [availabilityQuery.data],
   );
 
-  if (carQuery.isLoading) return <LoadingState label="Loading car…" />;
+  if (carQuery.isPending) return <LoadingState label="Loading car…" />;
   if (carQuery.isError) {
     return (
       <ErrorState
@@ -120,7 +120,7 @@ export function CarDetail({
     );
   }
 
-  const car = carQuery.data!;
+  const car = carQuery.data;
   const gallery = carGallery(car);
   const specs = [
     { icon: Gauge, label: "Transmission", value: car.transmission },
@@ -440,10 +440,12 @@ function AvailabilityCalendar({
 
 /** Whole years between a YYYY-MM-DD birth date and a YYYY-MM-DD reference day. */
 function ageOn(dateOfBirth: string, day: string): number {
-  const [by, bm, bd] = dateOfBirth.split("-").map(Number);
-  const [y, m, d] = day.split("-").map(Number);
-  let age = y - by;
-  if (m < bm || (m === bm && d < bd)) age -= 1;
+  const birth = isoDateParts(dateOfBirth);
+  const on = isoDateParts(day);
+  let age = on.year - birth.year;
+  if (on.month < birth.month || (on.month === birth.month && on.day < birth.day)) {
+    age -= 1;
+  }
   return age;
 }
 
@@ -658,14 +660,20 @@ function BookingPanel({
   });
 
   const requestMutation = useMutation({
-    mutationFn: (signature: SignatureInput) =>
+    mutationFn: ({
+      signature,
+      // The version the customer just accepted — read from the server.
+      termsVersion,
+    }: {
+      signature: SignatureInput;
+      termsVersion: string;
+    }) =>
       BookingsApi.request({
         ...quoteInput,
         // Always send the card the customer sees selected — even the default —
         // so what's displayed is exactly what gets the hold.
         paymentMethodId: selectedCard?.id,
-        // The version the customer just accepted — read from the server.
-        termsVersion: legal.data!.termsVersion,
+        termsVersion,
         // The click-to-sign collected in the agreement step.
         signature,
       }),
@@ -691,11 +699,12 @@ function BookingPanel({
 
   // A verified customer whose license expires before the chosen return date is
   // blocked server-side (assertCanRent). Warn + disable proactively.
-  const licenseExpiresBeforeReturn =
-    isVerified &&
-    !!verification?.licenseExpiry &&
-    !!to &&
-    verification.licenseExpiry < to;
+  // Carries the expiry date itself so the warning can render it without
+  // re-deriving (and without asserting) that it is present.
+  const licenseExpiryBeforeReturn: string | null =
+    isVerified && verification?.licenseExpiry && to && verification.licenseExpiry < to
+      ? verification.licenseExpiry
+      : null;
 
   // Agency minimum driver age, checked on the pickup day (server does the
   // same in the business timezone). No date of birth on file → the server
@@ -958,12 +967,12 @@ function BookingPanel({
         ) : null}
 
         {/* Proactive gate warnings (the server blocks all of them too). */}
-        {licenseExpiresBeforeReturn ? (
+        {licenseExpiryBeforeReturn ? (
           <p className="flex items-start gap-2 rounded-[var(--radius-sm)] border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
             <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
               Your driver&apos;s license expires on{" "}
-              {formatIsoDate(verification!.licenseExpiry!)}, before this rental
+              {formatIsoDate(licenseExpiryBeforeReturn)}, before this rental
               ends. Renew your license or choose an earlier return date.
             </span>
           </p>
@@ -1100,7 +1109,7 @@ function BookingPanel({
               !quoteReady ||
               quoteQuery.isLoading ||
               quoteQuery.isError ||
-              licenseExpiresBeforeReturn ||
+              licenseExpiryBeforeReturn !== null ||
               tooYoung ||
               dobMissing ||
               !legalReady ||
@@ -1125,7 +1134,12 @@ function BookingPanel({
           quoteInput={quoteInput}
           agencyName={car.agency.name}
           carLabel={`${car.make.name} ${car.model.name} ${car.year}`}
-          onSign={(signature) => requestMutation.mutate(signature)}
+          onSign={(signature) => {
+            const termsVersion = legal.data?.termsVersion;
+            // The request button stays disabled until the terms load.
+            if (termsVersion === undefined) return;
+            requestMutation.mutate({ signature, termsVersion });
+          }}
           signing={requestMutation.isPending}
           error={requestError}
         />

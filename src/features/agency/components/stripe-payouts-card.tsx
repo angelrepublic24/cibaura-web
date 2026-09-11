@@ -173,7 +173,7 @@ export function StripePayoutsCard() {
           </p>
         ) : null}
 
-        {accountQuery.isLoading ? (
+        {accountQuery.isPending ? (
           <LoadingState label="Loading Stripe payout status…" className="py-4" />
         ) : accountQuery.isError ? (
           <ErrorState
@@ -184,7 +184,7 @@ export function StripePayoutsCard() {
           />
         ) : (
           <AccountBody
-            account={accountQuery.data!}
+            account={accountQuery.data}
             canSetUp={role === "owner" && can("wallet:withdraw")}
             isOwner={role === "owner"}
             onSetUp={() => link.mutate()}

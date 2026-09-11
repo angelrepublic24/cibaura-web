@@ -113,7 +113,11 @@ export function CarPhotosManager({ carId }: { carId: string }) {
     const target = index + delta;
     if (target < 0 || target >= photos.length) return;
     const ids = photos.map((p) => p.id);
-    [ids[index], ids[target]] = [ids[target], ids[index]];
+    const moved = ids[index];
+    const displaced = ids[target];
+    if (moved === undefined || displaced === undefined) return;
+    ids[index] = displaced;
+    ids[target] = moved;
     reorderMutation.mutate(ids);
   }
 

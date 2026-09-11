@@ -134,7 +134,7 @@ function RequestsInbox() {
         ) : (
           <>
             <div className="space-y-3">
-              {query.data!.items.map((b) => (
+              {(query.data?.items ?? []).map((b) => (
                 <RequestRow key={b.id} booking={b} />
               ))}
             </div>

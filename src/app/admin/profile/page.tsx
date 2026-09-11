@@ -33,10 +33,10 @@ const ROLE_LABELS: Record<Role, string> = {
 /** Two-letter initials from a display name (first + last). */
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  const first = parts[0][0];
-  const last = parts.length > 1 ? parts[parts.length - 1][0] : "";
-  return (first + last).toUpperCase();
+  const first = parts[0];
+  if (first === undefined) return "?";
+  const last = parts.length > 1 ? parts[parts.length - 1] : undefined;
+  return ((first[0] ?? "") + (last?.[0] ?? "")).toUpperCase();
 }
 
 /** ISO datetime → "Aug 5, 2026" (blank input → null). */

@@ -75,7 +75,7 @@ export default function AdminIntegrationsPage() {
         </div>
 
         <div className="mt-6">
-          {query.isLoading ? (
+          {query.isPending ? (
             <LoadingState label="Loading integrations…" />
           ) : query.isError ? (
             <ErrorState
@@ -84,7 +84,7 @@ export default function AdminIntegrationsPage() {
               onRetry={() => query.refetch()}
             />
           ) : (
-            <IntegrationsContent data={query.data!} />
+            <IntegrationsContent data={query.data} />
           )}
         </div>
       </div>

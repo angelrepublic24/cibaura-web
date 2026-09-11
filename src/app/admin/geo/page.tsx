@@ -154,7 +154,7 @@ export default function AdminGeoPage() {
                 <EmptyState title="No cities yet — add one above" className="py-6" />
               ) : (
                 <ul className="divide-y divide-border rounded-lg border border-border">
-                  {citiesQuery.data!.map((c) => (
+                  {(citiesQuery.data ?? []).map((c) => (
                     <li
                       key={c.id}
                       className="flex items-center justify-between px-3 py-2 text-sm"

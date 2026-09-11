@@ -240,6 +240,9 @@ function DepositBody({
     );
   }
 
+  // Hoisted so the 3DS handler below closes over a narrowed, stable value.
+  const clientSecret = deposit.clientSecret;
+
   switch (deposit.status) {
     case "pending_hold":
       return (
@@ -259,13 +262,13 @@ function DepositBody({
             confirmed. Your bank requires a quick verification step; you have
             not been charged.
           </p>
-          {deposit.clientSecret ? (
+          {clientSecret ? (
             <Button
               size="sm"
               onClick={() =>
                 challenge.startChallenge({
                   bookingId: booking.id,
-                  clientSecret: deposit.clientSecret!,
+                  clientSecret,
                 })
               }
             >

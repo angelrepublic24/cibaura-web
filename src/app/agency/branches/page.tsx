@@ -94,7 +94,7 @@ function BranchesBody() {
           />
         ) : (
           <div className="space-y-3">
-            {query.data!.map((b) =>
+            {(query.data ?? []).map((b) =>
               editingId === b.id ? (
                 <BranchForm
                   key={b.id}

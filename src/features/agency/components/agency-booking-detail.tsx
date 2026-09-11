@@ -65,7 +65,7 @@ export function AgencyBookingDetail({ bookingId }: { bookingId: string }) {
     queryFn: () => AgencyApi.bookingDetail(bookingId),
   });
 
-  if (query.isLoading) return <LoadingState label="Loading booking…" />;
+  if (query.isPending) return <LoadingState label="Loading booking…" />;
   if (query.isError) {
     return (
       <ErrorState
@@ -76,7 +76,7 @@ export function AgencyBookingDetail({ bookingId }: { bookingId: string }) {
     );
   }
 
-  const booking = query.data!;
+  const booking = query.data;
   const note = LIFECYCLE_NOTES[booking.state];
 
   return (

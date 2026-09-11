@@ -162,7 +162,7 @@ export function HostAgreementSigner({
     },
   });
 
-  if (query.isLoading) {
+  if (query.isPending) {
     return <LoadingState label="Loading the host agreement…" className={className} />;
   }
   if (query.isError) {
@@ -176,14 +176,13 @@ export function HostAgreementSigner({
     );
   }
 
-  const status = query.data!;
-  const { current } = status;
-  const mustSign = !status.signed || status.resignRequired;
+  const status = query.data;
+  const { current, signed } = status;
 
-  if (!mustSign) {
+  if (signed && !status.resignRequired) {
     return (
       <div className={className}>
-        <HostAgreementSignedSummary document={status.signed!} />
+        <HostAgreementSignedSummary document={signed} />
       </div>
     );
   }

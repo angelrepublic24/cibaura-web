@@ -30,7 +30,7 @@ function SettingsBody() {
     queryFn: AgencyApi.settings,
   });
 
-  if (query.isLoading) return <LoadingState label="Loading settings…" />;
+  if (query.isPending) return <LoadingState label="Loading settings…" />;
   if (query.isError) {
     return (
       <ErrorState
@@ -41,7 +41,7 @@ function SettingsBody() {
     );
   }
 
-  const settings = query.data!;
+  const settings = query.data;
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">

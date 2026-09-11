@@ -112,7 +112,7 @@ export function NotificationBell() {
               </p>
             ) : (
               <ul className="divide-y divide-border">
-                {listQuery.data!.map((n) => (
+                {(listQuery.data ?? []).map((n) => (
                   <NotificationRow
                     key={n.id}
                     n={n}

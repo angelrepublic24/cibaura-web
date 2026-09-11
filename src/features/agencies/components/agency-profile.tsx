@@ -73,7 +73,7 @@ export function AgencyProfile({
     router.replace(`/agencies/${encodeURIComponent(slug)}?${qs}`);
   }
 
-  if (profileQuery.isLoading) {
+  if (profileQuery.isPending) {
     return <LoadingState label="Loading agency…" />;
   }
   if (profileQuery.isError) {
@@ -86,7 +86,7 @@ export function AgencyProfile({
     );
   }
 
-  const agency = profileQuery.data!;
+  const agency = profileQuery.data;
 
   return (
     <div>
@@ -397,7 +397,7 @@ function AgencyCarsGrid({
       ) : (
         <>
           <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-            {query.data!.items.map((car) => (
+            {(query.data?.items ?? []).map((car) => (
               <CarCard
                 key={car.id}
                 car={car}
@@ -496,8 +496,8 @@ function AgencyReviews({
           <>
             <ul className="space-y-4">
               {(expanded
-                ? query.data!.items
-                : query.data!.items.slice(0, 3)
+                ? (query.data?.items ?? [])
+                : (query.data?.items ?? []).slice(0, 3)
               ).map((review) => (
                 <ReviewCard key={review.id} review={review} />
               ))}

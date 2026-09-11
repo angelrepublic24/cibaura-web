@@ -129,7 +129,7 @@ function StaffManager() {
           />
         ) : (
           <div className="space-y-3">
-            {query.data!.map((member) =>
+            {(query.data ?? []).map((member) =>
               editingId === member.id ? (
                 <StaffForm
                   key={member.id}

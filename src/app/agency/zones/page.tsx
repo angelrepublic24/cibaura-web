@@ -160,7 +160,7 @@ function ZonesForBranch({ branchId }: { branchId: string }) {
         />
       ) : (
         <div className="space-y-2">
-          {zonesQuery.data!.map((z) => (
+          {(zonesQuery.data ?? []).map((z) => (
             <div
               key={z.id}
               className="flex items-center justify-between rounded-lg border border-border p-3 text-sm"

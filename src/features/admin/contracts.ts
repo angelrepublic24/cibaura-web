@@ -173,7 +173,8 @@ const VARIABLE_TOKEN = /\{\{\s*([A-Za-z0-9_.]+)\s*\}\}/g;
 export function extractTemplateVariables(markdown: string): string[] {
   const seen = new Set<string>();
   for (const match of markdown.matchAll(VARIABLE_TOKEN)) {
-    seen.add(match[1]);
+    const name = match[1];
+    if (name !== undefined) seen.add(name);
   }
   return [...seen];
 }
