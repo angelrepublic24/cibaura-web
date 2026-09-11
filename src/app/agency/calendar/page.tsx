@@ -12,7 +12,12 @@ import { AgencyApi, agencyKeys } from "@/features/agency/api";
 import { PermissionGate } from "@/features/agency/components/permission-gate";
 import { useAllFleet } from "@/features/agency/hooks";
 import type { AgencyCar, OccupancyEntry } from "@/shared/types/domain";
-import { currentMonth, toIsoDate, todayIso } from "@/shared/utils/dates";
+import {
+  currentMonth,
+  isoMonthParts,
+  toIsoDate,
+  todayIso,
+} from "@/shared/utils/dates";
 import {
   EmptyState,
   ErrorState,
@@ -46,13 +51,13 @@ type View = "month" | "list";
 // ── month math (plain Date, local) ─────────────────────────────────────────
 
 function shiftMonth(month: string, delta: number): string {
-  const [y, m] = month.split("-").map(Number);
-  return toIsoDate(new Date(y, m - 1 + delta, 1)).slice(0, 7);
+  const { year, month: monthOfYear } = isoMonthParts(month);
+  return toIsoDate(new Date(year, monthOfYear - 1 + delta, 1)).slice(0, 7);
 }
 
 function monthLabel(month: string): string {
-  const [y, m] = month.split("-").map(Number);
-  return new Date(y, m - 1, 1).toLocaleDateString("en-US", {
+  const { year, month: monthOfYear } = isoMonthParts(month);
+  return new Date(year, monthOfYear - 1, 1).toLocaleDateString("en-US", {
     month: "long",
     year: "numeric",
   });
@@ -60,8 +65,8 @@ function monthLabel(month: string): string {
 
 /** Six Sun–Sat weeks covering the month grid (Google-Calendar style). */
 function monthWeeks(month: string): Date[][] {
-  const [y, m] = month.split("-").map(Number);
-  const first = new Date(y, m - 1, 1);
+  const { year, month: monthOfYear } = isoMonthParts(month);
+  const first = new Date(year, monthOfYear - 1, 1);
   const cursor = new Date(first);
   cursor.setDate(first.getDate() - first.getDay()); // rewind to Sunday
   const weeks: Date[][] = [];

@@ -119,10 +119,10 @@ export function StaffForm(props: StaffFormProps) {
     <Card>
       <CardHeader>
         <CardTitle className="font-display text-base">
-          {editing ? `Edit ${member!.name}` : "Add staff member"}
+          {member ? `Edit ${member.name}` : "Add staff member"}
         </CardTitle>
-        {editing ? (
-          <p className="text-sm text-muted-foreground">{member!.email}</p>
+        {member ? (
+          <p className="text-sm text-muted-foreground">{member.email}</p>
         ) : null}
       </CardHeader>
       <CardContent className="space-y-5">
@@ -256,7 +256,7 @@ export function StaffForm(props: StaffFormProps) {
               </p>
             ) : (
               <div className="grid gap-2 sm:grid-cols-2">
-                {branchesQuery.data!.map((b) => {
+                {(branchesQuery.data ?? []).map((b) => {
                   const checked = branchIds.includes(b.id);
                   return (
                     <label

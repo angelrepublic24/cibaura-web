@@ -6,7 +6,7 @@ import { ArrowRight, CalendarClock, Inbox } from "lucide-react";
 import { AgencyApi, agencyKeys } from "@/features/agency/api";
 import type { Booking } from "@/shared/types/domain";
 import { formatMoneyCents } from "@/shared/utils/money";
-import { formatIsoDate, todayIso } from "@/shared/utils/dates";
+import { formatIsoDate, isoDateParts, todayIso } from "@/shared/utils/dates";
 import { Badge } from "@/shared/components/ui/badge";
 import {
   Card,
@@ -152,10 +152,10 @@ function Stat({ label, value, loading, error, href, emphasis }: StatProps) {
 // ── upcoming pickups ─────────────────────────────────────────────────────────
 
 function daysUntil(iso: string): number {
-  const [y, m, d] = iso.split("-").map(Number);
-  const target = new Date(y, m - 1, d).getTime();
-  const [ty, tm, td] = todayIso().split("-").map(Number);
-  const today = new Date(ty, tm - 1, td).getTime();
+  const { year, month, day } = isoDateParts(iso);
+  const target = new Date(year, month - 1, day).getTime();
+  const t = isoDateParts(todayIso());
+  const today = new Date(t.year, t.month - 1, t.day).getTime();
   return Math.round((target - today) / 86_400_000);
 }
 

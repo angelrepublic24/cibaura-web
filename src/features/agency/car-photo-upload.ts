@@ -43,10 +43,10 @@ export async function uploadCarPhotosSequentially(
   onProgress: (update: PhotoUploadProgress) => void,
 ): Promise<number> {
   let uploaded = 0;
-  for (let index = 0; index < files.length; index++) {
+  for (const [index, file] of files.entries()) {
     onProgress({ index, status: "uploading", percent: 0 });
     try {
-      await AgencyApi.uploadCarPhoto(carId, files[index], (percent) =>
+      await AgencyApi.uploadCarPhoto(carId, file, (percent) =>
         onProgress({ index, status: "uploading", percent }),
       );
       uploaded += 1;

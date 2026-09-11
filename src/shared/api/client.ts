@@ -1,5 +1,5 @@
 import axios, {
-  AxiosError,
+  type AxiosError,
   type InternalAxiosRequestConfig,
 } from "axios";
 import { API_URL } from "@/lib/config";

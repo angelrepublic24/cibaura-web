@@ -20,7 +20,7 @@ export interface User {
   /** Present when the user owns/works for an agency. */
   agencyId?: string;
   /** `active | suspended | deleted` (wire `UserDto.status`). */
-  status?: string;
+  status?: UserStatus;
   /** Terms version the user last accepted; null before any acceptance. */
   termsVersion?: string | null;
   createdAt: string;
@@ -32,10 +32,10 @@ export interface UserDto {
   email: string;
   name: string;
   phone: string | null;
-  roles: string[];
+  roles: Role[];
   agencyId: string | null;
   isGuest: boolean;
-  status: string;
+  status: UserStatus;
   termsVersion: string | null;
   createdAt: string;
 }
@@ -262,8 +262,8 @@ export const CAR_DOCUMENT_TYPE_REGISTRATION = "registration";
 /** `GET/POST /agency/fleet/:carId/documents` (wire `CarDocumentDto`). */
 export interface CarDocumentDto {
   id: string;
-  type: string;
-  status: string;
+  type: typeof CAR_DOCUMENT_TYPE_REGISTRATION;
+  status: CarDocumentStatus;
   filename: string;
   contentType: string;
   rejectionReason: string | null;
@@ -503,7 +503,7 @@ export interface Booking {
   /** Deposit snapshotted at request time (car override or platform default), cents. */
   depositCents: number;
   /** Check-in / check-out inspections (ADR-0011), lightweight refs. */
-  inspections: { type: string; status: string; id: string }[];
+  inspections: { type: InspectionType; status: InspectionStatus; id: string }[];
 }
 
 /** Renter block of the frozen rental agreement (license masked to last 4). */
@@ -636,7 +636,7 @@ export type CustomerDocumentType = (typeof CUSTOMER_DOCUMENT_TYPES)[number];
 export interface CustomerDocument {
   id: string;
   /** id_front | id_back | license_front | license_back */
-  type: string;
+  type: CustomerDocumentType;
   filename: string;
   contentType: string;
   uploadedAt: string;
@@ -728,8 +728,7 @@ export interface LedgerEntry {
   bookingId?: string;
   amountCents: number; // signed: credit > 0, debit < 0
   description: string;
-  /** `LedgerKind` on the wire as a plain string (forward-compatible). */
-  kind: string;
+  kind: LedgerKind;
   /** Set on `payout` debits — the payout the money left with. */
   payoutId?: string;
   createdAt: string;
@@ -783,21 +782,18 @@ export interface Payout {
   agencyId: string;
   amountCents: number;
   currency: string;
-  /** `PayoutStatus` on the wire as a plain string. */
-  status: string;
+  status: PayoutStatus;
   /** Bank transfer reference, set by the admin when paid. */
   reference: string | null;
   note: string | null;
   requestedAt: string;
   decidedAt: string | null;
-  /** `PayoutMethod` on the wire (`bank_transfer | stripe_connect`). */
-  method: string;
-  /** `PayoutKind` on the wire (`withdrawal | settlement | advance`). */
-  kind: string;
+  method: PayoutMethod;
+  kind: PayoutKind;
   /** The booking a settlement/advance payout belongs to; null for withdrawals. */
   bookingId: string | null;
-  /** `PayoutRailStatus`, Stripe payouts only. */
-  railStatus: string | null;
+  /** Stripe payouts only. */
+  railStatus: PayoutRailStatus | null;
   /** What Stripe posted to the host's bank (minor units + currency, e.g. DOP). */
   receivedAmount: { value: number; currency: string } | null;
   failureReason: string | null;
@@ -816,7 +812,7 @@ export type PayoutAccountStatus = (typeof PAYOUT_ACCOUNT_STATUSES)[number];
 
 /** `GET /agency/payout-account` (wire `PayoutAccountDto`). */
 export interface PayoutAccountDto {
-  status: string;
+  status: PayoutAccountStatus;
   rail: string;
   /** Stripe requirement keys still due (shown verbatim as a hint list). */
   requirementsDue: string[];
@@ -882,7 +878,7 @@ export type ContractTemplateStatus = (typeof CONTRACT_TEMPLATE_STATUSES)[number]
 
 /** `GET /legal/contracts/:kind` / the `current` block of the host agreement. */
 export interface ContractTemplatePublicDto {
-  kind: string;
+  kind: ContractKind;
   version: number;
   title: string;
   /** Server-rendered, sanitized HTML (Markdown → HTML, variables substituted). */
@@ -891,11 +887,11 @@ export interface ContractTemplatePublicDto {
 
 export interface ContractTemplateAdminDto {
   id: string;
-  kind: string;
+  kind: ContractKind;
   version: number | null;
   title: string;
   bodyMarkdown: string;
-  status: string;
+  status: ContractTemplateStatus;
   changeNote: string | null;
   requireResign: boolean;
   createdAt: string;
@@ -912,7 +908,7 @@ export interface ContractSignatureDto {
 /** An immutable signed snapshot (HTML + PDF) with its signatures. */
 export interface ContractDocumentDto {
   id: string;
-  kind: string;
+  kind: ContractKind;
   templateVersion: number;
   status: string;
   createdAt: string;
@@ -949,8 +945,8 @@ export interface BookingAgreementDocumentDto {
 
 export interface InspectionMediaDto {
   id: string;
-  kind: string;
-  label: string;
+  kind: MediaKind;
+  label: MediaLabel;
   status: string;
   /** Signed URL (parties + admin only); null until uploaded. */
   url: string | null;
@@ -972,8 +968,8 @@ export interface InspectionMediaUploadDto {
 export interface InspectionDto {
   id: string;
   bookingId: string;
-  type: string;
-  status: string;
+  type: InspectionType;
+  status: InspectionStatus;
   odometerKm: number | null;
   fuelLevelEighths: number | null;
   damageNotes: string | null;
@@ -1065,7 +1061,7 @@ export type SettlementCase = (typeof SETTLEMENT_CASES)[number];
 export interface DepositDto {
   amountCents: number;
   currency: string;
-  status: string;
+  status: DepositStatus;
   captureBefore: string | null;
   capturedCents: number;
   /** Owning customer only, while `requires_action` (resume 3DS). */
@@ -1075,7 +1071,7 @@ export interface DepositDto {
 export interface ClaimDto {
   id: string;
   bookingId: string;
-  status: string;
+  status: ClaimStatus;
   requestedCents: number;
   approvedCents: number | null;
   capturedCents: number;
@@ -1106,7 +1102,7 @@ export interface SettlementLineDto {
 /** Server-computed settlement outcome — rendered verbatim, never derived. */
 export interface SettlementDto {
   status: string;
-  case: string;
+  case: SettlementCase;
   refundCents: number;
   retentionCents: number;
   earlyReturnRefundCents: number;

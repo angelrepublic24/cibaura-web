@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
+import { isoDateParts, isoMonthParts } from "@/shared/utils/dates";
 import { cn } from "@/lib/utils";
 
 /**
@@ -214,9 +215,9 @@ const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 
 /** 42-cell Monday-first grid for a `YYYY-MM` month; empty strings pad. */
 function monthGrid(month: string): string[] {
-  const [y, m] = month.split("-").map(Number);
-  const first = new Date(Date.UTC(y, m - 1, 1));
-  const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const { year, month: monthOfYear } = isoMonthParts(month);
+  const first = new Date(Date.UTC(year, monthOfYear - 1, 1));
+  const daysInMonth = new Date(Date.UTC(year, monthOfYear, 0)).getUTCDate();
   const lead = (first.getUTCDay() + 6) % 7; // Monday = 0
   const cells: string[] = [];
   for (let i = 0; i < lead; i++) cells.push("");
@@ -228,14 +229,14 @@ function monthGrid(month: string): string[] {
 }
 
 function shiftMonth(month: string, delta: number): string {
-  const [y, m] = month.split("-").map(Number);
-  const date = new Date(Date.UTC(y, m - 1 + delta, 1));
+  const { year, month: monthOfYear } = isoMonthParts(month);
+  const date = new Date(Date.UTC(year, monthOfYear - 1 + delta, 1));
   return date.toISOString().slice(0, 7);
 }
 
 function formatMonth(month: string): string {
-  const [y, m] = month.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-US", {
+  const { year, month: monthOfYear } = isoMonthParts(month);
+  return new Date(Date.UTC(year, monthOfYear - 1, 1)).toLocaleDateString("en-US", {
     month: "long",
     year: "numeric",
     timeZone: "UTC",
@@ -243,8 +244,8 @@ function formatMonth(month: string): string {
 }
 
 function formatLong(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", {
+  const { year, month, day } = isoDateParts(iso);
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",
     day: "numeric",
@@ -255,8 +256,8 @@ function formatLong(iso: string): string {
 
 /** Add N days to a YYYY-MM-DD string (UTC-safe; display/selection only). */
 export function addDaysIso(iso: string, days: number): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  const date = new Date(Date.UTC(y, m - 1, d));
+  const { year, month, day } = isoDateParts(iso);
+  const date = new Date(Date.UTC(year, month - 1, day));
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
 }

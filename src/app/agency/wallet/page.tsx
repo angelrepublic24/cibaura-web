@@ -74,7 +74,7 @@ function WalletBody() {
     queryFn: AgencyApi.payouts,
   });
 
-  if (walletQuery.isLoading) return <LoadingState label="Loading wallet…" />;
+  if (walletQuery.isPending) return <LoadingState label="Loading wallet…" />;
   if (walletQuery.isError) {
     return (
       <ErrorState
@@ -85,7 +85,7 @@ function WalletBody() {
     );
   }
 
-  const wallet = walletQuery.data!;
+  const wallet = walletQuery.data;
   const currency = wallet.account.currency;
 
   return (
@@ -130,14 +130,14 @@ function WalletBody() {
             message={payoutsQuery.error.message}
             onRetry={() => payoutsQuery.refetch()}
           />
-        ) : payoutsQuery.data!.length === 0 ? (
+        ) : (payoutsQuery.data?.length ?? 0) === 0 ? (
           <EmptyState
             title="No payouts yet"
             description="Request a payout above once you have an available balance, or set up Stripe payouts to receive settlements automatically."
             className="py-10"
           />
         ) : (
-          <PayoutsTable payouts={payoutsQuery.data!} />
+          <PayoutsTable payouts={payoutsQuery.data ?? []} />
         )}
       </section>
 

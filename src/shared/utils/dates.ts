@@ -72,11 +72,48 @@ export function formatRemaining(ms: number): string {
   return `${minutes}m`;
 }
 
+/** Numeric parts of a `YYYY-MM` string. Parts are `NaN` when the input is malformed. */
+export interface IsoMonthParts {
+  year: number;
+  /** 1-12. */
+  month: number;
+}
+
+/** Numeric parts of a `YYYY-MM-DD` string. Parts are `NaN` when the input is malformed. */
+export interface IsoDateParts extends IsoMonthParts {
+  /** 1-31. */
+  day: number;
+}
+
+/** `Number(part)`, or `NaN` when the segment is missing. */
+function segment(value: string | undefined): number {
+  return value === undefined ? Number.NaN : Number(value);
+}
+
+/**
+ * Split a `YYYY-MM` string into its numeric parts. Malformed input yields
+ * `NaN` parts, which propagate to an Invalid Date exactly as before.
+ */
+export function isoMonthParts(month: string): IsoMonthParts {
+  const [year, monthOfYear] = month.split("-");
+  return { year: segment(year), month: segment(monthOfYear) };
+}
+
+/** Split a `YYYY-MM-DD` string into its numeric parts (see `isoMonthParts`). */
+export function isoDateParts(iso: string): IsoDateParts {
+  const [year, monthOfYear, dayOfMonth] = iso.split("-");
+  return {
+    year: segment(year),
+    month: segment(monthOfYear),
+    day: segment(dayOfMonth),
+  };
+}
+
 /** Human display for an ISO date, e.g. "Jul 30, 2026". */
 export function formatIsoDate(iso: string | undefined): string {
   if (!isIsoDate(iso)) return "—";
-  const [y, m, d] = iso.split("-").map(Number);
-  const date = new Date(y, m - 1, d);
+  const { year, month, day } = isoDateParts(iso);
+  const date = new Date(year, month - 1, day);
   return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",

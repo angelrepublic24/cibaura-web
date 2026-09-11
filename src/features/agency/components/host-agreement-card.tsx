@@ -50,7 +50,7 @@ export function HostAgreementCard() {
     },
   });
 
-  if (query.isLoading) {
+  if (query.isPending) {
     return (
       <Card>
         <CardHeader>
@@ -80,7 +80,7 @@ export function HostAgreementCard() {
     );
   }
 
-  const status = query.data!;
+  const status = query.data;
   const signed = status.signed;
   const needsSignature = !signed || status.resignRequired;
 

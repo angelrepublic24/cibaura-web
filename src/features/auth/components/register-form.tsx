@@ -49,14 +49,20 @@ export function RegisterForm() {
   });
 
   const mutation = useMutation({
-    mutationFn: (values: RegisterFormValues) =>
+    mutationFn: ({
+      values,
+      // The version the user actually saw/accepted — read from the server.
+      termsVersion,
+    }: {
+      values: RegisterFormValues;
+      termsVersion: string;
+    }) =>
       AuthApi.register({
         email: values.email,
         password: values.password,
         fullName: values.fullName,
         phone: values.phone || undefined,
-        // The version the user actually saw/accepted — read from the server.
-        termsVersion: legal.data!.termsVersion,
+        termsVersion,
       }),
     onSuccess: ({ user }) => {
       // The response set the httpOnly session cookies; only the user
@@ -92,8 +98,11 @@ export function RegisterForm() {
         <form
           className="space-y-4"
           onSubmit={form.handleSubmit((values) => {
+            const termsVersion = legal.data?.termsVersion;
+            // The submit button stays disabled until the terms load.
+            if (termsVersion === undefined) return;
             setTermsNotice(null);
-            mutation.mutate(values);
+            mutation.mutate({ values, termsVersion });
           })}
           noValidate
         >

@@ -42,7 +42,7 @@ import { Textarea } from "@/shared/components/ui/textarea";
 export function BookingDetail({ bookingId }: { bookingId: string }) {
   const query = useBookingDetail(bookingId);
 
-  if (query.isLoading) return <LoadingState label="Loading booking…" />;
+  if (query.isPending) return <LoadingState label="Loading booking…" />;
   if (query.isError) {
     return (
       <ErrorState
@@ -53,7 +53,7 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
     );
   }
 
-  const booking = query.data!;
+  const booking = query.data;
   const isTerminal = BOOKING_TERMINAL_STATES.includes(booking.state);
 
   return (

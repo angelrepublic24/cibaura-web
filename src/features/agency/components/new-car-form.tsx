@@ -234,8 +234,8 @@ export function CarForm(props: CarFormProps) {
   });
 
   const update = useMutation({
-    mutationFn: (values: CarFormValues) =>
-      AgencyApi.updateCar(car!.id, {
+    mutationFn: ({ carId, values }: { carId: string; values: CarFormValues }) =>
+      AgencyApi.updateCar(carId, {
         ...toCarFields(values),
         // An emptied deposit CLEARS the override (`null` = platform default).
         depositCents:
@@ -257,7 +257,13 @@ export function CarForm(props: CarFormProps) {
   return (
     <form
       className="space-y-4"
-      onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+      onSubmit={form.handleSubmit((values) => {
+        if (props.mode === "edit") {
+          update.mutate({ carId: props.car.id, values });
+        } else {
+          create.mutate(values);
+        }
+      })}
       noValidate
     >
       {showBranch ? (

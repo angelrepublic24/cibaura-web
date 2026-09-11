@@ -56,9 +56,7 @@ export function ResetPasswordForm({ token }: { token?: string }) {
     defaultValues: { password: "", confirmPassword: "", acceptTerms: false },
   });
 
-  const tokenValid = !!token && TOKEN_REGEX.test(token);
-
-  if (!tokenValid) {
+  if (token === undefined || !TOKEN_REGEX.test(token)) {
     return (
       <InvalidLinkCard
         title="This link is not valid"
@@ -116,12 +114,15 @@ export function ResetPasswordForm({ token }: { token?: string }) {
         <form
           className="space-y-4"
           onSubmit={form.handleSubmit((values) => {
+            const termsVersion = legal.data?.termsVersion;
+            // The submit button stays disabled until the terms load.
+            if (termsVersion === undefined) return;
             setTermsNotice(null);
             mutation.mutate(
               {
-                token: token!,
+                token,
                 password: values.password,
-                termsVersion: legal.data!.termsVersion,
+                termsVersion,
               },
               {
                 onError: async (error) => {
@@ -225,7 +226,7 @@ export function ResetPasswordForm({ token }: { token?: string }) {
           <span>
             Using the Cibaura app?{" "}
             <a
-              href={appDeepLink(token!)}
+              href={appDeepLink(token)}
               className="text-primary underline underline-offset-2"
             >
               Open this link in the app

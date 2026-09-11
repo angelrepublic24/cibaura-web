@@ -166,7 +166,7 @@ export function CarSearchResults({
           ) : (
             <>
               <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                {query.data!.items.map((car) => (
+                {(query.data?.items ?? []).map((car) => (
                   <CarCard
                     key={car.id}
                     car={car}

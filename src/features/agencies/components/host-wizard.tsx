@@ -581,25 +581,32 @@ function MemberSteps() {
   const [registrationUploaded, setRegistrationUploaded] = useState(false);
 
   const queries = [sessionQuery, documentsQuery, agreementQuery, fleetQuery];
-  if (queries.some((q) => q.isLoading)) {
+  // Per-query success checks (not `queries.some`) so TypeScript narrows every
+  // result to its success variant below — the array form cannot.
+  if (
+    !sessionQuery.isSuccess ||
+    !documentsQuery.isSuccess ||
+    !agreementQuery.isSuccess ||
+    !fleetQuery.isSuccess
+  ) {
+    const failed = queries.find((q) => q.isError);
+    if (failed && !queries.some((q) => q.isLoading)) {
+      return (
+        <ErrorState
+          title="Could not load your application"
+          message={getErrorMessage(failed.error, "Please try again.")}
+          onRetry={() => queries.forEach((q) => void q.refetch())}
+        />
+      );
+    }
     return <LoadingState label="Resuming your application…" />;
   }
-  const failed = queries.find((q) => q.isError);
-  if (failed) {
-    return (
-      <ErrorState
-        title="Could not load your application"
-        message={getErrorMessage(failed.error, "Please try again.")}
-        onRetry={() => queries.forEach((q) => void q.refetch())}
-      />
-    );
-  }
 
-  const docs = documentsQuery.data!;
+  const docs = documentsQuery.data;
   const docsComplete = HOST_DOCS.every((r) => docs.some((d) => d.type === r.type));
-  const agreement = agreementQuery.data!;
+  const agreement = agreementQuery.data;
   const signed = agreement.signed !== null && !agreement.resignRequired;
-  const car: AgencyCar | null = fleetQuery.data!.items[0] ?? null;
+  const car: AgencyCar | null = fleetQuery.data.items[0] ?? null;
   const registrationDone = !!car && (!!car.registration || registrationUploaded);
 
   const derived: WizardStep = !docsComplete
@@ -668,7 +675,7 @@ function MemberSteps() {
       ) : (
         <DoneStep
           car={car}
-          verified={sessionQuery.data!.agency.verificationStatus === "verified"}
+          verified={sessionQuery.data.agency.verificationStatus === "verified"}
           onReviewDocuments={() => setVisiting("documents")}
         />
       )}

@@ -16,7 +16,11 @@ import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { formatMoneyCents } from "@/shared/utils/money";
-import { businessTodayIso, formatIsoDate } from "@/shared/utils/dates";
+import {
+  businessTodayIso,
+  formatIsoDate,
+  isoMonthParts,
+} from "@/shared/utils/dates";
 import { cn } from "@/lib/utils";
 
 /**
@@ -44,10 +48,10 @@ const STATE_FILTERS: { value: "" | BookingState; label: string }[] = [
 
 /** [first-of-this-month, first-of-next-month) in the business timezone. */
 function currentMonthRange(): { from: string; to: string } {
-  const [y, m] = businessTodayIso().split("-").map(Number);
-  const from = `${y}-${String(m).padStart(2, "0")}-01`;
-  const nextY = m === 12 ? y + 1 : y;
-  const nextM = m === 12 ? 1 : m + 1;
+  const { year, month } = isoMonthParts(businessTodayIso());
+  const from = `${year}-${String(month).padStart(2, "0")}-01`;
+  const nextY = month === 12 ? year + 1 : year;
+  const nextM = month === 12 ? 1 : month + 1;
   const to = `${nextY}-${String(nextM).padStart(2, "0")}-01`;
   return { from, to };
 }

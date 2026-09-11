@@ -20,6 +20,23 @@ const eslintConfig = [
       "next-env.d.ts",
     ],
   },
+  {
+    // Type-safety floor. `next/typescript` already loads the
+    // `@typescript-eslint` plugin; these promote the escape hatches from
+    // "allowed" to "build-breaking" so hand-written types stay honest.
+    // All four are syntactic rules — no `parserOptions.project` needed, so
+    // lint stays as fast as it is today.
+    files: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/ban-ts-comment": "error",
+      "@typescript-eslint/no-non-null-assertion": "error",
+      "@typescript-eslint/consistent-type-imports": [
+        "error",
+        { prefer: "type-imports", fixStyle: "separate-type-imports" },
+      ],
+    },
+  },
 ];
 
 export default eslintConfig;

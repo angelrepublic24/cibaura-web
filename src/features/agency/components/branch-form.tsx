@@ -146,6 +146,9 @@ function parseDay(range: string | undefined): DayValues {
     return { open: false, from: "09:00", to: "18:00" };
   }
   const [from, to] = range.split("-");
+  if (from === undefined || to === undefined) {
+    return { open: false, from: "09:00", to: "18:00" };
+  }
   return { open: true, from, to };
 }
 

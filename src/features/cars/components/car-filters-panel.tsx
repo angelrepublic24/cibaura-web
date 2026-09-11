@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { skipToken, useQuery } from "@tanstack/react-query";
 import { SlidersHorizontal } from "lucide-react";
 import { CatalogApi, catalogKeys } from "@/features/catalog/api";
 import type { CarSearchFilters } from "@/features/cars/filters";
@@ -54,8 +54,9 @@ export function CarFiltersPanel({
 
   const modelsQuery = useQuery({
     queryKey: catalogKeys.models(selectedMake?.id ?? ""),
-    queryFn: () => CatalogApi.listModels(selectedMake!.id),
-    enabled: !!selectedMake,
+    queryFn: selectedMake
+      ? () => CatalogApi.listModels(selectedMake.id)
+      : skipToken,
   });
 
   function set<K extends keyof CarSearchFilters>(
