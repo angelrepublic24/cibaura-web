@@ -25,4 +25,5 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
+      - run: npm run lint:suppressions
       - run: npm run build

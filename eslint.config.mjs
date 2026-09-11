@@ -29,7 +29,19 @@ const eslintConfig = [
     files: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
     rules: {
       "@typescript-eslint/no-explicit-any": "error",
-      "@typescript-eslint/ban-ts-comment": "error",
+      // No escape hatch: the rule's default still allows `@ts-expect-error`
+      // when it carries a description, so ban all three outright. Inline
+      // disable directives that name @typescript-eslint rules are caught by
+      // `npm run lint:suppressions` (scripts/check-type-suppressions.mjs).
+      "@typescript-eslint/ban-ts-comment": [
+        "error",
+        {
+          "ts-expect-error": true,
+          "ts-ignore": true,
+          "ts-nocheck": true,
+          "ts-check": false,
+        },
+      ],
       "@typescript-eslint/no-non-null-assertion": "error",
       "@typescript-eslint/consistent-type-imports": [
         "error",
