@@ -5,12 +5,7 @@ import { usePlatformConfig } from "@/features/admin/hooks";
 import { getErrorMessage } from "@/shared/api/errors";
 import { ErrorState, LoadingState } from "@/shared/components/states";
 
-/**
- * /admin/settings — the platform configuration (spec §0.7): commission,
- * cancellation tiers, dispute/claim windows, deposit defaults, check-in and
- * inspection rules, media retention and the Stripe payout switch. One form,
- * one `PATCH /admin/config` with only the changed keys.
- */
+/** Editable settings use the deployed commission and cancellation-policy routes. */
 export default function AdminSettingsPage() {
   const config = usePlatformConfig();
 
@@ -19,8 +14,8 @@ export default function AdminSettingsPage() {
       <div>
         <h1 className="text-2xl font-bold">Settings</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Platform-wide configuration. Every figure here is what the server
-          enforces — customers and hosts see the same numbers.
+          Manage commission and cancellation policy. Additional settings are
+          unavailable until saving them is supported.
         </p>
       </div>
 
