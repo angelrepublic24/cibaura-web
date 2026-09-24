@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import { isOptimizableImage } from "@/shared/config/media";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -214,14 +215,13 @@ function AgencyHeader({
       <div className="px-6 pb-6">
         <div className="-mt-10 flex flex-wrap items-end gap-4">
           <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-[var(--radius)] border border-border bg-surface shadow-sm">
-            {logoUrl ? (
+            {logoUrl && isOptimizableImage(logoUrl) ? (
               <Image
                 src={logoUrl}
                 alt={name}
                 width={80}
                 height={80}
                 className="h-full w-full object-cover"
-                unoptimized
               />
             ) : (
               <CarFront className="h-9 w-9 text-muted-foreground" />

@@ -9,6 +9,7 @@
  * There is NO stock-photo substitution anymore: a car with no photos renders
  * the branded `CarPhotoPlaceholder` — never someone else's car.
  */
+import { isOptimizableImage } from "@/shared/config/media";
 import { API_URL } from "@/lib/config";
 import type { Car, CarDetail } from "@/shared/types/domain";
 
@@ -22,20 +23,13 @@ export function resolveCarPhotoUrl(url: string): string {
   return `${API_URL}${url.startsWith("/") ? url : `/${url}`}`;
 }
 
-/** Matches the narrowly allow-listed public stream in next.config.ts.
- * Legacy external images remain direct until their provider is explicitly configured.
- */
-export function canOptimizeCarPhoto(url: string): boolean {
-  const prefix = `${API_URL}/cars/photos/`;
-  return url.startsWith(prefix) && /^[0-9a-f-]+$/i.test(url.slice(prefix.length));
-}
-
 /**
  * The primary card photo for a car, or `null` when it has none (callers
  * render the branded placeholder).
  */
 export function carPhoto(car: Pick<Car, "primaryPhoto">): string | null {
-  return car.primaryPhoto ? resolveCarPhotoUrl(car.primaryPhoto) : null;
+  const photo = car.primaryPhoto ? resolveCarPhotoUrl(car.primaryPhoto) : null;
+  return photo && isOptimizableImage(photo) ? photo : null;
 }
 
 /** The car's real gallery (resolved URLs, server order). Empty when none. */
@@ -43,8 +37,9 @@ export function carGallery(
   car: Pick<CarDetail, "photos" | "primaryPhoto">,
 ): string[] {
   if (car.photos && car.photos.length > 0) {
-    return car.photos.map(resolveCarPhotoUrl);
+    return car.photos.map(resolveCarPhotoUrl).filter(isOptimizableImage);
   }
   // Older payloads may carry only primaryPhoto — still real, never stock.
-  return car.primaryPhoto ? [resolveCarPhotoUrl(car.primaryPhoto)] : [];
+  const photo = carPhoto(car);
+  return photo ? [photo] : [];
 }

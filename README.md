@@ -17,6 +17,9 @@ Web frontend for **Cibaura**, a multi-vendor **rent-a-car marketplace**. One app
 
 ## Getting started
 
+Production build, Docker/Compose, HTTPS and the complete environment inventory:
+[WEB-DEPLOY.md](WEB-DEPLOY.md). Production builds reject local/example API and site URLs.
+
 ```bash
 # 1. Install
 npm install

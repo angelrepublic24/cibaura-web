@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { isOptimizableImage } from "@/shared/config/media";
 import { Building2, Car as CarIcon, MapPin } from "lucide-react";
 import type { AgencyPublicProfile } from "@/features/agencies/api";
 import { PrivateHostBadge } from "@/features/agencies/components/private-host-badge";
@@ -20,14 +21,13 @@ export function AgencyPublicCard({ agency }: { agency: AgencyPublicProfile }) {
           <CardContent className="space-y-3 p-5">
             <div className="flex items-center gap-3 pr-10">
               <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full bg-muted">
-                {agency.logoUrl ? (
+                {agency.logoUrl && isOptimizableImage(agency.logoUrl) ? (
                   <Image
                     src={agency.logoUrl}
                     alt={agency.name}
                     fill
                     sizes="44px"
                     className="object-cover"
-                    unoptimized
                   />
                 ) : (
                   <span className="flex h-full w-full items-center justify-center">

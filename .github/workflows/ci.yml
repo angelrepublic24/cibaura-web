@@ -1,20 +1,29 @@
-name: CI
+﻿name: CI
 
 on:
   push:
     branches: [main, v1-launch-hardening]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   web:
-    name: Build · typecheck · lint
+    name: Build / typecheck / lint / container
     runs-on: ubuntu-latest
     env:
-      # Dummy public values — the bundle only needs them to exist. Real
-      # deployments inject theirs at build time (see .env.example).
-      NEXT_PUBLIC_API_URL: https://api.ci.invalid
-      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_ci_placeholder
-      NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY: "true"
+      # Real build destinations from repository Actions variables. No placeholders.
+      NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+      NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL }}
+      NEXT_PUBLIC_MEDIA_URL: ${{ vars.NEXT_PUBLIC_MEDIA_URL }}
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
+      NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY: ${{ vars.NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY }}
+      NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${{ vars.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
+      NEXT_PUBLIC_LEGAL_COMPANY_NAME: ${{ vars.NEXT_PUBLIC_LEGAL_COMPANY_NAME }}
+      NEXT_PUBLIC_LEGAL_RNC: ${{ vars.NEXT_PUBLIC_LEGAL_RNC }}
+      NEXT_PUBLIC_LEGAL_ADDRESS: ${{ vars.NEXT_PUBLIC_LEGAL_ADDRESS }}
+      NEXT_PUBLIC_LEGAL_CONTACT_EMAIL: ${{ vars.NEXT_PUBLIC_LEGAL_CONTACT_EMAIL }}
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@v4
@@ -23,7 +32,20 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - run: node scripts/deploy-config-smoke.mjs
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run lint:suppressions
       - run: npm run build
+      - id: container
+        run: docker compose build
+      - name: Verify non-root container, health, static files and image optimizer
+        run: |
+          docker compose up -d --wait --wait-timeout 90
+          test "$(docker compose exec -T web id -u)" != "0"
+          curl --fail http://127.0.0.1:3000/health
+          curl --fail -o /dev/null http://127.0.0.1:3000/brand/og.png
+          curl --fail -o /dev/null 'http://127.0.0.1:3000/_next/image?url=%2Fbrand%2Fog.png&w=640&q=75'
+          curl --fail http://127.0.0.1:3000/robots.txt | grep -F "$NEXT_PUBLIC_SITE_URL"
+      - if: always() && steps.container.outcome == 'success'
+        run: docker compose logs && docker compose down

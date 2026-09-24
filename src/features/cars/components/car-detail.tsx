@@ -47,7 +47,7 @@ import {
   addDaysIso,
   blockedDayPredicate,
 } from "@/shared/components/date-range-picker";
-import { canOptimizeCarPhoto, carGallery } from "@/features/cars/photos";
+import { carGallery } from "@/features/cars/photos";
 import { CarPhotoPlaceholder } from "@/features/cars/components/car-photo-placeholder";
 import { RentalPolicyCard } from "@/features/cars/components/rental-policy-card";
 import { useAuthStore } from "@/shared/auth/store";
@@ -249,7 +249,6 @@ function PhotoGallery({ photos, alt }: { photos: string[]; alt: string }) {
             sizes="(max-width: 1024px) 100vw, 60vw"
             className="object-cover"
             priority
-            unoptimized={!canOptimizeCarPhoto(lead)}
           />
         ) : (
           <CarPhotoPlaceholder label="Photos coming soon" />
@@ -276,7 +275,6 @@ function PhotoGallery({ photos, alt }: { photos: string[]; alt: string }) {
                 fill
                 sizes="20vw"
                 className="object-cover"
-                unoptimized={!canOptimizeCarPhoto(src)}
               />
             </button>
           ))}
