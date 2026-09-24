@@ -8,7 +8,7 @@ import type {
   Pricing,
 } from "@/shared/types/domain";
 import type { CarSearchFilters } from "@/features/cars/filters";
-import { wholeUnitsToCents } from "@/shared/utils/money";
+import { carSearchParams } from "./request-params";
 
 /**
  * Public cars API module (search + detail + availability + server quote).
@@ -56,30 +56,7 @@ export const CarsApi = {
    */
   async search(city: string, filters: CarSearchFilters): Promise<Paginated<Car>> {
     const res = await Api.get("/cars/search", {
-      params: {
-        // "all" (or empty) = search every city → omit the param entirely.
-        city: city && city !== "all" ? city : undefined,
-        start: filters.from,
-        end: filters.to,
-        make: filters.make, // catalog slug (e.g. "toyota")
-        model: filters.model, // catalog slug, scoped to make server-side
-        yearMin: filters.yearMin,
-        yearMax: filters.yearMax,
-        color: filters.color,
-        category: filters.category,
-        transmission: filters.transmission,
-        // URL keeps whole units for humans; the API filters on cents.
-        // (Unit conversion at the boundary — not price computation.)
-        priceMinCents:
-          filters.priceMin !== undefined
-            ? wholeUnitsToCents(filters.priceMin)
-            : undefined,
-        priceMaxCents:
-          filters.priceMax !== undefined
-            ? wholeUnitsToCents(filters.priceMax)
-            : undefined,
-        page: filters.page,
-      },
+      params: carSearchParams(city, filters),
     });
     return res.data;
   },

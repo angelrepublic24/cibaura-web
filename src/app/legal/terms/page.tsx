@@ -3,11 +3,12 @@ import Link from "next/link";
 import { LegalVersion } from "@/features/legal/components/legal-version";
 import { CancellationPolicySummary } from "@/features/legal/components/cancellation-policy";
 import { LEGAL } from "@/shared/config/legal";
+import { pageMetadata } from "@/shared/seo/metadata";
+import { BreadcrumbJsonLd } from "@/shared/seo/structured-data";
 
-export const metadata: Metadata = {
-  title: "Terms of Service",
-  description: `The terms that govern your use of the ${LEGAL.companyName} rent-a-car marketplace.`,
-};
+export function generateMetadata(): Metadata {
+  return pageMetadata({ title: "Terms of Service", description: `The terms that govern your use of the ${LEGAL.companyName} rent-a-car marketplace.`, path: "/legal/terms" });
+}
 
 /**
  * /legal/terms — Terms of Service for the marketplace. The operational terms
@@ -43,6 +44,7 @@ export default function TermsPage() {
 
   return (
     <>
+      <BreadcrumbJsonLd items={[{ name: "Home", path: "/" }, { name: "Terms of Service", path: "/legal/terms" }]} />
       <header className="space-y-2">
         <h1 className="font-display text-3xl text-foreground">
           Terms of Service

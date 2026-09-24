@@ -133,13 +133,24 @@ export function AgreementCard({ booking }: { booking: BookingDetail }) {
               Driver&apos;s license
             </dt>
             <dd className="text-foreground">
-              {agreement.renter.licenseMasked}
-              {agreement.renter.licenseExpiry ? (
+              {/* Withheld for an agency viewer outside the ADR-0011 window —
+                  this route is reachable by hosts and admins too. */}
+              {agreement.renter.licenseMasked ? (
+                <>
+                  {agreement.renter.licenseMasked}
+                  {agreement.renter.licenseExpiry ? (
+                    <span className="text-muted-foreground">
+                      {" "}
+                      · valid until{" "}
+                      {formatIsoDate(agreement.renter.licenseExpiry)}
+                    </span>
+                  ) : null}
+                </>
+              ) : (
                 <span className="text-muted-foreground">
-                  {" "}
-                  · valid until {formatIsoDate(agreement.renter.licenseExpiry)}
+                  Shared from acceptance until the car is returned
                 </span>
-              ) : null}
+              )}
             </dd>
           </div>
           <div>

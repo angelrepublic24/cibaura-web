@@ -6,6 +6,7 @@ import QueryProvider from "@/shared/providers/query-provider";
 import { SiteHeader } from "@/shared/components/site-header";
 import { SiteFooterNav } from "@/shared/components/site-footer-nav";
 import { Logo } from "@/shared/components/logo";
+import { SITE_URL } from "@/shared/seo/metadata";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -18,7 +19,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://cibaura.com"),
+  metadataBase: SITE_URL,
   title: {
     default: "Cibaura — rent a car near you",
     template: "%s · Cibaura",

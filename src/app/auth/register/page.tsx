@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { RegisterForm } from "@/features/auth/components/register-form";
 import { Logo } from "@/shared/components/logo";
+import { pageMetadata } from "@/shared/seo/metadata";
 
-export const metadata = { title: "Create account" };
+export function generateMetadata() {
+  return pageMetadata({ title: "Create account", description: "Create your Cibaura account to request car rentals in the Dominican Republic.", path: "/auth/register", noIndex: true });
+}
 
 export default function RegisterPage() {
   return (

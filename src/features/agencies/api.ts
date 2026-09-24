@@ -7,7 +7,7 @@ import type {
   Paginated,
 } from "@/shared/types/domain";
 import type { CarSearchFilters } from "@/features/cars/filters";
-import { wholeUnitsToCents } from "@/shared/utils/money";
+import { agencyCarsParams } from "@/features/cars/request-params";
 
 /** Privacy-safe public branch: identity + city only (no address/coords). */
 export interface PublicBranch {
@@ -195,28 +195,7 @@ export const AgenciesApi = {
     filters: AgencyCarsFilters,
   ): Promise<Paginated<Car>> {
     const res = await Api.get(`/agencies/${slug}/cars`, {
-      params: {
-        branchId: filters.branchId,
-        make: filters.make,
-        model: filters.model,
-        yearMin: filters.yearMin,
-        yearMax: filters.yearMax,
-        color: filters.color,
-        category: filters.category,
-        transmission: filters.transmission,
-        // URL keeps whole units for humans; the API filters on cents.
-        priceMinCents:
-          filters.priceMin !== undefined
-            ? wholeUnitsToCents(filters.priceMin)
-            : undefined,
-        priceMaxCents:
-          filters.priceMax !== undefined
-            ? wholeUnitsToCents(filters.priceMax)
-            : undefined,
-        sort: filters.sort,
-        page: filters.page,
-        pageSize: filters.pageSize,
-      },
+      params: agencyCarsParams(filters),
     });
     return res.data;
   },

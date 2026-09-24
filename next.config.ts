@@ -10,12 +10,24 @@ import type { NextConfig } from "next";
  * `rewrites()` proxy here: the API validates the domain pair at boot
  * (`API_PUBLIC_URL` vs `FRONTEND_URL`), so deploy both under one domain.
  */
+const configuredApi = new URL(
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4300",
+);
+const apiPath = configuredApi.pathname.replace(/\/+$/, "");
+const apiPrefix = apiPath.endsWith("/api") ? apiPath : `${apiPath}/api`;
+
 const nextConfig: NextConfig = {
   images: {
-    // Agency-uploaded photos are served through the API and rendered with
-    // next/image `unoptimized`; no remote host needs allow-listing today.
-    // Add an entry here before pointing the optimizer at an external CDN.
-    remotePatterns: [],
+    // Only the public, immutable photo stream; never KYC, documents or arbitrary hosts.
+    remotePatterns: [
+      {
+        protocol: configuredApi.protocol === "https:" ? "https" : "http",
+        hostname: configuredApi.hostname,
+        port: configuredApi.port,
+        pathname: `${apiPrefix}/cars/photos/*`,
+        search: "",
+      },
+    ],
   },
 };
 

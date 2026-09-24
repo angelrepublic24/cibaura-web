@@ -435,7 +435,7 @@ function AgencyCarsGrid({
 
 // ----------------------------------------------------------------- reviews
 
-function AgencyReviews({
+export function AgencyReviews({
   slug,
   reviewCount,
 }: {

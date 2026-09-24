@@ -426,11 +426,11 @@ export interface BookingCustomerDto {
   name: string;
   /**
    * Contact details are exposed to the agency viewer ONLY while the booking
-   * is `accepted | active | returned` (ADR-0011 identity exposure); null
-   * outside those states. The name is always present.
+   * is `accepted | active | returned` (ADR-0011 identity exposure); OMITTED
+   * (undefined, never null) outside those states. The name is always present.
    */
-  email: string | null;
-  phone: string | null;
+  email?: string;
+  phone?: string | null;
 }
 
 /**
@@ -509,8 +509,13 @@ export interface Booking {
 /** Renter block of the frozen rental agreement (license masked to last 4). */
 export interface BookingAgreementRenter {
   fullName: string;
-  licenseMasked: string;
-  licenseExpiry: string | null; // YYYY-MM-DD
+  /**
+   * Same ADR-0011 gate as `BookingCustomerDto`: the licence is OMITTED
+   * (undefined) for an agency viewer outside `accepted | active | returned`.
+   * The full name is always present.
+   */
+  licenseMasked?: string;
+  licenseExpiry?: string | null; // YYYY-MM-DD
 }
 
 /**

@@ -1,9 +1,16 @@
 import { ShieldCheck, KeyRound, MessagesSquare } from "lucide-react";
 import { HeroSearch } from "@/features/cars/components/hero-search";
+import { pageMetadata, SITE_DESCRIPTION } from "@/shared/seo/metadata";
+import { OrganizationJsonLd } from "@/shared/seo/structured-data";
+
+export function generateMetadata() {
+  return pageMetadata({ title: "Car rental in the Dominican Republic", description: SITE_DESCRIPTION, path: "/" });
+}
 
 export default function HomePage() {
   return (
     <div>
+      <OrganizationJsonLd />
       {/* Hero — big, airy, brand-toned. No third-party stock imagery: the
           backdrop is a warm layered gradient built from the brand tokens
           (cream → copper glow → olive haze), so nothing external loads. */}
