@@ -20,6 +20,8 @@ jobs:
     env:
       # Real build destinations from repository Actions variables. No placeholders.
       NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+      NEXT_PUBLIC_BUILD_SHA: ${{ github.sha }}
+      BUILD_ENV_PROBE_API: ${{ vars.BUILD_ENV_PROBE_API }}
       NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL }}
       NEXT_PUBLIC_MEDIA_URL: ${{ vars.NEXT_PUBLIC_MEDIA_URL }}
       NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ vars.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}
@@ -51,6 +53,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: node scripts/check-production-env.mjs
+      - run: node scripts/verify-build-env.mjs
       - run: node scripts/deploy-config-smoke.mjs
       - run: npm run typecheck
       - run: npm run lint

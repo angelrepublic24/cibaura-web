@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 import { PHASE_PRODUCTION_BUILD } from "next/constants";
-import { API_URL, MEDIA_URL, SITE_URL } from "./src/lib/config";
+import {
+  API_URL,
+  MEDIA_URL,
+  SITE_URL,
+  assertRequiredFeatures,
+} from "./src/lib/config";
 import { assertSameSite } from "./src/lib/deployment-policy";
 import { securityHeaders } from "./src/lib/security-headers";
 
@@ -15,8 +20,13 @@ import { securityHeaders } from "./src/lib/security-headers";
  * (`API_PUBLIC_URL` vs `FRONTEND_URL`), so deploy both under one domain.
  */
 const configuredApi = new URL(API_URL);
-if (process.env.NODE_ENV === "production")
+if (process.env.NODE_ENV === "production") {
   assertSameSite(SITE_URL, configuredApi);
+  assertRequiredFeatures(
+    process.env.ALLOW_DEFAULT_LEGAL === "true",
+    process.env.ALLOW_MISSING_MAPS === "true",
+  );
+}
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,

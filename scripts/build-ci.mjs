@@ -1,5 +1,5 @@
 /** Non-production compilation only. Docker never consumes .next-ci artifacts. */
-import { spawn } from "node:child_process";
+import { spawn, execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 
 const child = spawn(
@@ -11,6 +11,16 @@ const child = spawn(
     env: {
       ...process.env,
       NODE_ENV: "development",
+      NEXT_PUBLIC_BUILD_SHA: execFileSync(
+        "git",
+        [
+          "-c",
+          `safe.directory=${process.cwd().replaceAll("\\", "/")}`,
+          "rev-parse",
+          "HEAD",
+        ],
+        { encoding: "utf8" },
+      ).trim(),
       NEXT_PUBLIC_SITE_URL: "https://web.ci.invalid",
       NEXT_PUBLIC_API_URL: "https://api.ci.invalid",
       NEXT_PUBLIC_MEDIA_URL: "https://media.ci.invalid/public/",

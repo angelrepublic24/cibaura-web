@@ -51,7 +51,20 @@ try {
     }
   }
   assert(ready, "standalone must become healthy");
-  assert.deepEqual(await (await get("/health")).json(), { status: "ok" });
+  const health = await (await get("/health")).json();
+  assert.equal(health.status, "ok");
+  assert.equal(health.baked.apiUrl, "https://api.ci.invalid/api");
+  assert.equal(health.baked.siteUrl, "https://web.ci.invalid");
+  assert.equal(health.baked.stripeKeyPrefix, null);
+  assert.match(health.baked.buildSha, /^[a-f0-9]{40}$/);
+  assert.equal(typeof health.baked.legalConfigured, "boolean");
+  assert.equal(typeof health.baked.mapsConfigured, "boolean");
+  assert.deepEqual(health.upstream, {
+    ok: false,
+    status: null,
+    corsMatched: false,
+  });
+  console.log(`CI artifact health: ${JSON.stringify(health)}`);
   await get("/brand/og.png");
   const optimized = await get("/_next/image?url=%2Fbrand%2Fog.png&w=640&q=75");
   assert.match(optimized.headers.get("content-type"), /^image\//);
