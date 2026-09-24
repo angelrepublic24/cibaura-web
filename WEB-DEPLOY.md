@@ -1,5 +1,51 @@
 # Despliegue del web Cibaura
 
+## Tarea 6: configuración visible y diferencias con PRODUCCION-SPEC.md §3.2
+
+`GET /health` devuelve `status: "ok"` (liveness HTTP 200) y `baked` con apiUrl,
+siteUrl normalizada a origen, stripeKeyPrefix (solo pk_live_/pk_test_, o null),
+legalConfigured, mapsConfigured y buildSha. No devuelve claves, identidad legal,
+headers del API ni errores internos. `upstream` contiene status HTTP o null,
+corsMatched y ok. Sonda GET al API_URL normalizado + /health con Origin del sitio,
+sin credenciales, sin seguir redirects y con timeout de 2 segundos. Un API caído
+no reinicia el contenedor sano; consultar upstream.ok para disponibilidad funcional.
+
+NEXT_PUBLIC_BUILD_SHA es build-time obligatorio (40 hex), leído en config.ts:116;
+Docker lo recibe como ARG y Actions lo rellena con github.sha. En builds nativos o
+Compose fijarlo al resultado de `git rev-parse HEAD`, sobre el checkout a desplegar.
+No escribir un SHA inventado en .env.example. Las variables públicas siguen sin
+poder cambiarse en runtime. legalConfigured significa cuatro valores no vacíos;
+no certifica la existencia de la sociedad ni la validez fiscal del RNC.
+
+`npm run build` ejecuta prebuild (`scripts/verify-build-env.mjs`). Next.config
+repite la validación para que invocar next build directamente tampoco la evite.
+Las cuatro variables legales y Maps son obligatorias; flags build-only
+ALLOW_DEFAULT_LEGAL=true / ALLOW_MISSING_MAPS=true permiten excepciones nativas
+explícitas para staging. Docker/release no pasa esos flags. BUILD_ENV_PROBE_API=true
+activa la sonda opcional de build, timeout 5 segundos: exige HTTP 2xx y ACAO
+exactamente igual a SITE_URL.origin. Actions lee vars.BUILD_ENV_PROBE_API.
+Una entrada backend FRONTEND_URL con barra final falla esa comparación. La sonda
+no prueba toda la sesión ni cookies; comprueba exactamente el contrato solicitado.
+
+Discrepancias resueltas o reportadas, sin editar la especificación del lead:
+
+| Tema | Resolución |
+|---|---|
+| Legal y Maps opcionales en el inventario anterior | El inventario anterior quedó obsoleto; ahora obligatorias salvo las excepciones explícitas. Plantilla legal vacía, sin identidad inventada. |
+| BUILD_SHA ausente | Implementado e incrustado desde Git/Actions. |
+| PSL vs aproximación backend | Se porta registrableDomain y los seis labels co/com/net/org/edu/gov, con mensaje backend idéntico. Única adaptación TS: fallback vacío por noUncheckedIndexedAccess en índice garantizado por longitud. Se retira tldts. |
+| Sufijos privados | La aproximación compartida acepta tenants distintos de github.io/vercel.app; no equivale a una PSL real. Es una limitación del contrato backend que ahora comparten ambos. Usar el dominio propio decidido, no tenants de proveedores. |
+| CANONICAL_HOST opcional / 308 en spec | Spec desactualizada frente al PR #13 aprobado: WEB_REDIRECT_HOST obligatorio en Compose TLS + SITE_URL, con 301 en Caddy. |
+| NEXT_PUBLIC_SENTRY_DSN y SSR_SHARED_SECRET | Son trabajos futuros de la spec, no variables implementadas en este web. No se simula que funcionen ni se exigen aún. |
+| ALLOW_PLACEHOLDER_BUILD en §3.4 | Contradice la decisión posterior: no existe ni se añade. CI compila en desarrollo; producción rechaza placeholders. |
+| Stripe test flag | Se conserva el staging explícito existente. La prohibición de este flag en releases comerciales (F2-5) sigue siendo una diferencia respecto al estado actual; no se declara resuelta por esta tarea. |
+| Cantidad de variables en §4 | La instrucción de “diez” quedó obsoleta al añadir BUILD_SHA; Sentry/SSR pendientes no deben confundirse con valores ya consumidos. |
+
+`npm run smoke`, después de build:ci, ejecuta health-config, deploy-config,
+platform-config, booking-guards y seo-smoke. SEO usa copia aislada del standalone
+de CI y fixtures HTTP: evidencia de SSR y contrato, nunca de inventario real.
+Los datos de prueba no contaminan la caché del artefacto de producción.
+
 ## Hostinger VPS limpio: camino concreto
 
 Usar un VPS Ubuntu 24.04 LTS (no hosting compartido). Entrar por SSH con un usuario
@@ -160,11 +206,11 @@ la imagen por entorno. No pasar claves secretas de Stripe ni credenciales de bac
 | NEXT_PUBLIC_MEDIA_URL | src/lib/config.ts:46 | No | Host/prefijo adicional para optimizar medios. Sin valor, otros hosts siguen visibles con unoptimized. Documentada. |
 | NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY | src/lib/config.ts:67                   | Sí                                                | `pk_live_...`; sin clave no hay tarjetas/reservas. Rechaza claves secretas y placeholders. Documentada.                  |
 | NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY  | src/lib/config.ts:90                   | No                                                | Solo `true` habilita clave test en staging. No usar en producción comercial. Documentada.                                |
-| NEXT_PUBLIC_GOOGLE_MAPS_API_KEY    | src/shared/hooks/use-google-maps.ts:40 | Para entrega a domicilio con autocomplete         | Ausente: UI declara Maps no configurado. Configurar Places/Maps y restricción de referrer al dominio final. Documentada. |
-| NEXT_PUBLIC_LEGAL_COMPANY_NAME     | src/shared/config/legal.ts:20          | No lo impone el build; completar para lanzamiento | Fallback Cibaura. Identidad del operador. Documentada.                                                                   |
-| NEXT_PUBLIC_LEGAL_RNC              | src/shared/config/legal.ts:22          | No lo impone el build                             | Línea omitida si vacío; aportar identificación real si corresponde al operador. Documentada.                             |
-| NEXT_PUBLIC_LEGAL_ADDRESS          | src/shared/config/legal.ts:24          | No lo impone el build; completar para lanzamiento | Fallback Santo Domingo, Dominican Republic. Documentada.                                                                 |
-| NEXT_PUBLIC_LEGAL_CONTACT_EMAIL    | src/shared/config/legal.ts:27          | No lo impone el build; completar para lanzamiento | Fallback legal@cibaura.com. Documentada.                                                                                 |
+| NEXT_PUBLIC_GOOGLE_MAPS_API_KEY    | src/shared/hooks/use-google-maps.ts:40; src/lib/config.ts:114 | Si, salvo ALLOW_MISSING_MAPS en staging nativo | Ausente: UI declara Maps no configurado. Configurar Places/Maps y restricción de referrer al dominio final. Documentada. |
+| NEXT_PUBLIC_LEGAL_COMPANY_NAME     | src/shared/config/legal.ts:20          | Si, salvo ALLOW_DEFAULT_LEGAL en staging nativo | Publica/build; tambien leida en src/lib/config.ts:105-108 para baked y guard. Documentada. |
+| NEXT_PUBLIC_LEGAL_RNC              | src/shared/config/legal.ts:22          | Si, salvo ALLOW_DEFAULT_LEGAL en staging nativo | Publica/build; tambien leida en src/lib/config.ts:105-108 para baked y guard. Documentada. |
+| NEXT_PUBLIC_LEGAL_ADDRESS          | src/shared/config/legal.ts:24          | Si, salvo ALLOW_DEFAULT_LEGAL en staging nativo | Publica/build; tambien leida en src/lib/config.ts:105-108 para baked y guard. Documentada. |
+| NEXT_PUBLIC_LEGAL_CONTACT_EMAIL    | src/shared/config/legal.ts:27          | Si, salvo ALLOW_DEFAULT_LEGAL en staging nativo | Publica/build; tambien leida en src/lib/config.ts:105-108 para baked y guard. Documentada. |
 | NODE_ENV | src/lib/config.ts:21,68 | Gestionada por Next / Docker | production para deploy; development solo en build:ci. No figura en .env.example. |
 
 No hay lecturas de otras variables runtime de aplicación en `src`. Las menciones de
@@ -216,7 +262,7 @@ Equivalente para un entorno que exporta las variables del inventario:
 
 ```sh
 docker build --pull -t cibaura-web:release \
-  --build-arg NEXT_PUBLIC_API_URL --build-arg NEXT_PUBLIC_SITE_URL \
+  --build-arg NEXT_PUBLIC_API_URL --build-arg NEXT_PUBLIC_SITE_URL --build-arg NEXT_PUBLIC_BUILD_SHA --build-arg BUILD_ENV_PROBE_API \
   --build-arg NEXT_PUBLIC_MEDIA_URL --build-arg NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY \
   --build-arg NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY --build-arg NEXT_PUBLIC_GOOGLE_MAPS_API_KEY \
   --build-arg NEXT_PUBLIC_LEGAL_COMPANY_NAME --build-arg NEXT_PUBLIC_LEGAL_RNC \
@@ -231,7 +277,7 @@ copiar `public` a `.next/standalone/public` y `.next/static` a
 `.next/standalone/.next/static`, y ejecutar `node .next/standalone/server.js`.
 La imagen Docker hace esas copias automáticamente; no usar `next start` en la imagen.
 
-`GET /health` comprueba solo que el proceso HTTP responde, sin depender de API/DB.
+`GET /health` mantiene HTTP 200 como liveness y reporta configuración baked y sonda upstream.
 La imagen comprueba el puerto configurado cada 30s y marca unhealthy tras tres fallos.
 Validar además `/robots.txt`, una página pública con datos reales y sesión de reserva
 contra la API antes de habilitar tráfico comercial. Health no certifica cobros ni datos.
@@ -248,11 +294,12 @@ no prueba la API real, pagos ni un build comercial.
 El workflow manual **Production image** (`production-image.yml`, workflow_dispatch)
 lee `vars.*`. Crear en Settings > Secrets and variables > Actions > Variables:
 
-- Obligatorias: `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SITE_URL`,
-  `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`.
-- Según funciones usadas: `NEXT_PUBLIC_MEDIA_URL`, `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`,
-  `NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY`, `NEXT_PUBLIC_LEGAL_COMPANY_NAME`,
-  `NEXT_PUBLIC_LEGAL_RNC`, `NEXT_PUBLIC_LEGAL_ADDRESS`, `NEXT_PUBLIC_LEGAL_CONTACT_EMAIL`.
+- Obligatorias: API_URL, SITE_URL, STRIPE_PUBLISHABLE_KEY, GOOGLE_MAPS_API_KEY y las
+  cuatro LEGAL_* (todas con prefijo NEXT_PUBLIC_).
+- NEXT_PUBLIC_BUILD_SHA: automatico desde github.sha, no variable manual de Actions.
+- Opcionales: NEXT_PUBLIC_MEDIA_URL, NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY (staging)
+  y BUILD_ENV_PROBE_API (sonda HTTP de build).
+
 
 El preflight enumera cada variable obligatoria ausente y falla. Docker fuerza
 NODE_ENV=production en el builder y ejecuta `npm run build`; nunca consume `.next-ci`.
@@ -266,8 +313,8 @@ Compose anteriores; CI de producción proporciona su propio daemon.
 rechaza valores ausentes, localhost, IPs, nombres locales, .invalid, .example, .test,
 example.com/net/org, marcadores, HTTP, credenciales, query/hash y wildcards. SITE_URL
 rechaza paths y no tiene dominio por defecto. `src/lib/deployment-policy.ts` compara
-los dominios registrables usando tldts y la Public Suffix List, incluidos sufijos
-privados: tenants distintos de github.io/vercel.app NO son same-site. Se aplica a
+los dominios registrables con la misma aproximación del backend (ver Tarea 6).
+No distingue tenants de sufijos privados. Se aplica a
 producción; no existe ALLOW_PLACEHOLDER ni bypass equivalente en producción. Esto
 valida configuración, no DNS, propiedad del dominio ni disponibilidad de API.
 
@@ -328,7 +375,7 @@ npm run lint:suppressions
 npm audit
 ```
 
-Los guards tienen 64 comprobaciones con valores sintéticos, incluidos dominios
+Los guards tienen 114 comprobaciones con valores sintéticos, incluidos dominios
 co.uk/com.do y sufijos privados. El smoke standalone comprueba seis respuestas HTTP:
 health JSON, asset público, optimizador Sharp, robots, HTML con canonical y CSS.
 Se informa el resultado final real de estos comandos en el PR.
@@ -340,8 +387,8 @@ mediante el workflow manual cuando se peguen las variables; no se presenta el sm
 de desarrollo como evidencia de una imagen Docker ni de inventario real.
 
 Resultados locales de esta revisión: build:ci exit 0 (51/51 páginas), standalone
-6/6 más cinco cabeceras, edge Caddy 6/6, guards 64/64, tsc 0 errores,
-ESLint 0 errores/0 warnings, supresiones 223 archivos
+6/6 más cinco cabeceras, edge Caddy 6/6, guards 114/114, tsc 0 errores,
+ESLint 0 errores/0 warnings, supresiones 224 archivos
 limpios, npm audit 0 vulnerabilidades. Un npm run build con dominios registrables
 distintos salió con código 1 antes de compilar, como se exige. El preflight sin
 variables salió con código 1 enumerando API_URL, SITE_URL y la clave pública Stripe.

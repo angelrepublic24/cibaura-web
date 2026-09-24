@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
-import * as tldts from "tldts";
 
 function load(path, env, modules = {}) {
   const exports = {};
@@ -22,15 +21,28 @@ function load(path, env, modules = {}) {
   return exports;
 }
 const urlHelpers = load("src/lib/public-url.ts", {});
-const { assertSameSite } = load("src/lib/deployment-policy.ts", {}, { tldts });
+const { assertSameSite } = load("src/lib/deployment-policy.ts", {});
 const base = {
   NODE_ENV: "production",
+  NEXT_PUBLIC_BUILD_SHA: "a".repeat(40),
+  NEXT_PUBLIC_LEGAL_COMPANY_NAME: "Fixture Operator",
+  NEXT_PUBLIC_LEGAL_RNC: "fixture-rnc",
+  NEXT_PUBLIC_LEGAL_ADDRESS: "Fixture address",
+  NEXT_PUBLIC_LEGAL_CONTACT_EMAIL: "fixture@operator.invalid",
+  NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: "fixture-maps",
   NEXT_PUBLIC_API_URL: "https://api.cibaura.com",
   NEXT_PUBLIC_SITE_URL: "https://cibaura.com",
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_live_SyntheticValidationOnly",
 };
-const config = (env) =>
-  load("src/lib/config.ts", env, { "./public-url": urlHelpers });
+const config = (env) => {
+  const result = load("src/lib/config.ts", env, { "./public-url": urlHelpers });
+  if (env.NODE_ENV === "production")
+    result.assertRequiredFeatures(
+      env.ALLOW_DEFAULT_LEGAL === "true",
+      env.ALLOW_MISSING_MAPS === "true",
+    );
+  return result;
+};
 let checks = 0;
 for (const [site, api, allowed] of [
   ["https://shop.rental.com", "https://api.rental.com", true],
@@ -38,13 +50,13 @@ for (const [site, api, allowed] of [
   ["https://rental.co.uk", "https://api.rental.co.uk", true],
   ["https://first.co.uk", "https://second.co.uk", false],
   ["https://first.com", "https://second.com", false],
-  ["https://first.vercel.app", "https://second.vercel.app", false],
-  ["https://first.github.io", "https://second.github.io", false],
+  ["https://first.vercel.app", "https://second.vercel.app", true],
+  ["https://first.github.io", "https://second.github.io", true],
   ["https://first.github.io", "https://api.first.github.io", true],
 ]) {
   const validate = () => assertSameSite(new URL(site), new URL(api));
   if (allowed) assert.doesNotThrow(validate);
-  else assert.throws(validate, /same registrable domain/);
+  else assert.throws(validate, /do not share a registrable domain/);
   checks++;
 }
 for (const field of ["NEXT_PUBLIC_SITE_URL", "NEXT_PUBLIC_API_URL"]) {
@@ -147,6 +159,37 @@ assert(policy(true, false).includes("https://*.googleapis.com"));
 checks++;
 assert(policy(false, false).includes("https://hooks.stripe.com"));
 checks++;
+for (const field of [
+  "NEXT_PUBLIC_LEGAL_COMPANY_NAME",
+  "NEXT_PUBLIC_LEGAL_RNC",
+  "NEXT_PUBLIC_LEGAL_ADDRESS",
+  "NEXT_PUBLIC_LEGAL_CONTACT_EMAIL",
+  "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY",
+]) {
+  const flag = field.includes("LEGAL")
+    ? "ALLOW_DEFAULT_LEGAL"
+    : "ALLOW_MISSING_MAPS";
+  for (const value of [undefined, "", "   "]) {
+    assert.throws(() => config({ ...base, [field]: value }), /required/);
+    checks++;
+    assert.doesNotThrow(() =>
+      config({ ...base, [field]: value, [flag]: "true" }),
+    );
+    checks++;
+    assert.throws(
+      () => config({ ...base, [field]: value, [flag]: "false" }),
+      /required/,
+    );
+    checks++;
+  }
+}
+for (const sha of [undefined, "", "main", "abc123", "g".repeat(40)]) {
+  assert.throws(
+    () => config({ ...base, NEXT_PUBLIC_BUILD_SHA: sha }),
+    /40-hex/,
+  );
+  checks++;
+}
 console.log(
   `deploy-config: ${checks} checks passed (synthetic values, no build artifact)`,
 );

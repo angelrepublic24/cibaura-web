@@ -12,7 +12,9 @@
     "lint": "eslint",
     "lint:suppressions": "node scripts/check-type-suppressions.mjs",
     "typecheck": "tsc --noEmit",
-    "build:ci": "node scripts/build-ci.mjs"
+    "build:ci": "node scripts/build-ci.mjs",
+    "prebuild": "node scripts/verify-build-env.mjs",
+    "smoke": "node scripts/health-config-smoke.mjs && node scripts/deploy-config-smoke.mjs && node scripts/platform-config-smoke.mjs && node scripts/booking-guards-smoke.mjs && node scripts/seo-smoke.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.5.7",
@@ -29,7 +31,6 @@
     "react-hook-form": "^7.83.0",
     "sharp": "0.35.4",
     "tailwind-merge": "^3.6.0",
-    "tldts": "7.4.15",
     "zod": "^4.4.3",
     "zustand": "^5.0.14"
   },

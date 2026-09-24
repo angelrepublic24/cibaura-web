@@ -100,3 +100,37 @@ function resolveStripePublishableKey(): string | undefined {
 }
 
 export const STRIPE_PUBLISHABLE_KEY = resolveStripePublishableKey();
+
+const legalValues = [
+  process.env.NEXT_PUBLIC_LEGAL_COMPANY_NAME,
+  process.env.NEXT_PUBLIC_LEGAL_RNC,
+  process.env.NEXT_PUBLIC_LEGAL_ADDRESS,
+  process.env.NEXT_PUBLIC_LEGAL_CONTACT_EMAIL,
+];
+export const LEGAL_CONFIGURED = legalValues.every((value) =>
+  Boolean(value?.trim()),
+);
+export const MAPS_CONFIGURED = Boolean(
+  process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim(),
+);
+export const BUILD_SHA = process.env.NEXT_PUBLIC_BUILD_SHA?.trim() || null;
+/** Build-only policy: exception flags are never required at browser/runtime startup. */
+export function assertRequiredFeatures(
+  allowDefaultLegal: boolean,
+  allowMissingMaps: boolean,
+): void {
+  if (!LEGAL_CONFIGURED && !allowDefaultLegal)
+    throw new Error(
+      "[config] All four NEXT_PUBLIC_LEGAL_* values are required; ALLOW_DEFAULT_LEGAL=true is an explicit non-release exception.",
+    );
+  if (!MAPS_CONFIGURED && !allowMissingMaps)
+    throw new Error(
+      "[config] NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is required; ALLOW_MISSING_MAPS=true is an explicit non-release exception.",
+    );
+}
+if (production) {
+  if (!BUILD_SHA || !/^[a-f0-9]{40}$/i.test(BUILD_SHA))
+    throw new Error(
+      "[config] NEXT_PUBLIC_BUILD_SHA must be the full 40-hex commit SHA.",
+    );
+}

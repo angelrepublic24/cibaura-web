@@ -1,8 +1,8 @@
 /**
  * Legal identity of the platform operator, rendered on /legal/terms and
  * /legal/privacy. Every value is a public build-time constant
- * (`NEXT_PUBLIC_LEGAL_*`); the fallbacks are neutral brand values so a
- * deployment without them never prints a bracketed placeholder.
+ * (`NEXT_PUBLIC_LEGAL_*`); production builds require all four values. These
+ * legacy fallbacks apply only to development or an explicit staging exception.
  *
  * The TERMS VERSION is owned by the backend (`GET /legal/current`); the
  * fallback here only covers the legal pages rendering while that request is
