@@ -21,6 +21,16 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - name: Install pinned Caddy for edge smoke (no public certificates)
+        run: |
+          mkdir -p "$RUNNER_TEMP/caddy"
+          cd "$RUNNER_TEMP/caddy"
+          curl -fsSLO https://github.com/caddyserver/caddy/releases/download/v2.11.4/caddy_2.11.4_linux_amd64.tar.gz
+          curl -fsSLO https://github.com/caddyserver/caddy/releases/download/v2.11.4/caddy_2.11.4_checksums.txt
+          grep ' caddy_2.11.4_linux_amd64.tar.gz$' caddy_2.11.4_checksums.txt | sha512sum --check
+          tar -xzf caddy_2.11.4_linux_amd64.tar.gz caddy
+          echo "$RUNNER_TEMP/caddy" >> "$GITHUB_PATH"
+      - run: node scripts/edge-smoke.mjs
       - run: node scripts/deploy-config-smoke.mjs
       - run: npm run typecheck
       - run: npm run lint

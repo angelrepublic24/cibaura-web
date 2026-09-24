@@ -35,6 +35,11 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
 RUN npm run build
 
 FROM base AS runner
+ARG WEB_VERSION=unreleased
+ARG WEB_REVISION=unknown
+LABEL org.opencontainers.image.version=$WEB_VERSION \
+      org.opencontainers.image.revision=$WEB_REVISION \
+      org.opencontainers.image.source="https://github.com/angelrepublic24/cibaura-web"
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0
 COPY --from=builder --chown=node:node /app/.next/standalone ./
 COPY --from=builder --chown=node:node /app/.next/static ./.next/static

@@ -1,9 +1,11 @@
 services:
   web:
-    image: cibaura-web:${WEB_IMAGE_TAG:-local}
+    image: ${WEB_IMAGE_REPOSITORY:-cibaura-web}:${WEB_IMAGE_TAG:-local}
     build:
       context: .
       args:
+        WEB_VERSION: ${WEB_VERSION:-unreleased}
+        WEB_REVISION: ${WEB_REVISION:-unknown}
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?Set the public API URL}
         NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?Set the public site URL}
         NEXT_PUBLIC_MEDIA_URL: ${NEXT_PUBLIC_MEDIA_URL:-}

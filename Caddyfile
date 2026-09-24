@@ -1,4 +1,14 @@
 {$NEXT_PUBLIC_SITE_URL} {
+    header Strict-Transport-Security "max-age=31536000"
     encode zstd gzip
     reverse_proxy web:{$PORT:3000}
+}
+
+# Explicit alternate host only: never trust a request Host as the destination.
+https://{$WEB_REDIRECT_HOST} {
+    header Strict-Transport-Security "max-age=31536000"
+    map {$NEXT_PUBLIC_SITE_URL} {canonical_origin} {
+        ~^(https://[^/]+)/?$ ${1}
+    }
+    redir {canonical_origin}{uri} 301
 }
