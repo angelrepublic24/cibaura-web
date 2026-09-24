@@ -1,3 +1,5 @@
+import { publicUrl, requiredPublicUrl } from "./public-url";
+
 /**
  * Resolved backend API base URL.
  *
@@ -16,27 +18,36 @@
  * cookies, so the API MUST live under the same registrable domain as this
  * site (`cibaura.com` + `api.cibaura.com`). See next.config.ts + README.
  */
-function resolveApiUrl(): string {
-  const url = process.env.NEXT_PUBLIC_API_URL;
-  if (url && url.trim().length > 0) return withApiPrefix(url);
+const production = process.env.NODE_ENV === "production";
+const configuredApi = requiredPublicUrl(
+  "NEXT_PUBLIC_API_URL",
+  process.env.NEXT_PUBLIC_API_URL,
+  "http://localhost:4300",
+  production,
+);
+const apiPath = configuredApi.pathname.replace(/\/+$/, "");
+configuredApi.pathname = apiPath.endsWith("/api") ? apiPath : `${apiPath}/api`;
+export const API_URL = configuredApi.href.replace(/\/+$/, "");
 
-  if (process.env.NODE_ENV === "production") {
-    throw new Error(
-      "[config] NEXT_PUBLIC_API_URL is required for production builds. " +
-        "Set it in the build environment (e.g. https://api.cibaura.example).",
-    );
-  }
+export const SITE_URL = requiredPublicUrl(
+  "NEXT_PUBLIC_SITE_URL",
+  process.env.NEXT_PUBLIC_SITE_URL,
+  "http://localhost:3000",
+  production,
+);
+if (SITE_URL.pathname !== "/")
+  throw new Error(
+    "[config] NEXT_PUBLIC_SITE_URL must be an origin without a path.",
+  );
 
-  return withApiPrefix("http://localhost:4300");
-}
-
-/** Strip trailing slashes and ensure a single `/api` suffix (idempotent). */
-function withApiPrefix(url: string): string {
-  const base = url.trim().replace(/\/+$/, "");
-  return /\/api$/.test(base) ? base : `${base}/api`;
-}
-
-export const API_URL = resolveApiUrl();
+/** Optional public CDN base/prefix for legacy car photos and agency logos. */
+export const MEDIA_URL = publicUrl(
+  "NEXT_PUBLIC_MEDIA_URL",
+  process.env.NEXT_PUBLIC_MEDIA_URL,
+  undefined,
+  production,
+);
+if (MEDIA_URL && !MEDIA_URL.pathname.endsWith("/")) MEDIA_URL.pathname += "/";
 
 /**
  * Stripe PUBLISHABLE key (`pk_test_…` / `pk_live_…`) — safe to inline, the
@@ -66,7 +77,10 @@ function resolveStripePublishableKey(): string | undefined {
     return undefined;
   }
 
-  if (!raw.startsWith("pk_")) {
+  if (
+    !/^pk_(test|live)_[a-zA-Z0-9]+$/.test(raw) ||
+    /replace|placeholder|changeme/i.test(raw)
+  ) {
     throw new Error(
       "[config] NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY must be a Stripe " +
         "PUBLISHABLE key (pk_test_… / pk_live_…). Never inline a secret key.",

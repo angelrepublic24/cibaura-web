@@ -22,14 +22,6 @@ export function resolveCarPhotoUrl(url: string): string {
   return `${API_URL}${url.startsWith("/") ? url : `/${url}`}`;
 }
 
-/** Matches the narrowly allow-listed public stream in next.config.ts.
- * Legacy external images remain direct until their provider is explicitly configured.
- */
-export function canOptimizeCarPhoto(url: string): boolean {
-  const prefix = `${API_URL}/cars/photos/`;
-  return url.startsWith(prefix) && /^[0-9a-f-]+$/i.test(url.slice(prefix.length));
-}
-
 /**
  * The primary card photo for a car, or `null` when it has none (callers
  * render the branded placeholder).
@@ -46,5 +38,6 @@ export function carGallery(
     return car.photos.map(resolveCarPhotoUrl);
   }
   // Older payloads may carry only primaryPhoto — still real, never stock.
-  return car.primaryPhoto ? [resolveCarPhotoUrl(car.primaryPhoto)] : [];
+  const photo = carPhoto(car);
+  return photo ? [photo] : [];
 }

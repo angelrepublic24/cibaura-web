@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 
-// Existing production origin; language and route structure remain unchanged.
-export const SITE_URL = new URL("https://cibaura.com");
+import { SITE_URL } from "@/lib/config";
+export { SITE_URL };
+
 export const SITE_TITLE = "Cibaura — rent a car near you";
 export const SITE_DESCRIPTION =
   "Find rental cars from local agencies and private hosts in the Dominican Republic. Compare cars and request your booking on Cibaura.";

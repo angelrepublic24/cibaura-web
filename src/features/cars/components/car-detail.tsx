@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Image from "next/image";
+import { isOptimizableImage } from "@/shared/config/media";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -33,10 +34,7 @@ import { useLegalCurrent } from "@/features/legal/hooks";
 import { CancellationPolicySummary } from "@/features/legal/components/cancellation-policy";
 import { PrivateHostBadge } from "@/features/agencies/components/private-host-badge";
 import { TermsCheckbox } from "@/features/auth/components/terms-checkbox";
-import {
-  PaymentMethodsApi,
-  paymentMethodKeys,
-} from "@/features/payments/api";
+import { PaymentMethodsApi, paymentMethodKeys } from "@/features/payments/api";
 import { VerificationApi, verificationKeys } from "@/features/verification/api";
 import {
   AddressAutocomplete,
@@ -47,7 +45,7 @@ import {
   addDaysIso,
   blockedDayPredicate,
 } from "@/shared/components/date-range-picker";
-import { canOptimizeCarPhoto, carGallery } from "@/features/cars/photos";
+import { carGallery } from "@/features/cars/photos";
 import { CarPhotoPlaceholder } from "@/features/cars/components/car-photo-placeholder";
 import { RentalPolicyCard } from "@/features/cars/components/rental-policy-card";
 import { useAuthStore } from "@/shared/auth/store";
@@ -102,7 +100,8 @@ export function CarDetail({
   const availabilityTo = addDaysIso(availabilityFrom, AVAILABILITY_DAYS);
   const availabilityQuery = useQuery({
     queryKey: carKeys.availability(carId, availabilityFrom, availabilityTo),
-    queryFn: () => CarsApi.availability(carId, availabilityFrom, availabilityTo),
+    queryFn: () =>
+      CarsApi.availability(carId, availabilityFrom, availabilityTo),
   });
   const occupied = useMemo(
     () => availabilityQuery.data?.occupied ?? [],
@@ -220,7 +219,10 @@ export function CarDetail({
             initialFrom={initialFrom}
             initialTo={initialTo}
             occupied={occupied}
-            availabilityWindow={{ start: availabilityFrom, end: availabilityTo }}
+            availabilityWindow={{
+              start: availabilityFrom,
+              end: availabilityTo,
+            }}
           />
         )}
       </div>
@@ -244,12 +246,12 @@ function PhotoGallery({ photos, alt }: { photos: string[]; alt: string }) {
         {lead ? (
           <Image
             src={lead}
+            unoptimized={!isOptimizableImage(lead)}
             alt={alt}
             fill
             sizes="(max-width: 1024px) 100vw, 60vw"
             className="object-cover"
             priority
-            unoptimized={!canOptimizeCarPhoto(lead)}
           />
         ) : (
           <CarPhotoPlaceholder label="Photos coming soon" />
@@ -272,11 +274,11 @@ function PhotoGallery({ photos, alt }: { photos: string[]; alt: string }) {
             >
               <Image
                 src={src}
+                unoptimized={!isOptimizableImage(src)}
                 alt={`${alt} photo ${i + 1}`}
                 fill
                 sizes="20vw"
                 className="object-cover"
-                unoptimized={!canOptimizeCarPhoto(src)}
               />
             </button>
           ))}
@@ -428,7 +430,10 @@ function AvailabilityCalendar({
         ) : (
           <ul className="space-y-1 text-sm">
             {occupied.map((p) => (
-              <li key={`${p.start}-${p.end}`} className="flex items-center gap-2">
+              <li
+                key={`${p.start}-${p.end}`}
+                className="flex items-center gap-2"
+              >
                 <span className="h-2 w-2 rounded-full bg-red-500" />
                 {formatIsoDate(p.start)} → {formatIsoDate(p.end)} (unavailable)
               </li>
@@ -436,8 +441,7 @@ function AvailabilityCalendar({
           </ul>
         )}
         <p className="mt-3 text-xs text-muted-foreground">
-          Occupied ranges are half-open: the car is free again on the end
-          date.
+          Occupied ranges are half-open: the car is free again on the end date.
         </p>
       </CardContent>
     </Card>
@@ -449,7 +453,10 @@ function ageOn(dateOfBirth: string, day: string): number {
   const birth = isoDateParts(dateOfBirth);
   const on = isoDateParts(day);
   let age = on.year - birth.year;
-  if (on.month < birth.month || (on.month === birth.month && on.day < birth.day)) {
+  if (
+    on.month < birth.month ||
+    (on.month === birth.month && on.day < birth.day)
+  ) {
     age -= 1;
   }
   return age;
@@ -472,7 +479,8 @@ function describeRequestError(error: unknown): {
       };
     case API_ERROR_CODES.TERMS_ACCEPTANCE_REQUIRED:
       return {
-        message: "You need to accept the Terms of Service to request a booking.",
+        message:
+          "You need to accept the Terms of Service to request a booking.",
       };
     case API_ERROR_CODES.CUSTOMER_NOT_VERIFIED:
       return {
@@ -616,7 +624,9 @@ function BookingPanel({
   const deliveryReady = addressDelivery ? !!deliveryAddr : !!zoneId;
   const datesReady = !!from && !!to && to > from;
   const quoteReady =
-    datesReady && !rangeBlocked && (pickup === "branch_pickup" || deliveryReady);
+    datesReady &&
+    !rangeBlocked &&
+    (pickup === "branch_pickup" || deliveryReady);
 
   // Delivery params for the server (a geocoded address takes precedence).
   const deliveryParams =
@@ -708,7 +718,10 @@ function BookingPanel({
   // Carries the expiry date itself so the warning can render it without
   // re-deriving (and without asserting) that it is present.
   const licenseExpiryBeforeReturn: string | null =
-    isVerified && verification?.licenseExpiry && to && verification.licenseExpiry < to
+    isVerified &&
+    verification?.licenseExpiry &&
+    to &&
+    verification.licenseExpiry < to
       ? verification.licenseExpiry
       : null;
 
@@ -803,8 +816,8 @@ function BookingPanel({
             className="rounded-[var(--radius-sm)] border border-red-200 bg-red-50 p-3 text-xs text-red-700"
             role="alert"
           >
-            The car is unavailable on some of these days. Pick different dates
-            — blocked days are marked in the calendar.
+            The car is unavailable on some of these days. Pick different dates —
+            blocked days are marked in the calendar.
           </p>
         ) : null}
 
@@ -963,8 +976,8 @@ function BookingPanel({
               ))}
             </Select>
             <p className="text-xs text-muted-foreground">
-              The hold is placed on this card and only captured when the
-              agency accepts.
+              The hold is placed on this card and only captured when the agency
+              accepts.
               {car.depositCents > 0
                 ? " The security deposit is held on the same card at check-in."
                 : ""}
@@ -1212,8 +1225,8 @@ function BookingPanel({
           You will not be charged until the agency accepts. Your card is
           authorized at request and captured on acceptance; the agency has 24
           hours to answer, after which the request expires and the hold is
-          released. You review and sign the rental agreement before the
-          request is sent.
+          released. You review and sign the rental agreement before the request
+          is sent.
         </p>
 
         <CancellationPolicySummary variant="inline" className="text-xs" />

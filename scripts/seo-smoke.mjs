@@ -175,11 +175,12 @@ async function runScenario(partial) {
   logs.push(`isolated build: ${dir}`);
   await cp(join(root, ".next"), join(dir, ".next"), {
     recursive: true,
-    filter: (source) => source !== join(root, ".next/cache"),
+    filter: (source) => ![join(root, ".next/cache"), join(root, ".next/standalone")].includes(source),
   });
   await Promise.all([
     copyFile(join(root, "package.json"), join(dir, "package.json")),
     copyFile(join(root, "next.config.ts"), join(dir, "next.config.ts")),
+    cp(join(root, "src/lib"), join(dir, "src/lib"), { recursive: true }),
     symlink(join(root, "node_modules"), join(dir, "node_modules"), "junction"),
   ]);
   // Reserve a free local port, then hand it to the child.

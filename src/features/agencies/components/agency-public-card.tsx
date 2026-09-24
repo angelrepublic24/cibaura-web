@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { isOptimizableImage } from "@/shared/config/media";
 import { Building2, Car as CarIcon, MapPin } from "lucide-react";
 import type { AgencyPublicProfile } from "@/features/agencies/api";
 import { PrivateHostBadge } from "@/features/agencies/components/private-host-badge";
@@ -23,11 +24,11 @@ export function AgencyPublicCard({ agency }: { agency: AgencyPublicProfile }) {
                 {agency.logoUrl ? (
                   <Image
                     src={agency.logoUrl}
+                    unoptimized={!isOptimizableImage(agency.logoUrl)}
                     alt={agency.name}
                     fill
                     sizes="44px"
                     className="object-cover"
-                    unoptimized
                   />
                 ) : (
                   <span className="flex h-full w-full items-center justify-center">
@@ -42,7 +43,10 @@ export function AgencyPublicCard({ agency }: { agency: AgencyPublicProfile }) {
                   </h2>
                   <PrivateHostBadge kind={agency.kind} />
                 </div>
-                <StarRating rating={agency.ratingAvg} count={agency.reviewCount} />
+                <StarRating
+                  rating={agency.ratingAvg}
+                  count={agency.reviewCount}
+                />
               </div>
             </div>
 
@@ -65,7 +69,10 @@ export function AgencyPublicCard({ agency }: { agency: AgencyPublicProfile }) {
           </CardContent>
         </Card>
       </Link>
-      <FavoriteButton agencyId={agency.id} className="absolute right-3 top-3 z-10" />
+      <FavoriteButton
+        agencyId={agency.id}
+        className="absolute right-3 top-3 z-10"
+      />
     </div>
   );
 }

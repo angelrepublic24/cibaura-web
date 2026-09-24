@@ -11,7 +11,8 @@
     "start": "next start",
     "lint": "eslint",
     "lint:suppressions": "node scripts/check-type-suppressions.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:ci": "node scripts/build-ci.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.5.7",
@@ -22,11 +23,13 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.28.0",
-    "next": "15.5.22",
+    "next": "15.5.26",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-hook-form": "^7.83.0",
+    "sharp": "0.35.4",
     "tailwind-merge": "^3.6.0",
+    "tldts": "7.4.15",
     "zod": "^4.4.3",
     "zustand": "^5.0.14"
   },
@@ -38,8 +41,13 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "15.5.22",
+    "eslint-config-next": "15.5.26",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "8.5.28"
+    }
   }
 }
