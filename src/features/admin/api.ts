@@ -1,4 +1,5 @@
 import { Api } from "@/shared/api/client";
+import { platformConfigApi } from "./platform-config-api";
 import type {
   AgencyCar,
   AgencyKind,
@@ -18,7 +19,6 @@ import type {
   Payout,
   PayoutAccountAdminDto,
   PayoutBankDetails,
-  PlatformConfigDto,
   SignedUrlDto,
 } from "@/shared/types/domain";
 import type { AgencyApplication } from "@/features/agencies/api";
@@ -81,9 +81,6 @@ export interface AdminBookingDetail extends BookingDetail {
 }
 
 // ── v1 expansion (spec §4/B6, B7, B9, B10, B11) ──────────────────────────────
-
-/** `PATCH /admin/config` body — every §0.7 key optional; absent = unchanged. */
-export type UpdatePlatformConfigInput = Partial<PlatformConfigDto>;
 
 /** `POST /admin/contract-templates` body (spec §4/B7). */
 export interface CreateContractTemplateInput {
@@ -245,8 +242,9 @@ export interface AdminRevenueQuery {
  * Platform admin API module (platform_admin only).
  *
  * Real backend routes (verified against the controllers):
- *  - GET   /admin/config                    -> PlatformConfigDto (spec §0.7)
- *  - PATCH /admin/config { ...partial }     -> PlatformConfigDto
+ *  - GET   /admin/config -> { commissionPct, cancellationPolicy }
+ *  - PATCH /admin/config/commission -> { commissionPct }
+ *  - PATCH /admin/config/cancellation-policy -> CancellationPolicyDto
  *      (commission is SNAPSHOTTED into each booking at request time —
  *       changing it never rewrites existing bookings; the policy figures are
  *       snapshotted into each settlement when it is computed)
@@ -335,18 +333,7 @@ export const adminKeys = {
 };
 
 export const AdminApi = {
-  async getConfig(): Promise<PlatformConfigDto> {
-    const res = await Api.get("/admin/config");
-    return res.data;
-  },
-
-  /** Partial update — only the keys present change (spec §4/B10). */
-  async updateConfig(
-    input: UpdatePlatformConfigInput,
-  ): Promise<PlatformConfigDto> {
-    const res = await Api.patch("/admin/config", input);
-    return res.data;
-  },
+  ...platformConfigApi,
 
   // ── Contract templates (ADR-0010, spec §4/B7) ────────────────────────────
 

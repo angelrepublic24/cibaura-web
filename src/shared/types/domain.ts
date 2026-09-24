@@ -843,24 +843,12 @@ export interface PayoutAccountAdminDto extends PayoutAccountDto {
 /** Account lifecycle (backend `UserStatus`). */
 export type UserStatus = "active" | "suspended" | "deleted";
 
-/**
- * `GET/PATCH /admin/config` (wire `PlatformConfigDto`) — every §0.7 key.
- * `commissionPct` is snapshotted into each booking at request time.
+/** Normalized editable settings from GET /admin/config.
+ * Only settings with existing write routes are exposed.
  */
 export interface PlatformConfigDto {
   commissionPct: number;
-  freeCancellationHours: number;
-  lateCancellationRetentionPct: number;
-  earlyReturnPenaltyDays: number;
-  disputeWindowHours: number;
-  claimResponseHours: number;
-  defaultDepositCents: number;
-  checkinAdvancePct: number;
-  depositReauthLeadHours: number;
-  inspectionsRequired: boolean;
-  inspectionMinPhotos: number;
-  inspectionMediaRetentionMonths: number;
-  stripePayoutsEnabled: boolean;
+  cancellationPolicy: CancellationPolicyDto;
 }
 
 // ── Contracts & e-sign (ADR-0010) ──────────────────────────────────────────
