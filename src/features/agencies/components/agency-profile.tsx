@@ -5,13 +5,7 @@ import Image from "next/image";
 import { isOptimizableImage } from "@/shared/config/media";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import {
-  BadgeCheck,
-  Building2,
-  CarFront,
-  Clock,
-  MapPin,
-} from "lucide-react";
+import { BadgeCheck, Building2, CarFront, Clock, MapPin } from "lucide-react";
 import {
   AgenciesApi,
   agencyProfileKeys,
@@ -25,7 +19,10 @@ import { CarCard } from "@/features/cars/components/car-card";
 import { CarFiltersPanel } from "@/features/cars/components/car-filters-panel";
 import { StarRating } from "@/shared/components/star-rating";
 import { FavoriteButton } from "@/shared/components/favorite-button";
-import type { AgencyKind, AgencyVerificationStatus } from "@/shared/types/domain";
+import type {
+  AgencyKind,
+  AgencyVerificationStatus,
+} from "@/shared/types/domain";
 import {
   EmptyState,
   ErrorState,
@@ -129,9 +126,7 @@ export function AgencyProfile({
             <LocationPicker
               branches={agency.branches}
               value={filters.branchId}
-              onChange={(branchId) =>
-                applyFilters({ ...filters, branchId })
-              }
+              onChange={(branchId) => applyFilters({ ...filters, branchId })}
             />
           ) : null}
           <AgencyCarsGrid
@@ -153,7 +148,11 @@ function LocationPicker({
   value,
   onChange,
 }: {
-  branches: { id: string; name: string; city: { id: string; name: string } | null }[];
+  branches: {
+    id: string;
+    name: string;
+    city: { id: string; name: string } | null;
+  }[];
   value?: string;
   onChange: (branchId: string | undefined) => void;
 }) {
@@ -215,9 +214,10 @@ function AgencyHeader({
       <div className="px-6 pb-6">
         <div className="-mt-10 flex flex-wrap items-end gap-4">
           <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-[var(--radius)] border border-border bg-surface shadow-sm">
-            {logoUrl && isOptimizableImage(logoUrl) ? (
+            {logoUrl ? (
               <Image
                 src={logoUrl}
+                unoptimized={!isOptimizableImage(logoUrl)}
                 alt={name}
                 width={80}
                 height={80}
@@ -254,7 +254,9 @@ function AgencyHeader({
           </span>
           <span className="inline-flex items-center gap-1.5">
             <Building2 className="h-4 w-4 text-primary" />
-            <span className="font-medium text-foreground">{branchCount}</span>{" "}
+            <span className="font-medium text-foreground">
+              {branchCount}
+            </span>{" "}
             branch{branchCount === 1 ? "" : "es"}
           </span>
           {cities.length > 0 ? (
@@ -346,8 +348,7 @@ function AgencyCarsGrid({
               onApply({
                 ...filters,
                 sort: (e.target.value || undefined) as
-                  | AgencyCarsSort
-                  | undefined,
+                  AgencyCarsSort | undefined,
                 page: undefined,
               })
             }

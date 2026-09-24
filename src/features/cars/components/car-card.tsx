@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { isOptimizableImage } from "@/shared/config/media";
 import { Users, Gauge, Fuel } from "lucide-react";
 import type { Car } from "@/shared/types/domain";
 import { carPhoto } from "@/features/cars/photos";
@@ -38,6 +39,7 @@ export function CarCard({
           {photo ? (
             <Image
               src={photo}
+              unoptimized={!isOptimizableImage(photo)}
               alt={`${car.make.name} ${car.model.name}`}
               fill
               sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
@@ -79,7 +81,9 @@ export function CarCard({
                 {car.agency.name}
               </Link>
             ) : (
-              <span className="font-medium text-foreground">{car.agency.name}</span>
+              <span className="font-medium text-foreground">
+                {car.agency.name}
+              </span>
             )}
           </span>
           <PrivateHostBadge kind={car.agency.kind} />

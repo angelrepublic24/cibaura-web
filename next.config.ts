@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
-import { API_URL, MEDIA_URL } from "./src/lib/config";
+import { PHASE_PRODUCTION_BUILD } from "next/constants";
+import { API_URL, MEDIA_URL, SITE_URL } from "./src/lib/config";
+import { assertSameSite } from "./src/lib/deployment-policy";
 
 /**
  * SESSION / DEPLOYMENT NOTE (ADR-0006, audit WEB-04): the web session rides in
@@ -12,6 +14,8 @@ import { API_URL, MEDIA_URL } from "./src/lib/config";
  * (`API_PUBLIC_URL` vs `FRONTEND_URL`), so deploy both under one domain.
  */
 const configuredApi = new URL(API_URL);
+if (process.env.NODE_ENV === "production")
+  assertSameSite(SITE_URL, configuredApi);
 const nextConfig: NextConfig = {
   output: "standalone",
   images: {
@@ -41,4 +45,16 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default function config(phase: string): NextConfig {
+  const developmentBuild =
+    phase === PHASE_PRODUCTION_BUILD && process.env.NODE_ENV === "development";
+  return {
+    ...nextConfig,
+    ...(developmentBuild
+      ? {
+          distDir: ".next-ci",
+          experimental: { allowDevelopmentBuild: true },
+        }
+      : {}),
+  };
+}

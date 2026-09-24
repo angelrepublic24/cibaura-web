@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
+import * as tldts from "tldts";
 
 function load(path, env, modules = {}) {
   const exports = {};
@@ -21,6 +22,7 @@ function load(path, env, modules = {}) {
   return exports;
 }
 const urlHelpers = load("src/lib/public-url.ts", {});
+const { assertSameSite } = load("src/lib/deployment-policy.ts", {}, { tldts });
 const base = {
   NODE_ENV: "production",
   NEXT_PUBLIC_API_URL: "https://api.cibaura.com",
@@ -30,6 +32,21 @@ const base = {
 const config = (env) =>
   load("src/lib/config.ts", env, { "./public-url": urlHelpers });
 let checks = 0;
+for (const [site, api, allowed] of [
+  ["https://shop.rental.com", "https://api.rental.com", true],
+  ["https://rental.com.do", "https://api.rental.com.do", true],
+  ["https://rental.co.uk", "https://api.rental.co.uk", true],
+  ["https://first.co.uk", "https://second.co.uk", false],
+  ["https://first.com", "https://second.com", false],
+  ["https://first.vercel.app", "https://second.vercel.app", false],
+  ["https://first.github.io", "https://second.github.io", false],
+  ["https://first.github.io", "https://api.first.github.io", true],
+]) {
+  const validate = () => assertSameSite(new URL(site), new URL(api));
+  if (allowed) assert.doesNotThrow(validate);
+  else assert.throws(validate, /same registrable domain/);
+  checks++;
+}
 for (const field of ["NEXT_PUBLIC_SITE_URL", "NEXT_PUBLIC_API_URL"]) {
   for (const value of [
     undefined,

@@ -8,6 +8,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 FROM base AS builder
+ENV NODE_ENV=production
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
 # Public values only: each is embedded in the resulting bundle. No defaults.

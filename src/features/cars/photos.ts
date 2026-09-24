@@ -9,7 +9,6 @@
  * There is NO stock-photo substitution anymore: a car with no photos renders
  * the branded `CarPhotoPlaceholder` — never someone else's car.
  */
-import { isOptimizableImage } from "@/shared/config/media";
 import { API_URL } from "@/lib/config";
 import type { Car, CarDetail } from "@/shared/types/domain";
 
@@ -28,8 +27,7 @@ export function resolveCarPhotoUrl(url: string): string {
  * render the branded placeholder).
  */
 export function carPhoto(car: Pick<Car, "primaryPhoto">): string | null {
-  const photo = car.primaryPhoto ? resolveCarPhotoUrl(car.primaryPhoto) : null;
-  return photo && isOptimizableImage(photo) ? photo : null;
+  return car.primaryPhoto ? resolveCarPhotoUrl(car.primaryPhoto) : null;
 }
 
 /** The car's real gallery (resolved URLs, server order). Empty when none. */
@@ -37,7 +35,7 @@ export function carGallery(
   car: Pick<CarDetail, "photos" | "primaryPhoto">,
 ): string[] {
   if (car.photos && car.photos.length > 0) {
-    return car.photos.map(resolveCarPhotoUrl).filter(isOptimizableImage);
+    return car.photos.map(resolveCarPhotoUrl);
   }
   // Older payloads may carry only primaryPhoto — still real, never stock.
   const photo = carPhoto(car);

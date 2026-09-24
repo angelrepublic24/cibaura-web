@@ -21,9 +21,10 @@ export function AgencyPublicCard({ agency }: { agency: AgencyPublicProfile }) {
           <CardContent className="space-y-3 p-5">
             <div className="flex items-center gap-3 pr-10">
               <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full bg-muted">
-                {agency.logoUrl && isOptimizableImage(agency.logoUrl) ? (
+                {agency.logoUrl ? (
                   <Image
                     src={agency.logoUrl}
+                    unoptimized={!isOptimizableImage(agency.logoUrl)}
                     alt={agency.name}
                     fill
                     sizes="44px"
@@ -42,7 +43,10 @@ export function AgencyPublicCard({ agency }: { agency: AgencyPublicProfile }) {
                   </h2>
                   <PrivateHostBadge kind={agency.kind} />
                 </div>
-                <StarRating rating={agency.ratingAvg} count={agency.reviewCount} />
+                <StarRating
+                  rating={agency.ratingAvg}
+                  count={agency.reviewCount}
+                />
               </div>
             </div>
 
@@ -65,7 +69,10 @@ export function AgencyPublicCard({ agency }: { agency: AgencyPublicProfile }) {
           </CardContent>
         </Card>
       </Link>
-      <FavoriteButton agencyId={agency.id} className="absolute right-3 top-3 z-10" />
+      <FavoriteButton
+        agencyId={agency.id}
+        className="absolute right-3 top-3 z-10"
+      />
     </div>
   );
 }
