@@ -106,6 +106,7 @@ export function DepositStatusCard({ booking }: { booking: BookingDetail }) {
   const currency = booking.pricing.currency;
 
   if (!deposit) {
+    if (booking.depositCents === undefined) return null;
     const upcoming =
       booking.depositCents > 0 &&
       (booking.state === "requested" || booking.state === "accepted");

@@ -477,7 +477,7 @@ function FileClaimForm({
   const qc = useQueryClient();
   const deposit = booking.deposit;
   const currency = deposit?.currency ?? booking.pricing.currency;
-  const hasDeposit = deposit !== null && deposit.amountCents > 0 && deposit.status !== "waived";
+  const hasDeposit = deposit != null && deposit.amountCents > 0 && deposit.status !== "waived";
   const maxCents = hasDeposit ? deposit.amountCents : NO_DEPOSIT_CLAIM_CAP_CENTS;
   const maxLabel = formatMoneyCents(maxCents, currency);
 

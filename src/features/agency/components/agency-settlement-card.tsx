@@ -81,7 +81,7 @@ function PendingSettlement({
   settlement,
 }: {
   booking: BookingDetail;
-  settlement: SettlementDto | null;
+  settlement?: SettlementDto | null;
 }) {
   const qc = useQueryClient();
   const now = useNow();

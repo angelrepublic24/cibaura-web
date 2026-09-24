@@ -23,6 +23,7 @@ const apiPrefix =
   apiUrl.pathname.replace(/\/+$/, "").replace(/\/api$/, "") + "/api";
 const id = "11111111-1111-4111-8111-111111111111";
 const secondId = "22222222-2222-4222-8222-222222222222";
+const draftId = "55555555-5555-4555-8555-555555555555";
 const pausedId = "33333333-3333-4333-8333-333333333333";
 const photoId = "44444444-4444-4444-8444-444444444444";
 const city = {
@@ -145,6 +146,8 @@ async function runScenario(partial) {
       }
       data = paginate(page === 1 ? [car] : [secondCar], 2, page);
     } else if (path === `/cars/${id}`) data = car;
+    else if (path === `/cars/${draftId}`)
+      data = { ...car, id: draftId, status: "draft" };
     else if (path === `/cars/${pausedId}`)
       data = { ...car, id: pausedId, status: "paused" };
     else if (path === "/cars/search") {
@@ -360,8 +363,24 @@ async function runScenario(partial) {
       );
       const pausedHtml = await paused.text();
       check(
-        !schemas(pausedHtml).some((item) => item["@type"] === "Vehicle"),
-        "Paused vehicle emits no rental offer",
+        paused.status === 200 &&
+          schemas(pausedHtml).find((item) => item["@type"] === "Vehicle")
+            ?.offers?.availability === "https://schema.org/OutOfStock",
+        "Paused vehicle returns 200 with an OutOfStock offer",
+      );
+      check(
+        visible(pausedHtml).includes("temporarily unavailable for booking"),
+        "Paused vehicle visibly disables booking",
+      );
+      const draft = await fetch(
+        `${base}/agencies/fixture-agency/cars/${draftId}`,
+        { headers: { "User-Agent": "Twitterbot" } },
+      );
+      const draftHtml = await draft.text();
+      check(
+        draft.status === 404 &&
+          !schemas(draftHtml).some((item) => item["@type"] === "Vehicle"),
+        `Draft vehicle stays 404 without an offer (HTTP ${draft.status}, schemas ${schemas(draftHtml).map((item) => item["@type"]).join(",")})`,
       );
       logs.push(
         `FIXTURE HTML: ${visible(detail).match(/<h1\b[^>]*>[\s\S]*?<\/h1>/)?.[0]}`,

@@ -678,7 +678,7 @@ function DraftEditor({
     inspection.odometerKm !== null && inspection.fuelLevelEighths !== null;
   const depositBlocking =
     isCheckin &&
-    booking.deposit !== null &&
+    booking.deposit != null &&
     booking.deposit.status !== "held" &&
     booking.deposit.status !== "waived";
   const canSubmit = shotsReady && !uploads.inFlight && !busy;
@@ -806,7 +806,7 @@ function DraftEditor({
           <Check done={!uploads.inFlight}>
             {uploads.inFlight ? "Uploads still in progress" : "All uploads finished"}
           </Check>
-          {isCheckin ? (
+          {isCheckin && booking.deposit != null ? (
             <Check done={!depositBlocking}>
               {depositBlocking
                 ? "Security deposit not held yet — see the deposit card"

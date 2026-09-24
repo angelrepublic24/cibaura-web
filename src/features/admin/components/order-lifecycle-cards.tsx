@@ -75,10 +75,11 @@ export function DepositCard({
   bookingDepositCents,
   currency,
 }: {
-  deposit: DepositDto | null;
-  bookingDepositCents: number;
+  deposit?: DepositDto | null;
+  bookingDepositCents?: number;
   currency: string;
 }) {
+  if (!deposit && bookingDepositCents === undefined) return null;
   return (
     <Card>
       <CardHeader>
@@ -93,7 +94,7 @@ export function DepositCard({
       <CardContent>
         {!deposit ? (
           <p className="text-sm text-muted-foreground">
-            {bookingDepositCents > 0
+            {bookingDepositCents !== undefined && bookingDepositCents > 0
               ? `${formatMoneyCents(bookingDepositCents, currency)} will be held on the customer's card at check-in.`
               : "No deposit applies to this booking."}
           </p>
@@ -125,9 +126,10 @@ export function ClaimCard({
   claim,
   currency,
 }: {
-  claim: ClaimDto | null;
+  claim?: ClaimDto | null;
   currency: string;
 }) {
+  if (claim === undefined) return null;
   return (
     <Card>
       <CardHeader>
@@ -202,10 +204,10 @@ export function ClaimAmounts({
  */
 export function InspectionsCard({
   bookingId,
-  refs,
+  refs = [],
 }: {
   bookingId: string;
-  refs: { type: string; status: string; id: string }[];
+  refs?: { type: string; status: string; id: string }[];
 }) {
   const query = useBookingInspections(bookingId, refs.length > 0);
   return (
@@ -256,10 +258,11 @@ export function SettlementCard({
   settlement,
   currency,
 }: {
-  settlement: SettlementDto | null;
+  settlement?: SettlementDto | null;
   currency: string;
 }) {
   const now = useNow();
+  if (settlement === undefined) return null;
   const windowEnds = settlement?.disputeWindowEndsAt
     ? new Date(settlement.disputeWindowEndsAt).getTime()
     : null;

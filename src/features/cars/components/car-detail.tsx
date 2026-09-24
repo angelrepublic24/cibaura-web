@@ -210,13 +210,19 @@ export function CarDetail({
 
       <div className="space-y-4">
         <RentalConditions agency={car.agency} depositCents={car.depositCents} />
-        <BookingPanel
-          car={car}
-          initialFrom={initialFrom}
-          initialTo={initialTo}
-          occupied={occupied}
-          availabilityWindow={{ start: availabilityFrom, end: availabilityTo }}
-        />
+        {car.status === "paused" ? (
+          <p className="text-sm text-muted-foreground" role="status">
+            This car is temporarily unavailable for booking.
+          </p>
+        ) : (
+          <BookingPanel
+            car={car}
+            initialFrom={initialFrom}
+            initialTo={initialTo}
+            occupied={occupied}
+            availabilityWindow={{ start: availabilityFrom, end: availabilityTo }}
+          />
+        )}
       </div>
     </div>
   );
