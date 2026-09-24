@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AgencyApi, agencyKeys, type AgencyRequest } from "@/features/agency/api";
 import { BookingLifecycleActions } from "@/features/agency/components/booking-lifecycle-actions";
 import { PermissionGate } from "@/features/agency/components/permission-gate";
+import { identityAvailable } from "@/features/agency/components/renter-identity-card";
 import { RequestDeadline } from "@/features/agency/components/request-deadline";
 import { BOOKING_STATES, type BookingState } from "@/shared/types/domain";
 import { BookingStateBadge } from "@/shared/components/booking-state-badge";
@@ -207,6 +208,15 @@ function RequestRow({ booking }: { booking: AgencyRequest }) {
                   >
                     {booking.customer.email}
                   </a>
+                ) : null}
+                {/* Pending requests are outside the ADR-0011 window, so the
+                    server omits both — say so instead of dropping the line. */}
+                {!booking.customer.phone && !booking.customer.email ? (
+                  <span className="text-muted-foreground">
+                    {identityAvailable(booking.state)
+                      ? "No contact details on file."
+                      : "Contact details are shared from acceptance until the car is returned."}
+                  </span>
                 ) : null}
               </p>
             ) : null}

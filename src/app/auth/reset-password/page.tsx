@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { ResetPasswordForm } from "@/features/auth/components/reset-password-form";
 import { Logo } from "@/shared/components/logo";
+import { pageMetadata } from "@/shared/seo/metadata";
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export const metadata = { title: "Reset password" };
+export function generateMetadata() {
+  return pageMetadata({ title: "Reset password", description: "Choose a new password for your Cibaura account.", path: "/auth/reset-password", noIndex: true });
+}
 
 /**
  * /auth/reset-password?token=… — landing page of the password-reset email

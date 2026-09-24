@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Users, Gauge, Fuel } from "lucide-react";
 import type { Car } from "@/shared/types/domain";
-import { carPhoto } from "@/features/cars/photos";
+import { canOptimizeCarPhoto, carPhoto } from "@/features/cars/photos";
 import { CarPhotoPlaceholder } from "@/features/cars/components/car-photo-placeholder";
 import { PrivateHostBadge } from "@/features/agencies/components/private-host-badge";
 import { formatMoneyCents } from "@/shared/utils/money";
@@ -42,7 +42,7 @@ export function CarCard({
               fill
               sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 33vw"
               className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-              unoptimized
+              unoptimized={!canOptimizeCarPhoto(photo)}
             />
           ) : (
             <CarPhotoPlaceholder />

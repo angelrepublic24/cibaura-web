@@ -30,9 +30,11 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
  */
 export function CarSearchResults({
   city,
+  cityName,
   filters,
 }: {
   city: string;
+  cityName?: string;
   filters: CarSearchFilters;
 }) {
   const router = useRouter();
@@ -95,7 +97,7 @@ export function CarSearchResults({
             Available cars
           </p>
           <h1 className="font-display mt-1 text-3xl capitalize text-foreground">
-            {city === "all" ? "All cities" : city}
+            {cityName ?? (city === "all" ? "All cities" : city)}
           </h1>
         </div>
         <div className="text-right">

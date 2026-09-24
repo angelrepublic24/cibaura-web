@@ -22,7 +22,7 @@ import type { BookingDetail, RenterLicenseDto } from "@/shared/types/domain";
 import { formatDateTime, formatIsoDate } from "@/shared/utils/dates";
 
 /** States in which the server exposes the renter's identity (ADR-0011). */
-function identityAvailable(state: BookingDetail["state"]): boolean {
+export function identityAvailable(state: BookingDetail["state"]): boolean {
   return state === "accepted" || state === "active" || state === "returned";
 }
 

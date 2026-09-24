@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { LegalVersion } from "@/features/legal/components/legal-version";
 import { LEGAL } from "@/shared/config/legal";
+import { pageMetadata } from "@/shared/seo/metadata";
+import { BreadcrumbJsonLd } from "@/shared/seo/structured-data";
 
-export const metadata: Metadata = {
-  title: "Privacy Policy",
-  description: `How ${LEGAL.companyName} collects, uses and protects your personal data, including identity-verification and driver's license information.`,
-};
+export function generateMetadata(): Metadata {
+  return pageMetadata({ title: "Privacy Policy", description: `How ${LEGAL.companyName} collects, uses and protects your personal data, including identity-verification and driver's license information.`, path: "/legal/privacy" });
+}
 
 /**
  * /legal/privacy — Privacy Policy. The data controller identity comes from
@@ -41,6 +42,7 @@ export default function PrivacyPage() {
 
   return (
     <>
+      <BreadcrumbJsonLd items={[{ name: "Home", path: "/" }, { name: "Privacy Policy", path: "/legal/privacy" }]} />
       <header className="space-y-2">
         <h1 className="font-display text-3xl text-foreground">
           Privacy Policy

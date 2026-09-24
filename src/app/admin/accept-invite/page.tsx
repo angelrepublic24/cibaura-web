@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { AcceptInviteForm } from "@/features/admin/components/accept-invite-form";
 import { Logo } from "@/shared/components/logo";
+import { pageMetadata } from "@/shared/seo/metadata";
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export const metadata = { title: "Accept invite" };
+export function generateMetadata() {
+  return pageMetadata({ title: "Accept invite", description: "Accept your invitation to administer the Cibaura platform.", path: "/admin/accept-invite", noIndex: true });
+}
 
 /**
  * PUBLIC platform-admin invite acceptance page.

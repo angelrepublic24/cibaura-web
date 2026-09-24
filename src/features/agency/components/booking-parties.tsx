@@ -103,18 +103,31 @@ export function AgreementCard({
               <Row label="Terms version" value={agreement.termsVersion} />
               <Row label="Accepted" value={fmtDateTime(agreement.acceptedAt)} />
               <Row label="Renter" value={agreement.renter.fullName} />
-              <Row
-                label="Driver's license"
-                value={agreement.renter.licenseMasked}
-              />
-              <Row
-                label="License expiry"
-                value={
-                  agreement.renter.licenseExpiry
-                    ? formatIsoDate(agreement.renter.licenseExpiry)
-                    : "—"
-                }
-              />
+              {/* Licence + expiry are withheld together for an agency viewer
+                  outside the ADR-0011 window (accepted | active | returned). */}
+              {agreement.renter.licenseMasked ? (
+                <>
+                  <Row
+                    label="Driver's license"
+                    value={agreement.renter.licenseMasked}
+                  />
+                  <Row
+                    label="License expiry"
+                    value={
+                      agreement.renter.licenseExpiry
+                        ? formatIsoDate(agreement.renter.licenseExpiry)
+                        : "Not recorded"
+                    }
+                    muted={!agreement.renter.licenseExpiry}
+                  />
+                </>
+              ) : (
+                <Row
+                  label="Driver's license"
+                  value="Shared from acceptance until the car is returned"
+                  muted
+                />
+              )}
               <Row label="Plate" value={agreement.car.plate ?? "—"} />
             </dl>
             <div>
@@ -138,11 +151,22 @@ export function AgreementCard({
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+/** `muted` marks a value that is absent or withheld rather than real data. */
+function Row({
+  label,
+  value,
+  muted,
+}: {
+  label: string;
+  value: string;
+  muted?: boolean;
+}) {
   return (
     <div className="space-y-0.5">
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-foreground">{value}</dd>
+      <dd className={muted ? "text-muted-foreground" : "text-foreground"}>
+        {value}
+      </dd>
     </div>
   );
 }
