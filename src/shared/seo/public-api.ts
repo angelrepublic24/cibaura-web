@@ -25,8 +25,8 @@ export const getPublicCar = cache(async (id: string) => {
   if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)) notFound();
   const car = await publicGet<CarDetail>(`/cars/${encodeURIComponent(id)}`);
   // Backend CarStatus is draft | active | paused (no maintenance state).
-  // Paused/draft are unpublished, so keep them out of public SEO and offers.
-  if (!car || car.status !== "active") notFound();
+  // Paused listings retain their public URL; only drafts were never published.
+  if (!car || car.status === "draft") notFound();
   // Detail currently checks agency KYC only. The public profile lists active
   // branches, so do not index vehicles hidden from the availability search.
   const agency = await getPublicAgency(car.agency.slug);

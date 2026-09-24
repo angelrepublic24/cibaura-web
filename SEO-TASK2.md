@@ -1,3 +1,5 @@
+> Actualizaci?n Tarea 3: la decisi?n sobre `paused` fue reemplazada: detalle 200 con Offer OutOfStock; `draft` 404. V?ase [WEB-TASK3.md](WEB-TASK3.md). El resto de este informe conserva la evidencia hist?rica.
+
 # Tarea 2 — SSR y SEO público
 
 Implementado y comprobado sobre el build. **La prueba con inventario real sigue bloqueada por la API**; la evidencia HTML de abajo usa fixtures sintéticas identificadas como tales. No hay commits, push, PR, cambios de idioma, migraciones ni modificaciones de `.env`.

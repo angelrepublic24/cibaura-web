@@ -116,7 +116,7 @@ export function DepositBanner({ booking }: { booking: BookingDetail }) {
   // No row yet: announce the frozen amount while the booking is heading to
   // check-in; nothing to say for walk-ins/no-deposit cars or closed bookings.
   if (!deposit) {
-    if (booking.depositCents <= 0 || isTerminal) return null;
+    if (booking.depositCents === undefined || booking.depositCents <= 0 || isTerminal) return null;
     if (booking.state !== "requested" && booking.state !== "accepted") {
       return null;
     }

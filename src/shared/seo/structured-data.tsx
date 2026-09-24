@@ -150,6 +150,9 @@ export function VehicleJsonLd({
           "@type": "Offer",
           url,
           businessFunction: "http://purl.org/goodrelations/v1#LeaseOut",
+          ...(car.status === "paused"
+            ? { availability: "https://schema.org/OutOfStock" }
+            : {}),
           // USD matches the backend pricing contract and the visible daily-rate UI.
           // This is a base daily rate, not a date-specific quote or availability claim.
           priceSpecification: {
