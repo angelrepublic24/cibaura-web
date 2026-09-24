@@ -113,8 +113,8 @@ contra la API antes de habilitar tráfico comercial. Health no certifica cobros 
 ## CI y protección contra destinos de ejemplo
 
 El workflow `CI` compila con `npm run build:ci`: NODE_ENV=development y destinos
-sint?ticos .ci.invalid. Next 15 requiere `experimental.allowDevelopmentBuild` para
-esta compilaci?n (puede emitir el aviso de NODE_ENV no est?ndar). Se activa solo
+sintéticos .ci.invalid. Next 15 requiere `experimental.allowDevelopmentBuild` para
+esta compilación (puede emitir el aviso de NODE_ENV no estándar). Se activa solo
 en esa fase/modo y escribe en `.next-ci`, excluido de Docker y git. El smoke arranca
 el server.js generado sin modificarlo. Ese artefacto NO se publica ni despliega;
 no prueba la API real, pagos ni un build comercial.
@@ -124,25 +124,25 @@ lee `vars.*`. Crear en Settings > Secrets and variables > Actions > Variables:
 
 - Obligatorias: `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SITE_URL`,
   `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`.
-- Seg?n funciones usadas: `NEXT_PUBLIC_MEDIA_URL`, `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`,
+- Según funciones usadas: `NEXT_PUBLIC_MEDIA_URL`, `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`,
   `NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY`, `NEXT_PUBLIC_LEGAL_COMPANY_NAME`,
   `NEXT_PUBLIC_LEGAL_RNC`, `NEXT_PUBLIC_LEGAL_ADDRESS`, `NEXT_PUBLIC_LEGAL_CONTACT_EMAIL`.
 
 El preflight enumera cada variable obligatoria ausente y falla. Docker fuerza
 NODE_ENV=production en el builder y ejecuta `npm run build`; nunca consume `.next-ci`.
 El job construye la imagen y verifica usuario no root, health, assets, optimizador
-y robots. No sube ni despliega la imagen autom?ticamente. No se han creado variables
-Actions en nombre del due?o. Para probar cuando exista daemon: ejecutar los comandos
-Compose anteriores; CI de producci?n proporciona su propio daemon.
+y robots. No sube ni despliega la imagen automáticamente. No se han creado variables
+Actions en nombre del dueño. Para probar cuando exista daemon: ejecutar los comandos
+Compose anteriores; CI de producción proporciona su propio daemon.
 
-`src/lib/public-url.ts` se ejecuta desde next.config antes de compilar. En producci?n
+`src/lib/public-url.ts` se ejecuta desde next.config antes de compilar. En producción
 rechaza valores ausentes, localhost, IPs, nombres locales, .invalid, .example, .test,
 example.com/net/org, marcadores, HTTP, credenciales, query/hash y wildcards. SITE_URL
 rechaza paths y no tiene dominio por defecto. `src/lib/deployment-policy.ts` compara
 los dominios registrables usando tldts y la Public Suffix List, incluidos sufijos
 privados: tenants distintos de github.io/vercel.app NO son same-site. Se aplica a
-producci?n; no existe ALLOW_PLACEHOLDER ni bypass equivalente en producci?n. Esto
-valida configuraci?n, no DNS, propiedad del dominio ni disponibilidad de API.
+producción; no existe ALLOW_PLACEHOLDER ni bypass equivalente en producción. Esto
+valida configuración, no DNS, propiedad del dominio ni disponibilidad de API.
 
 No reusar una imagen de staging en producción esperando corregirla con `-e`.
 Para actualizar: cambiar valores si hace falta, reconstruir y `up -d --wait`.
@@ -151,12 +151,12 @@ usando su WEB_IMAGE_TAG y **los valores de su build**, incluidos dominio TLS y p
 
 ## Imágenes y constantes encontradas
 
-- Fotos API ya ten?an remotePatterns y optimizaci?n condicional. El bypass restante
-  era para URLs externas heredadas. NEXT_PUBLIC_MEDIA_URL a?ade un host/prefijo
-  p?blico autorizado; fotos y logos coincidentes usan el optimizador. Query strings
+- Fotos API ya tenían remotePatterns y optimización condicional. El bypass restante
+  era para URLs externas heredadas. NEXT_PUBLIC_MEDIA_URL añade un host/prefijo
+  público autorizado; fotos y logos coincidentes usan el optimizador. Query strings
   permitidas bajo ese prefijo. Sin la variable, o con otro host, se conserva la URL
   externa con unoptimized para que siga visible; esa alternativa no mejora LCP.
-  No hay wildcard global ni autorizaci?n de documentos/KYC privados.
+  No hay wildcard global ni autorización de documentos/KYC privados.
 - Los cuatro `unoptimized` incondicionales son PNG locales de marca pequeños en
   `src/shared/components/logo.tsx:38,52,68,77`, no inventario ni peticiones externas.
 - Dominio fijo SEO eliminado de `src/shared/seo/metadata.ts`; todos sus consumidores
@@ -188,7 +188,7 @@ No se migra a Next 16. El lockfile y digests de imágenes permiten repetir las v
 - [Build args y variables Docker](https://docs.docker.com/build/building/variables/).
 - [HTTPS automático Caddy](https://caddyserver.com/docs/automatic-https).
 
-## Verificaci?n reproducible
+## Verificación reproducible
 
 ```sh
 npm ci
@@ -201,19 +201,19 @@ npm run lint:suppressions
 npm audit
 ```
 
-Los guards tienen 58 comprobaciones con valores sint?ticos, incluidos dominios
+Los guards tienen 58 comprobaciones con valores sintéticos, incluidos dominios
 co.uk/com.do y sufijos privados. El smoke standalone comprueba seis respuestas HTTP:
-health JSON, asset p?blico, optimizador Sharp, robots, HTML con canonical y CSS.
+health JSON, asset público, optimizador Sharp, robots, HTML con canonical y CSS.
 Se informa el resultado final real de estos comandos en el PR.
 
-El build de producci?n se prueba por separado con `npm run build` y valores reales:
+El build de producción se prueba por separado con `npm run build` y valores reales:
 los placeholders/localhost deben fallar antes de compilar. El daemon local permanece
-apagado por instrucci?n del responsable. La imagen de producci?n queda verificable
+apagado por instrucción del responsable. La imagen de producción queda verificable
 mediante el workflow manual cuando se peguen las variables; no se presenta el smoke
 de desarrollo como evidencia de una imagen Docker ni de inventario real.
 
-Resultados locales de esta revisi?n: build:ci exit 0 (51/51 p?ginas), standalone
+Resultados locales de esta revisión: build:ci exit 0 (51/51 páginas), standalone
 6/6, guards 58/58, tsc 0 errores, ESLint 0 errores/0 warnings, supresiones 222 archivos
 limpios, npm audit 0 vulnerabilidades. Un npm run build con dominios registrables
-distintos sali? con c?digo 1 antes de compilar, como se exige. El preflight sin
-variables sali? con c?digo 1 enumerando API_URL, SITE_URL y la clave p?blica Stripe.
+distintos salió con código 1 antes de compilar, como se exige. El preflight sin
+variables salió con código 1 enumerando API_URL, SITE_URL y la clave pública Stripe.
