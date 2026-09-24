@@ -4,6 +4,7 @@ services:
     image: caddy:2-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
     environment:
       NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?Set the public site origin}
+      WEB_REDIRECT_HOST: ${WEB_REDIRECT_HOST:?Set the alternate hostname (www or apex)}
       PORT: ${PORT:-3000}
     ports:
       - "80:80"

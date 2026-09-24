@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 import { PHASE_PRODUCTION_BUILD } from "next/constants";
 import { API_URL, MEDIA_URL, SITE_URL } from "./src/lib/config";
 import { assertSameSite } from "./src/lib/deployment-policy";
+import { securityHeaders } from "./src/lib/security-headers";
 
 /**
  * SESSION / DEPLOYMENT NOTE (ADR-0006, audit WEB-04): the web session rides in
@@ -18,6 +19,19 @@ if (process.env.NODE_ENV === "production")
   assertSameSite(SITE_URL, configuredApi);
 const nextConfig: NextConfig = {
   output: "standalone",
+  poweredByHeader: false,
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: securityHeaders(
+          configuredApi,
+          Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim()),
+          process.env.NODE_ENV !== "production",
+        ),
+      },
+    ];
+  },
   images: {
     // Only the public, immutable photo stream; never KYC, documents or arbitrary hosts.
     remotePatterns: [

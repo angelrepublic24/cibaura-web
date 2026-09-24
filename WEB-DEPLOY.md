@@ -1,5 +1,131 @@
 # Despliegue del web Cibaura
 
+## Hostinger VPS limpio: camino concreto
+
+Usar un VPS Ubuntu 24.04 LTS (no hosting compartido). Entrar por SSH con un usuario
+con sudo. La marca y el dominio siguen pendientes: no hay default de producción.
+
+Instalar Docker Engine y Compose desde el repositorio oficial:
+
+```sh
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl git
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo systemctl enable --now docker
+sudo docker version
+sudo docker compose version
+git clone https://github.com/angelrepublic24/cibaura-web.git
+cd cibaura-web
+cp .env.example .env.production.local
+chmod 600 .env.production.local
+```
+
+Pegar valores reales en `.env.production.local`. SITE_URL es el origen canónico
+(apex o www), API_URL es `https://api.<dominio>`, WEB_REDIRECT_HOST es el otro
+hostname **sin esquema, puerto ni ruta**. No repetir el host canónico: crearía un
+conflicto de sitios. Configurar registros A del apex y www hacia la IPv4 del VPS;
+AAAA solo si IPv6 está operativo. El registro de api debe apuntar al servidor del
+backend. No publicar un AAAA incorrecto: rompe ACME y acceso de clientes IPv6.
+
+En el firewall de Hostinger y del sistema permitir SSH y 80/TCP, 443/TCP (443/UDP
+opcional para HTTP/3). Mantener 3000 solo en loopback. Caddy necesita 80/443 libres;
+no instalar otro proxy que ocupe esos puertos. El backend debe tener su propio
+ingress HTTPS para api.<dominio>; este Compose no despliega ni enruta NestJS.
+
+```sh
+sudo docker compose --env-file .env.production.local -f compose.yml -f compose.production.yml up -d --build --wait --wait-timeout 120
+sudo docker compose --env-file .env.production.local -f compose.yml -f compose.production.yml logs edge
+```
+
+Con DNS propagado y puertos abiertos, Caddy obtiene y renueva los certificados
+del canónico y del alternativo automáticamente. HTTP pasa a HTTPS; el alternativo
+HTTPS devuelve **301**, preservando ruta y query, hacia SITE_URL. Los volúmenes
+caddy_data/caddy_config deben persistir. Comprobar con los hostnames reales:
+
+```sh
+curl -I https://HOST_CANONICO/legal/privacy
+curl -I 'https://HOST_ALTERNATIVO/cars/city?q=1'
+```
+
+El segundo debe devolver Location al canónico y status 301. Estos nombres son
+marcadores de instrucciones, nunca valores aceptados para construir producción.
+
+## Cabeceras: responsabilidades y límites
+
+Next (`src/lib/security-headers.ts`, `next.config.ts`) entrega CSP aplicada,
+nosniff, Referrer-Policy y Permissions-Policy en las respuestas de aplicación.
+Así sobreviven a un cambio de proxy y se prueban contra standalone. Caddy añade
+HSTS `max-age=31536000` en ambos hosts HTTPS, donde termina TLS. No se usa
+includeSubDomains ni preload: no controlamos todavía todos los subdominios.
+No se duplica CSP en Caddy, porque dos políticas se intersectan y pueden bloquear
+Stripe o Maps accidentalmente. Si se usa otro ingress, debe añadir HSTS allí.
+
+La CSP permite únicamente scripts de la aplicación, Stripe y (si hay clave) Maps.
+Mantiene unsafe-inline para la hidratación/prerenderizado de Next y estilos; no es
+una CSP estricta con nonce ni elimina por completo el riesgo de XSS. unsafe-eval
+solo se permite en desarrollo o con Maps habilitado, por su allowlist documentada.
+Imágenes HTTPS externas siguen permitidas por el fallback acordado. Conexiones a
+API usan el origen validado; Stripe/Link y Maps tienen sus orígenes permitidos.
+Frame-ancestors none y object-src none bloquean embebido del sitio y plugins.
+Los smoke HTTP verifican cabeceras; no equivalen a probar pagos o Maps con claves
+reales en un navegador. Un nonce requeriría renderizado dinámico y cambios de
+caché que no se introducen en esta entrega.
+
+## Identidad y publicación de releases
+
+Esquema propuesto y cableado: tags Git **vMAJOR.MINOR.PATCH**, versiones independientes
+por repositorio. Primer release propuesto: v0.1.0; no se ha creado ningún tag.
+PATCH para correcciones compatibles, MINOR para funciones compatibles, MAJOR para
+rupturas del contrato. El tag Git es la identidad de despliegue (package.json es
+privado y no se publica en npm). No mover/reutilizar tags; proteger v* mediante un
+ruleset de GitHub contra actualización/borrado. No se crean reglas remotamente aquí.
+
+Al hacer push de vX.Y.Z, `production-image.yml` comprueba SemVer estable y que el
+commit pertenece a main, exige las variables Actions, construye y prueba la imagen,
+y publica **la misma imagen probada** en GHCR con `vX.Y.Z` y `sha-<SHA completo>`.
+Añade labels OCI de versión, revisión y repositorio. Usa GITHUB_TOKEN con
+packages:write; no requiere credenciales nuevas para publicar. El dispatch manual
+valida sin publicar si se ejecuta sobre una rama. No se publica latest ni se hace
+despliegue automático al VPS. Tampoco se reusa el build sintético de CI.
+
+Tras revisión y CI verde, el responsable ejecuta (ejemplo de primera versión):
+
+```sh
+git switch main
+git pull --ff-only
+git tag -a v0.1.0 -m 'Web v0.1.0'
+git push origin v0.1.0
+```
+
+El paquete GHCR puede ser privado. Para descargarlo en el VPS, autenticarse con
+un token de lectura de packages mediante `docker login ghcr.io --password-stdin`,
+o configurar el paquete como público si esa es la decisión del propietario.
+En el archivo de valores fijar WEB_IMAGE_REPOSITORY=ghcr.io/angelrepublic24/cibaura-web
+y WEB_IMAGE_TAG=v0.1.0 (o sha-<SHA>). SITE_URL y demás valores deben corresponder al
+build publicado; la imagen no se reconfigura cambiando NEXT_PUBLIC_* al arrancar.
+
+```sh
+sudo docker compose --env-file .env.production.local -f compose.yml -f compose.production.yml pull
+sudo docker compose --env-file .env.production.local -f compose.yml -f compose.production.yml up -d --no-build --wait --wait-timeout 120
+```
+
+Rollback: restaurar la etiqueta anterior y sus valores, pull y up --no-build.
+Variables nuevas fuera de src: WEB_REDIRECT_HOST (runtime Caddy, obligatoria con
+TLS), WEB_IMAGE_REPOSITORY (Compose), WEB_VERSION y WEB_REVISION (build, labels OCI;
+workflow los rellena). Todas las NEXT_PUBLIC_* conservan su inventario de abajo.
+
+Referencias oficiales: [Docker Ubuntu](https://docs.docker.com/engine/install/ubuntu/),
+[Caddy HTTPS](https://caddyserver.com/docs/automatic-https),
+[Caddy redir](https://caddyserver.com/docs/caddyfile/directives/redir),
+[Next CSP](https://nextjs.org/docs/app/guides/content-security-policy),
+[Stripe CSP](https://docs.stripe.com/security/guide),
+[Maps CSP](https://developers.google.com/maps/documentation/javascript/content-security-policy).
+
 ## Ruta construida
 
 Next genera `output: "standalone"`. El Dockerfile instala con `npm ci`, compila
@@ -131,7 +257,8 @@ lee `vars.*`. Crear en Settings > Secrets and variables > Actions > Variables:
 El preflight enumera cada variable obligatoria ausente y falla. Docker fuerza
 NODE_ENV=production en el builder y ejecuta `npm run build`; nunca consume `.next-ci`.
 El job construye la imagen y verifica usuario no root, health, assets, optimizador
-y robots. No sube ni despliega la imagen automáticamente. No se han creado variables
+y robots. En un tag SemVer publica en GHCR; en una rama solo valida. No despliega
+al VPS automáticamente. No se han creado variables
 Actions en nombre del dueño. Para probar cuando exista daemon: ejecutar los comandos
 Compose anteriores; CI de producción proporciona su propio daemon.
 
@@ -201,7 +328,7 @@ npm run lint:suppressions
 npm audit
 ```
 
-Los guards tienen 58 comprobaciones con valores sintéticos, incluidos dominios
+Los guards tienen 64 comprobaciones con valores sintéticos, incluidos dominios
 co.uk/com.do y sufijos privados. El smoke standalone comprueba seis respuestas HTTP:
 health JSON, asset público, optimizador Sharp, robots, HTML con canonical y CSS.
 Se informa el resultado final real de estos comandos en el PR.
@@ -213,7 +340,8 @@ mediante el workflow manual cuando se peguen las variables; no se presenta el sm
 de desarrollo como evidencia de una imagen Docker ni de inventario real.
 
 Resultados locales de esta revisión: build:ci exit 0 (51/51 páginas), standalone
-6/6, guards 58/58, tsc 0 errores, ESLint 0 errores/0 warnings, supresiones 222 archivos
+6/6 más cinco cabeceras, edge Caddy 6/6, guards 64/64, tsc 0 errores,
+ESLint 0 errores/0 warnings, supresiones 223 archivos
 limpios, npm audit 0 vulnerabilidades. Un npm run build con dominios registrables
 distintos salió con código 1 antes de compilar, como se exige. El preflight sin
 variables salió con código 1 enumerando API_URL, SITE_URL y la clave pública Stripe.

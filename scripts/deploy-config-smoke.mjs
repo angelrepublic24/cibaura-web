@@ -129,6 +129,24 @@ for (const [url, allowed] of [
   assert.equal(media.isOptimizableImage(url), allowed);
   checks++;
 }
+const { securityHeaders } = load("src/lib/security-headers.ts", {});
+const policy = (maps, development) =>
+  securityHeaders(new URL("https://api.policy.com"), maps, development)[0]
+    .value;
+assert(!policy(false, false).includes("'unsafe-eval'"));
+checks++;
+assert(policy(true, false).includes("'unsafe-eval'"));
+checks++;
+assert(policy(false, true).includes("'unsafe-eval'"));
+checks++;
+assert(
+  policy(false, false).includes("connect-src 'self' https://api.policy.com"),
+);
+checks++;
+assert(policy(true, false).includes("https://*.googleapis.com"));
+checks++;
+assert(policy(false, false).includes("https://hooks.stripe.com"));
+checks++;
 console.log(
   `deploy-config: ${checks} checks passed (synthetic values, no build artifact)`,
 );

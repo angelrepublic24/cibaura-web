@@ -2,9 +2,16 @@
 
 on:
   workflow_dispatch:
+  push:
+    tags: ["v*.*.*"]
 
 permissions:
   contents: read
+  packages: write
+
+concurrency:
+  group: production-image-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   web:
@@ -25,12 +32,29 @@ jobs:
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate release identity
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+        run: |
+          if [ "$REF_TYPE" = tag ]; then
+            [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || { echo 'Expected stable SemVer vX.Y.Z'; exit 1; }
+            git merge-base --is-ancestor HEAD origin/main || { echo 'Release must belong to main'; exit 1; }
+            echo "WEB_VERSION=$RELEASE_TAG" >> "$GITHUB_ENV"
+          fi
+          echo "WEB_REVISION=$GITHUB_SHA" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
       - run: node scripts/check-production-env.mjs
+      - run: node scripts/deploy-config-smoke.mjs
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run lint:suppressions
       - id: container
         run: docker compose build
       - name: Verify non-root container, health, static files and image optimizer
@@ -41,5 +65,24 @@ jobs:
           curl --fail -o /dev/null http://127.0.0.1:3000/brand/og.png
           curl --fail -o /dev/null 'http://127.0.0.1:3000/_next/image?url=%2Fbrand%2Fog.png&w=640&q=75'
           curl --fail http://127.0.0.1:3000/robots.txt | grep -F "$NEXT_PUBLIC_SITE_URL"
+          curl --fail -sD - -o /dev/null http://127.0.0.1:3000/legal/privacy | grep -i 'content-security-policy:'
+      - name: Publish tested image to GHCR
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          registry="ghcr.io/${REPOSITORY,,}"
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          if docker manifest inspect "$registry:$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Release image already exists; do not reuse $RELEASE_TAG"
+            exit 1
+          fi
+          docker tag cibaura-web:local "$registry:$RELEASE_TAG"
+          docker tag cibaura-web:local "$registry:sha-$GITHUB_SHA"
+          docker push "$registry:$RELEASE_TAG"
+          docker push "$registry:sha-$GITHUB_SHA"
+          echo "Published $registry:$RELEASE_TAG and sha-$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
       - if: always() && steps.container.outcome == 'success'
         run: docker compose logs && docker compose down

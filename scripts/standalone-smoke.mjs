@@ -59,14 +59,29 @@ try {
     await (await get("/robots.txt")).text(),
     /https:\/\/web\.ci\.invalid\/sitemap\.xml/,
   );
-  const html = await (await get("/legal/privacy")).text();
+  const page = await get("/legal/privacy");
+  assert.equal(page.headers.get("x-content-type-options"), "nosniff");
+  assert.equal(
+    page.headers.get("referrer-policy"),
+    "strict-origin-when-cross-origin",
+  );
+  assert.match(page.headers.get("permissions-policy"), /microphone=\(\)/);
+  assert.match(
+    page.headers.get("content-security-policy"),
+    /frame-ancestors 'none'/,
+  );
+  assert.match(
+    page.headers.get("content-security-policy"),
+    /https:\/\/api\.ci\.invalid/,
+  );
+  const html = await page.text();
   assert.match(html, /https:\/\/web\.ci\.invalid\/legal\/privacy/);
   const chunks = await readdir(path.join(dist, "static/chunks"));
   const css = chunks.find((file) => file.endsWith(".css"));
   assert(css, "CSS bundle exists");
   await get(`/_next/static/chunks/${css}`);
   console.log(
-    "Standalone: 6 HTTP checks passed (health, public asset, optimizer, robots, HTML canonical, CSS). CI values only.",
+    "Standalone: 6 HTTP checks + 5 security header checks passed. CI values only.",
   );
 } catch (error) {
   console.error(logs);
