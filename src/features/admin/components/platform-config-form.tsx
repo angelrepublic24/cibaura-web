@@ -44,7 +44,7 @@ const POLICY_FIELDS = [
   {
     name: "earlyReturnPenaltyDays",
     label: "Early return penalty",
-    hint: "Days charged as a penalty. 0 - 30.",
+    hint: "Days charged as a penalty. 0 - 7.",
   },
 ] as const;
 
@@ -68,15 +68,19 @@ export function PlatformConfigForm({ config }: { config: PlatformConfigDto }) {
             Additional settings unavailable
           </CardTitle>
           <CardDescription>
-            These settings cannot currently be edited or saved here. Their
-            current values are not available.
+            These settings cannot currently be edited or saved here.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
             <li>Dispute window and customer claim response window</li>
             <li>Default security deposit and re-authorization lead time</li>
-            <li>Advance at check-in</li>
+            <li>
+              Advance at confirmed check-in
+              {config.checkinAdvancePct !== undefined
+                ? `: ${config.checkinAdvancePct}% (read-only)`
+                : ": current value unavailable"}
+            </li>
             <li>Required inspections, minimum photos and media retention</li>
             <li>Stripe payouts</li>
           </ul>

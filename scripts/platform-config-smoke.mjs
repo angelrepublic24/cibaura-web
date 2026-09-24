@@ -142,7 +142,7 @@ await test("HTTP failure stays an error; no fallback writes", async () => {
   await assert.rejects(api.updateCommission({ commissionPct: 25 }), /HTTP 403/);
   assert.equal(calls.length, before + 1);
 });
-await test("Forms reject blank and out-of-range input; policy accepts existing >7", () => {
+await test("Forms retain 0..7 pending resolution of backend 0..30", () => {
   assert.equal(
     contract.commissionFormSchema.safeParse({ commissionPct: "" }).success,
     false,
@@ -158,8 +158,57 @@ await test("Forms reject blank and out-of-range input; policy accepts existing >
       lateCancellationRetentionPct: "20",
       earlyReturnPenaltyDays: "30",
     }).success,
+    false,
+  );
+  assert.equal(
+    contract.cancellationFormSchema.safeParse({
+      freeCancellationHours: "48",
+      lateCancellationRetentionPct: "20",
+      earlyReturnPenaltyDays: "7",
+    }).success,
     true,
   );
+});
+await test("Optional advance survives nested and flat normalization, including zero", () => {
+  for (const value of [0, 40, 80]) {
+    for (const data of [
+      {
+        commissionPct: 15,
+        cancellationPolicy: policy,
+        checkinAdvancePct: value,
+      },
+      { commissionPct: 15, ...policy, checkinAdvancePct: value },
+    ])
+      assert.equal(
+        contract.platformConfigSchema.parse(data).checkinAdvancePct,
+        value,
+      );
+  }
+  assert.equal(
+    contract.platformConfigSchema.parse({
+      commissionPct: 15,
+      cancellationPolicy: policy,
+    }).checkinAdvancePct,
+    undefined,
+  );
+});
+await test("Advance remains validated and never leaks into supported PATCH bodies", async () => {
+  assert.equal(
+    contract.platformConfigSchema.safeParse({
+      commissionPct: 15,
+      ...policy,
+      checkinAdvancePct: 81,
+    }).success,
+    false,
+  );
+  responseMode = "normal";
+  await api.updateCommission({ commissionPct: 10, checkinAdvancePct: 40 });
+  assert.equal(Object.hasOwn(calls.at(-1).body, "checkinAdvancePct"), false);
+  await api.updateCancellationPolicy({
+    freeCancellationHours: 24,
+    checkinAdvancePct: 40,
+  });
+  assert.equal(Object.hasOwn(calls.at(-1).body, "checkinAdvancePct"), false);
 });
 await test("No request targets nonexistent PATCH /admin/config", () => {
   assert.equal(

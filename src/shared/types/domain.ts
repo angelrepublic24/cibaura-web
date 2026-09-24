@@ -849,6 +849,8 @@ export type UserStatus = "active" | "suspended" | "deleted";
 export interface PlatformConfigDto {
   commissionPct: number;
   cancellationPolicy: CancellationPolicyDto;
+  /** Read-only if supplied; not exposed by the currently deployed GET. */
+  checkinAdvancePct?: number;
 }
 
 // ── Contracts & e-sign (ADR-0010) ──────────────────────────────────────────
