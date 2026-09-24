@@ -65,11 +65,19 @@ incompletos/ignorados, no que el 404 se tratara como éxito.
 Se guardan comisión y política de forma independiente por las dos rutas existentes.
 Una sección no anuncia que la otra se guardó. Las nueve opciones restantes se
 enumeran como no disponibles, sin valores aparentes ni controles que prometan guardar.
-La penalidad permite los 30 días soportados por el backend actual.
+La penalidad conserva el rango de edición anterior **0–7**, por decisión del lead.
+**Discrepancia pendiente: backend acepta 0–30.** No se resuelve ampliando la UI por
+inferencia; el servidor debe definir el rango único. La lectura sigue aceptando
+valores del servidor hasta 30, sin truncarlos. Un valor existente superior a 7
+puede bloquear la edición de política hasta resolver esta deriva; no bloquea la
+comisión, cuyo guardado es independiente.
 
 `platform-config-contract.ts` valida y normaliza el GET anidado actual; también
 acepta las cuatro claves en raíz para la transición al DTO plano anunciado. No
 habilita edición adicional por inferir capacidades a partir de ese formato.
+Además conserva `checkinAdvancePct` opcional (entero 0–80) si llega en cualquiera
+de ambos formatos, incluido cero. Ausencia significa desconocido, nunca cero.
+Se muestra solo como lectura y no se envía por las rutas de comisión/cancelación.
 `platform-config-api.ts` valida las respuestas de PATCH y compara los valores
 enviados antes de permitir el mensaje de éxito. Si la respuesta es incompleta o
 distinta, advierte que el resultado no está confirmado y que debe recargarse antes
@@ -78,7 +86,7 @@ de reintentar. Errores HTTP se conservan; no hay fallback a rutas inventadas.
 Referencias nuevas: normalización `src/features/admin/platform-config-contract.ts:15`,
 lectura y guardados `src/features/admin/platform-config-api.ts:11`, `:22`, `:34`;
 opciones no disponibles `src/features/admin/components/platform-config-form.tsx:68`,
-formularios independientes `:89` y `:168`; mensaje de resultado `:253`.
+formularios independientes `:93` y `:172`; mensaje de resultado `:257`.
 
 El formulario actualiza la caché de cada sección sin pisar la otra y revalida
 configuración; al guardar política también revalida las consultas legales.
@@ -89,8 +97,15 @@ Los campos se bloquean durante su guardado para no perder ediciones en vuelo.
 El backend debe confirmar GET plano completo y PATCH raíz parcial (respuesta
 completa), límites, persistencia y aplicación efectiva de cada opción, incluida
 retención de medios. Debe conservar las rutas existentes durante el despliegue.
-La discrepancia 7/30 días se resuelve aquí con el contrato actual de 30, no cambiando
-backend. No se consume PATCH raíz hasta que exista y se haya verificado.
+La discrepancia 7/30 días queda explícitamente pendiente del backend. No se consume
+PATCH raíz hasta que exista y se haya verificado.
+
+**Prioridad de producto: anticipo al host.** `checkinAdvancePct` corresponde hoy
+al anticipo en check-in confirmado. El dueño pidió cobrar el 100% al cliente y
+liberar un porcentaje configurable al host al confirmar la reserva para bloquear
+las fechas. Son eventos distintos. El backend debe definir el evento, nombre y
+contrato definitivo antes de habilitar esta opción; conservar el porcentaje en
+la normalización no implica que el requisito de liberación anticipada esté cumplido.
 
 Nota SEO de Tarea 3: retirar loading.tsx priorizó el 404 correcto sobre el skeleton;
 el tiempo percibido hasta la primera respuesta de esas rutas puede empeorar.
@@ -104,7 +119,7 @@ implementar en esta tarea.
 - `npx tsc --noEmit`: salida 0, 0 errores.
 - `npm run lint`: salida 0, 0 errores y 0 warnings.
 - `npm run lint:suppressions`: salida 0, 218 archivos sin supresiones.
-- `node scripts/platform-config-smoke.mjs`: 11 comprobaciones de contrato pasan,
+- `node scripts/platform-config-smoke.mjs`: 13 comprobaciones de contrato pasan,
   con transporte sintético: GET anidado/plano, validación, rutas existentes,
   cambios parciales, valores ignorados, respuestas vacías y error HTTP.
 - `git diff --check`: salida 0.
