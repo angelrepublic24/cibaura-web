@@ -29,9 +29,9 @@ la imagen por entorno. No pasar claves secretas de Stripe ni credenciales de bac
 
 | Variable                           | Referencia                             | Obligatoria en producción                         | Comportamiento / .env.example                                                                                            |
 | ---------------------------------- | -------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| NEXT_PUBLIC_API_URL                | src/lib/config.ts:24                   | Sí, validada al cargar next.config                | Base HTTPS pública; añade `/api` una sola vez. Ejemplo local solo válido en desarrollo. Documentada.                     |
+| NEXT_PUBLIC_API_URL | src/lib/config.ts:24 | Si | HTTPS, mismo dominio registrable que SITE_URL. Sin default en production. Documentada. |
 | NEXT_PUBLIC_SITE_URL               | src/lib/config.ts:34                   | Sí, validada al cargar next.config                | Origen HTTPS sin path; metadataBase, canonical, OG, Twitter, robots y sitemap. Nueva; documentada.                       |
-| NEXT_PUBLIC_MEDIA_URL              | src/lib/config.ts:46                   | Si hay imágenes fuera de la API                   | Origen/prefijo público adicional. Nueva; documentada. Vacía permite solo el stream público API.                          |
+| NEXT_PUBLIC_MEDIA_URL | src/lib/config.ts:46 | No | Host/prefijo adicional para optimizar medios. Sin valor, otros hosts siguen visibles con unoptimized. Documentada. |
 | NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY | src/lib/config.ts:67                   | Sí                                                | `pk_live_...`; sin clave no hay tarjetas/reservas. Rechaza claves secretas y placeholders. Documentada.                  |
 | NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY  | src/lib/config.ts:90                   | No                                                | Solo `true` habilita clave test en staging. No usar en producción comercial. Documentada.                                |
 | NEXT_PUBLIC_GOOGLE_MAPS_API_KEY    | src/shared/hooks/use-google-maps.ts:40 | Para entrega a domicilio con autocomplete         | Ausente: UI declara Maps no configurado. Configurar Places/Maps y restricción de referrer al dominio final. Documentada. |
@@ -39,7 +39,7 @@ la imagen por entorno. No pasar claves secretas de Stripe ni credenciales de bac
 | NEXT_PUBLIC_LEGAL_RNC              | src/shared/config/legal.ts:22          | No lo impone el build                             | Línea omitida si vacío; aportar identificación real si corresponde al operador. Documentada.                             |
 | NEXT_PUBLIC_LEGAL_ADDRESS          | src/shared/config/legal.ts:24          | No lo impone el build; completar para lanzamiento | Fallback Santo Domingo, Dominican Republic. Documentada.                                                                 |
 | NEXT_PUBLIC_LEGAL_CONTACT_EMAIL    | src/shared/config/legal.ts:27          | No lo impone el build; completar para lanzamiento | Fallback legal@cibaura.com. Documentada.                                                                                 |
-| NODE_ENV                           | src/lib/config.ts:21,68                | Gestionada por Next / Docker                      | `production` en build y runtime; no es un valor que el dueño deba pegar. No figura en .env.example.                      |
+| NODE_ENV | src/lib/config.ts:21,68 | Gestionada por Next / Docker | production para deploy; development solo en build:ci. No figura en .env.example. |
 
 No hay lecturas de otras variables runtime de aplicación en `src`. Las menciones de
 `process.env.CONFIG_ENCRYPTION_KEY` en `src/features/admin/integrations.ts:53` y de
