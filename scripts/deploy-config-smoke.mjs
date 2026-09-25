@@ -116,6 +116,15 @@ const resolved = config({
   NEXT_PUBLIC_API_URL: "https://api.cibaura.com/api/",
   NEXT_PUBLIC_MEDIA_URL: "https://media.cibaura.com/public",
 });
+assert.equal(
+  config({
+    ...base,
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_SyntheticValidationOnly",
+    NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY: "true",
+  }).STRIPE_PUBLISHABLE_KEY,
+  "pk_test_SyntheticValidationOnly",
+);
+checks++;
 assert.equal(resolved.API_URL, "https://api.cibaura.com/api");
 assert.equal(resolved.SITE_URL.href, "https://cibaura.com/");
 assert.equal(resolved.MEDIA_URL.href, "https://media.cibaura.com/public/");

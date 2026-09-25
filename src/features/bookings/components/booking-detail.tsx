@@ -80,6 +80,10 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
 
         <PaymentNotice booking={booking} />
 
+        {/* Responding to a claim has a server-defined deadline. Keep the form
+            above long inspection/media records, including on closed bookings. */}
+        <ClaimResponseCard booking={booking} />
+
         {isTerminal ? (
           <ClosedBookingNotice booking={booking} />
         ) : (
@@ -95,8 +99,6 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
         <DepositBanner booking={booking} />
 
         <InspectionsSection booking={booking} />
-
-        <ClaimResponseCard booking={booking} />
 
         <SettlementCard booking={booking} />
 
@@ -556,9 +558,7 @@ function CancelSection({ booking }: { booking: BookingDetailData }) {
     );
   }
 
-  const retentionPct =
-    quote?.policy?.lateCancellationRetentionPct ??
-    policy?.lateCancellationRetentionPct;
+  const retentionPct = policy?.lateCancellationRetentionPct;
   const hint =
     quote?.tier === "free" && quote.freeUntil
       ? ` Free cancellation until ${formatDateTime(quote.freeUntil)}.`

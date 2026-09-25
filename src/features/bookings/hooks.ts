@@ -14,6 +14,17 @@ export function useBookingDetail(bookingId: string) {
   return useQuery({
     queryKey: bookingKeys.detail(bookingId),
     queryFn: () => BookingsApi.findById(bookingId),
+    // Surface deposits, inspections and newly filed claims while the customer
+    // leaves this page open. Pause polling in background tabs.
+    refetchInterval: (query) => {
+      const booking = query.state.data;
+      return booking &&
+        (["accepted", "active", "returned"].includes(booking.state) ||
+          booking.claim?.status === "open")
+        ? 30_000
+        : false;
+    },
+    refetchIntervalInBackground: false,
   });
 }
 
