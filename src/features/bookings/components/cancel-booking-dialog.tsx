@@ -40,7 +40,7 @@ function tierExplanation(
     | undefined,
 ): string {
   const tier = quote.tier ?? (quote.isLate ? "late" : "free");
-  const policy = quote.policy ?? fallbackPolicy;
+  const policy = fallbackPolicy;
 
   if (tier === "late") {
     return policy

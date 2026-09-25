@@ -68,7 +68,7 @@ export function ClaimResponseCard({ booking }: { booking: BookingDetail }) {
   if (!claim) return null;
 
   const meta = claimStatusMeta(claim.status);
-  const currency = booking.pricing.currency;
+  const currency = claim.currency ?? booking.pricing.currency;
   const evidence = (inspections.data ?? [])
     .flatMap((i) => i.media)
     .filter((m) => claim.evidenceMediaIds.includes(m.id));
@@ -147,7 +147,7 @@ function ClaimAmounts({
   booking: BookingDetail;
   claim: ClaimDto;
 }) {
-  const currency = booking.pricing.currency;
+  const currency = claim.currency ?? booking.pricing.currency;
   const deposit = booking.deposit;
   return (
     <dl className="space-y-1.5 rounded-[var(--radius-sm)] border border-border p-3">
@@ -357,7 +357,7 @@ function ClaimOutcome({
   booking: BookingDetail;
   claim: ClaimDto;
 }) {
-  const currency = booking.pricing.currency;
+  const currency = claim.currency ?? booking.pricing.currency;
   let tone = "border-border bg-muted/60 text-muted-foreground";
   let body: string;
 

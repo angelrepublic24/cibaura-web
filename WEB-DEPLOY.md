@@ -1,5 +1,37 @@
 # Despliegue del web Cibaura
 
+## Tarea 7: VPS de pruebas frente a release comercial
+
+Son dos caminos distintos aunque ambos usan un build Next NODE_ENV=production:
+
+| Camino | Stripe | Publicación |
+|---|---|---|
+| VPS de pruebas: Compose con `.env.staging.local`, o dispatch del workflow sobre una rama | pk_test_ con NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY=true | Imagen local; dispatch valida y no publica tags de producción |
+| Release comercial: push de vX.Y.Z o dispatch sobre ese tag | pk_live_ obligatorio y NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY vacío/ausente | GHCR versión + SHA tras los gates |
+
+El gate `scripts/check-release-stripe.mjs` corre antes del build/publicación de
+cualquier tag: rechaza pk_test_, claves ausentes/malformadas y cualquier valor no
+vacío del flag, **incluido false**. Para producción hay que eliminar esa variable
+de Actions o dejarla vacía. No se imprime la clave. Los guards de build existentes
+siguen admitiendo pk_test_ con flag true para staging; no se relajan URL, SHA,
+identidad legal ni Maps. Un dispatch sobre un tag también es un release comercial.
+
+Para el VPS de pruebas, crear `.env.staging.local` a partir de la plantilla y pegar
+los valores del entorno de pruebas: SITE_URL y API_URL públicos HTTPS bajo el mismo
+dominio registrable, clave pk_test_, flag true, datos legales/Maps y
+NEXT_PUBLIC_BUILD_SHA del checkout. Fijar WEB_IMAGE_TAG a staging-<SHA> y conservar
+WEB_IMAGE_REPOSITORY=cibaura-web. WEB_REDIRECT_HOST debe tener DNS hacia ese VPS.
+
+```sh
+git rev-parse HEAD  # copiar este valor en NEXT_PUBLIC_BUILD_SHA
+sudo docker compose --env-file .env.staging.local -f compose.yml -f compose.production.yml up -d --build --wait --wait-timeout 120
+curl https://HOST_DE_PRUEBAS/health
+```
+
+Comprobar baked.buildSha y baked.stripeKeyPrefix=pk_test_. No crear un tag vX.Y.Z
+para probar: ese camino ahora rechaza test keys. Para pasar a producción, construir
+otra imagen desde el tag con valores comerciales; no reutilizar la imagen de pruebas.
+
 ## Tarea 6: configuración visible y diferencias con PRODUCCION-SPEC.md §3.2
 
 `GET /health` devuelve `status: "ok"` (liveness HTTP 200) y `baked` con apiUrl,
@@ -38,7 +70,7 @@ Discrepancias resueltas o reportadas, sin editar la especificación del lead:
 | CANONICAL_HOST opcional / 308 en spec | Spec desactualizada frente al PR #13 aprobado: WEB_REDIRECT_HOST obligatorio en Compose TLS + SITE_URL, con 301 en Caddy. |
 | NEXT_PUBLIC_SENTRY_DSN y SSR_SHARED_SECRET | Son trabajos futuros de la spec, no variables implementadas en este web. No se simula que funcionen ni se exigen aún. |
 | ALLOW_PLACEHOLDER_BUILD en §3.4 | Contradice la decisión posterior: no existe ni se añade. CI compila en desarrollo; producción rechaza placeholders. |
-| Stripe test flag | Se conserva el staging explícito existente. La prohibición de este flag en releases comerciales (F2-5) sigue siendo una diferencia respecto al estado actual; no se declara resuelta por esta tarea. |
+| Stripe test flag | Resuelto en Tarea 7: release por tag exige pk_live_ y flag ausente; staging por rama/Compose admite test con flag true. |
 | Cantidad de variables en §4 | La instrucción de “diez” quedó obsoleta al añadir BUILD_SHA; Sentry/SSR pendientes no deben confundirse con valores ya consumidos. |
 
 `npm run smoke`, después de build:ci, ejecuta health-config, deploy-config,
@@ -375,7 +407,7 @@ npm run lint:suppressions
 npm audit
 ```
 
-Los guards tienen 114 comprobaciones con valores sintéticos, incluidos dominios
+Los guards tienen 115 comprobaciones con valores sintéticos, incluidos dominios
 co.uk/com.do y sufijos privados. El smoke standalone comprueba seis respuestas HTTP:
 health JSON, asset público, optimizador Sharp, robots, HTML con canonical y CSS.
 Se informa el resultado final real de estos comandos en el PR.
@@ -387,7 +419,7 @@ mediante el workflow manual cuando se peguen las variables; no se presenta el sm
 de desarrollo como evidencia de una imagen Docker ni de inventario real.
 
 Resultados locales de esta revisión: build:ci exit 0 (51/51 páginas), standalone
-6/6 más cinco cabeceras, edge Caddy 6/6, guards 114/114, tsc 0 errores,
+6/6 más cinco cabeceras, edge Caddy 6/6, guards 115/115, tsc 0 errores,
 ESLint 0 errores/0 warnings, supresiones 224 archivos
 limpios, npm audit 0 vulnerabilidades. Un npm run build con dominios registrables
 distintos salió con código 1 antes de compilar, como se exige. El preflight sin

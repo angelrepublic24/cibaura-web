@@ -48,7 +48,7 @@ import { formatMoneyCents } from "@/shared/utils/money";
  * Every amount is rendered verbatim from the DTOs — nothing is derived.
  */
 
-/** `ClaimDto` carries no currency; the deposit's (or the booking's) is used. */
+/** Fallback for older payloads; current claim amounts carry the booking currency. */
 export function claimCurrency(
   deposit: DepositDto | null,
   fallback = "USD",
@@ -146,7 +146,7 @@ export function ClaimCard({
           <p className="text-sm text-muted-foreground">No claim was filed.</p>
         ) : (
           <div className="space-y-3 text-sm">
-            <ClaimAmounts claim={claim} currency={currency} />
+            <ClaimAmounts claim={claim} currency={claim.currency ?? currency} />
             <p className="line-clamp-3 text-muted-foreground">{claim.description}</p>
             <Link
               href={`/admin/claims/${claim.id}`}

@@ -62,8 +62,7 @@ import type {
  *  - GET  /bookings/:bookingId/agreement/pdf -> SignedUrlDto { url, expiresAt }
  *         (the countersigned PDF when present, else the customer-signed one).
  *  - GET  /bookings/:bookingId/cancellation-quote
- *      -> { refundCents, retainedCents, currency, isLate } (+ optional
- *         `tier`, `freeUntil`, `policy` once the tiered engine ships) — what
+ *      -> { refundCents, retainedCents, currency, isLate, tier, freeUntil } — what
  *         cancelling NOW would refund/retain (customer only).
  *  - POST /bookings/:bookingId/cancel { reason } -> Booking
  *         (customer; reason required; 409 CANCELLATION_WINDOW_CLOSED when the

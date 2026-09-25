@@ -71,7 +71,7 @@ export function ClaimCard({ booking }: { booking: BookingDetail }) {
   const { can } = usePermission();
   const canHandle = can("bookings:handle");
   const claim = booking.claim;
-  const relevant = booking.state === "returned" || claim !== null;
+  const relevant = booking.state === "returned" || claim != null;
   const history = useAgencyClaims(booking.id, relevant);
   const inspections = useAgencyInspections(
     booking.id,

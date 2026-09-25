@@ -500,12 +500,10 @@ export interface Booking {
   cancellationReason: string | null;
   /** Renter identity — present ONLY for the agency/admin viewer. */
   customer?: BookingCustomerDto;
-  // Lifecycle fields may be omitted by older/partial booking serializers.
-  // Absence means unknown, not a zero amount or a completed lifecycle step.
-  /** Deposit snapshotted at request time (car override or platform default), cents. */
-  depositCents?: number;
+  /** Effective deposit emitted on every booking; resolved by the backend, cents. */
+  depositCents: number;
   /** Check-in / check-out inspections (ADR-0011), lightweight refs. */
-  inspections?: { type: InspectionType; status: InspectionStatus; id: string }[];
+  inspections: { type: InspectionType; status: InspectionStatus; id: string }[];
 }
 
 /** Renter block of the frozen rental agreement (license masked to last 4). */
@@ -588,11 +586,11 @@ export interface BookingDetail extends Booking {
   /** Rental agreement snapshot — for both parties; null when none exists. */
   agreement: BookingAgreement | null;
   /** Security deposit hold (ADR-0013); null before check-in / for walk-ins. */
-  deposit?: DepositDto | null;
+  deposit: DepositDto | null;
   /** Open or decided damage claim; parties + admin only. */
-  claim?: ClaimDto | null;
+  claim: ClaimDto | null;
   /** Settlement outcome (ADR-0012); null until cancelled/settled. */
-  settlement?: SettlementDto | null;
+  settlement: SettlementDto | null;
   /** Refund preview — owning customer only, in `requested | accepted`. */
   cancellationQuote?: CancellationQuoteDto;
 }
@@ -1068,6 +1066,7 @@ export interface DepositDto {
 export interface ClaimDto {
   id: string;
   bookingId: string;
+  currency: string;
   status: ClaimStatus;
   requestedCents: number;
   approvedCents: number | null;
@@ -1174,19 +1173,9 @@ export interface CancellationQuoteDto {
   currency: string;
   /** True when the free-cancellation window has already closed. */
   isLate: boolean;
-  /**
-   * v1-expansion additions (spec §5) — OPTIONAL until the backend ships
-   * them; clients render these only when present and never derive them:
-   *  - `tier`      the policy tier the server applied for cancelling NOW;
-   *  - `freeUntil` the instant free cancellation ends (null when none);
-   *  - `policy`    the figures the tier was computed with.
-   */
-  tier?: "free" | "late" | "closed";
-  freeUntil?: string | null;
-  policy?: {
-    freeCancellationHours: number;
-    lateCancellationRetentionPct: number;
-  };
+  /** Always emitted by the backend cancellation quote; no embedded policy. */
+  tier: "free" | "late" | "closed";
+  freeUntil: string | null;
 }
 
 // -------------------------------------------------------------------- misc
