@@ -25,6 +25,8 @@ const { assertSameSite } = load("src/lib/deployment-policy.ts", {});
 const base = {
   NODE_ENV: "production",
   NEXT_PUBLIC_BUILD_SHA: "a".repeat(40),
+  NEXT_PUBLIC_SENTRY_DSN:
+    "https://0123456789abcdef0123456789abcdef@o123.ingest.sentry.io/123",
   NEXT_PUBLIC_LEGAL_COMPANY_NAME: "Fixture Operator",
   NEXT_PUBLIC_LEGAL_RNC: "fixture-rnc",
   NEXT_PUBLIC_LEGAL_ADDRESS: "Fixture address",
@@ -44,6 +46,45 @@ const config = (env) => {
   return result;
 };
 let checks = 0;
+for (const value of [
+  undefined,
+  "",
+  "not-a-dsn",
+  "https://REPLACE_ME.invalid/123",
+  "https://0123456789abcdef0123456789abcdef@localhost/123",
+  "https://0123456789abcdef0123456789abcdef:secret@o123.ingest.sentry.io/123",
+  "https://0123456789abcdef0123456789abcdef@o123.ingest.sentry.io/123?token=secret",
+]) {
+  assert.throws(
+    () => config({ ...base, NEXT_PUBLIC_SENTRY_DSN: value }),
+    /NEXT_PUBLIC_SENTRY_DSN/,
+  );
+  checks++;
+}
+assert.equal(
+  config({
+    ...base,
+    NEXT_PUBLIC_SENTRY_DSN: "",
+    NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY: "true",
+  }).SENTRY_CONFIGURED,
+  false,
+);
+checks++;
+assert.equal(config(base).SENTRY_CONFIGURED, true);
+checks++;
+const { securityHeaders: sentryHeaders } = load(
+  "src/lib/security-headers.ts",
+  {},
+);
+const csp = sentryHeaders(
+  new URL(base.NEXT_PUBLIC_API_URL),
+  false,
+  false,
+  base.NEXT_PUBLIC_SENTRY_DSN,
+)[0].value;
+assert(csp.includes("https://o123.ingest.sentry.io"));
+assert(!csp.includes("0123456789abcdef"));
+checks += 2;
 for (const [site, api, allowed] of [
   ["https://shop.rental.com", "https://api.rental.com", true],
   ["https://rental.com.do", "https://api.rental.com.do", true],

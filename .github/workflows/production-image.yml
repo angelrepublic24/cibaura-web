@@ -21,6 +21,7 @@ jobs:
       # Real build destinations from repository Actions variables. No placeholders.
       NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
       NEXT_PUBLIC_BUILD_SHA: ${{ github.sha }}
+      NEXT_PUBLIC_SENTRY_DSN: ${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
       BUILD_ENV_PROBE_API: ${{ vars.BUILD_ENV_PROBE_API }}
       NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL }}
       NEXT_PUBLIC_MEDIA_URL: ${{ vars.NEXT_PUBLIC_MEDIA_URL }}

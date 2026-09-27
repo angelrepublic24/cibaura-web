@@ -26,6 +26,7 @@ const child = spawn(
       NEXT_PUBLIC_MEDIA_URL: "https://media.ci.invalid/public/",
       NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "",
       NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY: "false",
+      NEXT_PUBLIC_SENTRY_DSN: "",
     },
   },
 );

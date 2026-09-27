@@ -5,6 +5,7 @@ import {
   LEGAL_CONFIGURED,
   MAPS_CONFIGURED,
   BUILD_SHA,
+  SENTRY_CONFIGURED,
 } from "@/lib/config";
 import { probeUpstream } from "@/lib/upstream-health";
 /** HTTP 200 is process liveness; upstream.ok reports dependency health separately. */
@@ -24,6 +25,7 @@ export async function GET() {
             : null,
         legalConfigured: LEGAL_CONFIGURED,
         mapsConfigured: MAPS_CONFIGURED,
+        sentryConfigured: SENTRY_CONFIGURED,
         buildSha: BUILD_SHA,
       },
       upstream: await probeUpstream(API_URL, SITE_URL.origin),

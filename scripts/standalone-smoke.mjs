@@ -59,6 +59,7 @@ try {
   assert.match(health.baked.buildSha, /^[a-f0-9]{40}$/);
   assert.equal(typeof health.baked.legalConfigured, "boolean");
   assert.equal(typeof health.baked.mapsConfigured, "boolean");
+  assert.equal(health.baked.sentryConfigured, false);
   assert.deepEqual(health.upstream, {
     ok: false,
     status: null,
