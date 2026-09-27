@@ -114,6 +114,38 @@ export const MAPS_CONFIGURED = Boolean(
   process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim(),
 );
 export const BUILD_SHA = process.env.NEXT_PUBLIC_BUILD_SHA?.trim() || null;
+
+/** A DSN contains a public ingest key, never an auth token or secret key. */
+function resolveSentryDsn(): string | undefined {
+  const raw = process.env.NEXT_PUBLIC_SENTRY_DSN?.trim();
+  if (!raw) {
+    if (production && process.env.NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY !== "true")
+      throw new Error(
+        "[config] NEXT_PUBLIC_SENTRY_DSN is required for production. Only explicit test-key staging may omit error reporting.",
+      );
+    return undefined;
+  }
+  try {
+    const url = new URL(raw);
+    if (
+      !/^[a-f0-9]{32}$/i.test(url.username) ||
+      url.password ||
+      !/\/\d+$/.test(url.pathname) ||
+      url.search ||
+      url.hash
+    )
+      throw new Error("Invalid DSN");
+    url.username = "";
+    publicUrl("NEXT_PUBLIC_SENTRY_DSN", url.href, undefined, true);
+    return raw;
+  } catch {
+    throw new Error(
+      "[config] NEXT_PUBLIC_SENTRY_DSN must be a public HTTPS Sentry DSN with a public key and numeric project ID; no password, query or fragment.",
+    );
+  }
+}
+export const SENTRY_DSN = resolveSentryDsn();
+export const SENTRY_CONFIGURED = Boolean(SENTRY_DSN);
 /** Build-only policy: exception flags are never required at browser/runtime startup. */
 export function assertRequiredFeatures(
   allowDefaultLegal: boolean,

@@ -32,6 +32,7 @@ for (const prefix of ["pk_live_", "pk_test_"]) {
       STRIPE_PUBLISHABLE_KEY: key,
       LEGAL_CONFIGURED: false,
       MAPS_CONFIGURED: false,
+      SENTRY_CONFIGURED: prefix === "pk_live_",
       BUILD_SHA: "a".repeat(40),
     },
     "@/lib/upstream-health": {
@@ -49,6 +50,8 @@ for (const prefix of ["pk_live_", "pk_test_"]) {
   assert.equal(JSON.parse(text).baked.stripeKeyPrefix, prefix);
   checks++;
   assert.equal(response.status, 200);
+  checks++;
+  assert.equal(JSON.parse(text).baked.sentryConfigured, prefix === "pk_live_");
   checks++;
 }
 const site = "https://site.fixture.invalid";

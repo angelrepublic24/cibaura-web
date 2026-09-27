@@ -1,5 +1,48 @@
 # Despliegue del web Cibaura
 
+## Reporte de errores (Tarea 8)
+
+`NEXT_PUBLIC_SENTRY_DSN` es un valor público de **build**, no un token de
+administración. Copiar el DSN del proyecto web de Sentry al entorno de compilación
+y a la variable de GitHub Actions `vars.NEXT_PUBLIC_SENTRY_DSN`. Docker y Compose
+lo pasan al builder; cambiar el entorno de un contenedor ya compilado no lo cambia.
+No guardar el DSN real en el repositorio.
+
+El guard de `src/lib/config.ts` rechaza DSN mal formado y exige DSN en producción.
+La única excepción es el staging de pruebas explícito existente:
+`NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY=true`. Sin DSN, ese build, el preflight y el
+navegador advierten que **los errores no se reportarán**. La publicación por tag
+prohíbe ese flag y ejecuta el mismo preflight antes de construir/publicar: no puede
+publicar sin DSN. No hay un bypass de monitoring para releases. Desarrollo/CI
+compilan sin DSN y sin enviar eventos externos.
+
+`/health.baked.sentryConfigured` indica si el DSN quedó horneado; nunca devuelve
+el DSN. Es estado de configuración, no una prueba de entrega o de alertas. El SDK
+etiqueta eventos con `NEXT_PUBLIC_BUILD_SHA` y entorno production (pk_live_) o
+staging (pk_test_). CSP permite únicamente el origen de ingestión configurado.
+
+Se usa `@sentry/nextjs` para errores no controlados del navegador, límites React
+de página/layout raíz y errores SSR mediante `onRequestError`. Las pantallas muestran
+un mensaje humano y reintento. Los eventos conservan excepción/stack; se eliminan
+usuario, breadcrumbs, extras, cookies, cabeceras, cuerpos y query/hash de la URL
+de petición. No se activan Replay, logs ni muestreo de trazas. Evitar incluir datos
+personales o credenciales en los mensajes de las excepciones.
+
+No se suben sourcemaps: no hay credenciales de upload proporcionadas y tampoco se
+publican mapas del cliente. Los stacks del navegador pueden estar minificados;
+SHA identifica el código correspondiente. El envío de errores no necesita token de
+upload. Para validar staging, configurar un DSN de pruebas, provocar una excepción
+desde una interacción controlada y verificar el evento y su SHA en Sentry; configurar
+allí el destinatario de alertas del equipo. `sentryConfigured=true` no verifica esos
+pasos externos. El smoke usa transporte en memoria y no afirma entrega real.
+
+Node requerido: 22.13 o superior dentro de 22.x; SDK y herramientas actuales ya
+requieren esa base. CI usa 22.x y Docker conserva su base fijada por digest.
+El SDK de servidor figura en `serverExternalPackages`: Node lo carga nativamente
+y standalone incluye la dependencia. Evita que Turbopack genere archivos con
+`node:inspector` en el nombre, incompatibles con la copia standalone en Windows.
+Referencia: [integración oficial Next.js](https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/).
+
 ## Tarea 7: VPS de pruebas frente a release comercial
 
 Son dos caminos distintos aunque ambos usan un build Next NODE_ENV=production:
@@ -36,7 +79,7 @@ otra imagen desde el tag con valores comerciales; no reutilizar la imagen de pru
 
 `GET /health` devuelve `status: "ok"` (liveness HTTP 200) y `baked` con apiUrl,
 siteUrl normalizada a origen, stripeKeyPrefix (solo pk_live_/pk_test_, o null),
-legalConfigured, mapsConfigured y buildSha. No devuelve claves, identidad legal,
+legalConfigured, mapsConfigured, sentryConfigured y buildSha. No devuelve claves, identidad legal,
 headers del API ni errores internos. `upstream` contiene status HTTP o null,
 corsMatched y ok. Sonda GET al API_URL normalizado + /health con Origin del sitio,
 sin credenciales, sin seguir redirects y con timeout de 2 segundos. Un API caído
@@ -68,10 +111,11 @@ Discrepancias resueltas o reportadas, sin editar la especificación del lead:
 | PSL vs aproximación backend | Se porta registrableDomain y los seis labels co/com/net/org/edu/gov, con mensaje backend idéntico. Única adaptación TS: fallback vacío por noUncheckedIndexedAccess en índice garantizado por longitud. Se retira tldts. |
 | Sufijos privados | La aproximación compartida acepta tenants distintos de github.io/vercel.app; no equivale a una PSL real. Es una limitación del contrato backend que ahora comparten ambos. Usar el dominio propio decidido, no tenants de proveedores. |
 | CANONICAL_HOST opcional / 308 en spec | Spec desactualizada frente al PR #13 aprobado: WEB_REDIRECT_HOST obligatorio en Compose TLS + SITE_URL, con 301 en Caddy. |
-| NEXT_PUBLIC_SENTRY_DSN y SSR_SHARED_SECRET | Son trabajos futuros de la spec, no variables implementadas en este web. No se simula que funcionen ni se exigen aún. |
+| NEXT_PUBLIC_SENTRY_DSN | Implementado en Tarea 8; obligatorio en release, opcional con advertencia en staging de pruebas. |
+| SSR_SHARED_SECRET | Sigue pendiente; no se consume ni se exige en este web. |
 | ALLOW_PLACEHOLDER_BUILD en §3.4 | Contradice la decisión posterior: no existe ni se añade. CI compila en desarrollo; producción rechaza placeholders. |
 | Stripe test flag | Resuelto en Tarea 7: release por tag exige pk_live_ y flag ausente; staging por rama/Compose admite test con flag true. |
-| Cantidad de variables en §4 | La instrucción de “diez” quedó obsoleta al añadir BUILD_SHA; Sentry/SSR pendientes no deben confundirse con valores ya consumidos. |
+| Cantidad de variables en §4 | La instrucción de “diez” quedó obsoleta al añadir BUILD_SHA; SSR pendiente no deben confundirse con valores ya consumidos. |
 
 `npm run smoke`, después de build:ci, ejecuta health-config, deploy-config,
 platform-config, booking-guards y seo-smoke. SEO usa copia aislada del standalone
@@ -234,6 +278,7 @@ la imagen por entorno. No pasar claves secretas de Stripe ni credenciales de bac
 | Variable                           | Referencia                             | Obligatoria en producción                         | Comportamiento / .env.example                                                                                            |
 | ---------------------------------- | -------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | NEXT_PUBLIC_API_URL | src/lib/config.ts:24 | Si | HTTPS, mismo dominio registrable que SITE_URL. Sin default en production. Documentada. |
+| NEXT_PUBLIC_SENTRY_DSN | src/lib/config.ts:120 | Sí; staging explícito con STRIPE_ALLOW_TEST_KEY=true puede omitirla | Pública/build; DSN de ingestión HTTPS. Documentada; sin default. Sin DSN: advertencia y health false. |
 | NEXT_PUBLIC_SITE_URL               | src/lib/config.ts:34                   | Sí, validada al cargar next.config                | Origen HTTPS sin path; metadataBase, canonical, OG, Twitter, robots y sitemap. Nueva; documentada.                       |
 | NEXT_PUBLIC_MEDIA_URL | src/lib/config.ts:46 | No | Host/prefijo adicional para optimizar medios. Sin valor, otros hosts siguen visibles con unoptimized. Documentada. |
 | NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY | src/lib/config.ts:67                   | Sí                                                | `pk_live_...`; sin clave no hay tarjetas/reservas. Rechaza claves secretas y placeholders. Documentada.                  |
@@ -294,7 +339,7 @@ Equivalente para un entorno que exporta las variables del inventario:
 
 ```sh
 docker build --pull -t cibaura-web:release \
-  --build-arg NEXT_PUBLIC_API_URL --build-arg NEXT_PUBLIC_SITE_URL --build-arg NEXT_PUBLIC_BUILD_SHA --build-arg BUILD_ENV_PROBE_API \
+  --build-arg NEXT_PUBLIC_API_URL --build-arg NEXT_PUBLIC_SITE_URL --build-arg NEXT_PUBLIC_BUILD_SHA --build-arg NEXT_PUBLIC_SENTRY_DSN --build-arg BUILD_ENV_PROBE_API \
   --build-arg NEXT_PUBLIC_MEDIA_URL --build-arg NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY \
   --build-arg NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY --build-arg NEXT_PUBLIC_GOOGLE_MAPS_API_KEY \
   --build-arg NEXT_PUBLIC_LEGAL_COMPANY_NAME --build-arg NEXT_PUBLIC_LEGAL_RNC \
@@ -329,6 +374,7 @@ lee `vars.*`. Crear en Settings > Secrets and variables > Actions > Variables:
 - Obligatorias: API_URL, SITE_URL, STRIPE_PUBLISHABLE_KEY, GOOGLE_MAPS_API_KEY y las
   cuatro LEGAL_* (todas con prefijo NEXT_PUBLIC_).
 - NEXT_PUBLIC_BUILD_SHA: automatico desde github.sha, no variable manual de Actions.
+- NEXT_PUBLIC_SENTRY_DSN: obligatoria para release; opcional únicamente en staging de pruebas explícito. Ausente: warning de build y navegador, health false.
 - Opcionales: NEXT_PUBLIC_MEDIA_URL, NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY (staging)
   y BUILD_ENV_PROBE_API (sonda HTTP de build).
 

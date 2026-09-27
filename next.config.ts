@@ -1,9 +1,11 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs/config";
 import { PHASE_PRODUCTION_BUILD } from "next/constants";
 import {
   API_URL,
   MEDIA_URL,
   SITE_URL,
+  SENTRY_DSN,
   assertRequiredFeatures,
 } from "./src/lib/config";
 import { assertSameSite } from "./src/lib/deployment-policy";
@@ -29,6 +31,9 @@ if (process.env.NODE_ENV === "production") {
 }
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Keep Node SDK built-ins native (Turbopack otherwise emits node:inspector
+  // filenames which cannot be copied into standalone on Windows).
+  serverExternalPackages: ["@sentry/nextjs"],
   poweredByHeader: false,
   async headers() {
     return [
@@ -38,6 +43,7 @@ const nextConfig: NextConfig = {
           configuredApi,
           Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim()),
           process.env.NODE_ENV !== "production",
+          SENTRY_DSN,
         ),
       },
     ];
@@ -72,13 +78,24 @@ const nextConfig: NextConfig = {
 export default function config(phase: string): NextConfig {
   const developmentBuild =
     phase === PHASE_PRODUCTION_BUILD && process.env.NODE_ENV === "development";
-  return {
-    ...nextConfig,
-    ...(developmentBuild
-      ? {
-          distDir: ".next-ci",
-          experimental: { allowDevelopmentBuild: true },
-        }
-      : {}),
-  };
+  if (phase === PHASE_PRODUCTION_BUILD && !SENTRY_DSN)
+    console.warn(
+      "[monitoring] NEXT_PUBLIC_SENTRY_DSN is missing: this build will NOT report errors. Staging/development only.",
+    );
+  return withSentryConfig(
+    {
+      ...nextConfig,
+      ...(developmentBuild
+        ? {
+            distDir: ".next-ci",
+            experimental: { allowDevelopmentBuild: true },
+          }
+        : {}),
+    },
+    {
+      telemetry: false,
+      sourcemaps: { disable: true },
+      silent: true,
+    },
+  );
 }

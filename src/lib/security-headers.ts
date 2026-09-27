@@ -6,6 +6,7 @@ export function securityHeaders(
   api: URL,
   mapsEnabled: boolean,
   development: boolean,
+  sentryDsn?: string,
 ) {
   const mapsScripts = mapsEnabled
     ? " https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.ggpht.com https://*.googleusercontent.com blob:"
@@ -24,7 +25,7 @@ export function securityHeaders(
     "font-src 'self' data: https://fonts.gstatic.com",
     // Existing external photos deliberately retain their direct-loading fallback.
     `img-src 'self' https: data: blob:${development ? " http:" : ""}`,
-    `connect-src 'self' ${api.origin} https://api.stripe.com https://maps.googleapis.com https://link.com https://*.link.com${mapsConnections}${development ? " ws: wss:" : ""}`,
+    `connect-src 'self' ${api.origin} https://api.stripe.com https://maps.googleapis.com https://link.com https://*.link.com${sentryDsn ? ` ${new URL(sentryDsn).origin}` : ""}${mapsConnections}${development ? " ws: wss:" : ""}`,
     `frame-src https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com https://link.com https://*.link.com${mapsEnabled ? " https://*.google.com" : ""}`,
     "worker-src 'self' blob:",
   ].join("; ");

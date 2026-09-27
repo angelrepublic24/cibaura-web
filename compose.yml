@@ -8,6 +8,7 @@ services:
         WEB_REVISION: ${WEB_REVISION:-unknown}
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?Set the public API URL}
         NEXT_PUBLIC_BUILD_SHA: ${NEXT_PUBLIC_BUILD_SHA:?Set the full build commit SHA}
+        NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
         BUILD_ENV_PROBE_API: ${BUILD_ENV_PROBE_API:-false}
         NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?Set the public site URL}
         NEXT_PUBLIC_MEDIA_URL: ${NEXT_PUBLIC_MEDIA_URL:-}
