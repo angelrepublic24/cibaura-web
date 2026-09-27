@@ -10,6 +10,7 @@ import {
 } from "./src/lib/config";
 import { assertSameSite } from "./src/lib/deployment-policy";
 import { securityHeaders } from "./src/lib/security-headers";
+import { sentryBuildOptions } from "./src/lib/sentry-build";
 
 /**
  * SESSION / DEPLOYMENT NOTE (ADR-0006, audit WEB-04): the web session rides in
@@ -92,10 +93,6 @@ export default function config(phase: string): NextConfig {
           }
         : {}),
     },
-    {
-      telemetry: false,
-      sourcemaps: { disable: true },
-      silent: true,
-    },
+    sentryBuildOptions(process.env, phase === PHASE_PRODUCTION_BUILD),
   );
 }

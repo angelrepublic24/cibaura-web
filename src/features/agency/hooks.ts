@@ -9,6 +9,7 @@ import {
 import { AgencyApi, agencyKeys, type FleetFilters } from "./api";
 import { bookingKeys } from "@/features/bookings/api";
 import type { AgencyCar, Paginated } from "@/shared/types/domain";
+import { fleetForScope } from "./branch-scope";
 
 /**
  * The caller's agency session (`GET /agency/session`): the agency (kind,
@@ -37,12 +38,30 @@ function nextFleetPage(last: Paginated<AgencyCar>): number | undefined {
  * query owns paging.
  */
 export function useFleetPages(filters: Omit<FleetFilters, "page"> = {}) {
+  const session = useAgencySession();
+  const scope = session.isError
+    ? undefined
+    : session.data?.membership.branchScope;
   return useInfiniteQuery({
-    queryKey: agencyKeys.fleetPages(filters),
+    queryKey: [
+      ...agencyKeys.fleetPages(filters),
+      session.data?.agency.id,
+      scope,
+    ],
+    enabled: Boolean(scope),
     queryFn: ({ pageParam }) =>
       AgencyApi.fleet({ ...filters, page: pageParam }),
     initialPageParam: 1,
     getNextPageParam: nextFleetPage,
+    select: (data) => ({
+      ...data,
+      // Preserve server paging metadata: a filtered page can be empty while
+      // later pages still contain authorized cars. Never display its raw total.
+      pages: data.pages.map((page) => ({
+        ...page,
+        items: fleetForScope(page.items, scope),
+      })),
+    }),
   });
 }
 
@@ -52,21 +71,10 @@ export function useFleetPages(filters: Omit<FleetFilters, "page"> = {}) {
  * (`pageSize = 100`) until the server reports no more. Exposes the flat list
  * plus the loading/error flags of the walk.
  */
-export function useAllFleet(filters: Omit<FleetFilters, "page" | "pageSize"> = {}) {
-  const query = useInfiniteQuery({
-    queryKey: agencyKeys.fleetPages({
-      ...filters,
-      pageSize: FLEET_PICKER_PAGE_SIZE,
-    }),
-    queryFn: ({ pageParam }) =>
-      AgencyApi.fleet({
-        ...filters,
-        pageSize: FLEET_PICKER_PAGE_SIZE,
-        page: pageParam,
-      }),
-    initialPageParam: 1,
-    getNextPageParam: nextFleetPage,
-  });
+export function useAllFleet(
+  filters: Omit<FleetFilters, "page" | "pageSize"> = {},
+) {
+  const query = useFleetPages({ ...filters, pageSize: FLEET_PICKER_PAGE_SIZE });
 
   const { hasNextPage, isFetchingNextPage, isError, fetchNextPage } = query;
   useEffect(() => {
@@ -117,7 +125,10 @@ export function useAgencyClaims(bookingId: string, enabled = true) {
  * and wallet shift, the booking's own sub-resources are stale, and the
  * detail (`GET /bookings/:id`, keyed under `bookings`) must refetch too.
  */
-export function invalidateAgencyBooking(qc: QueryClient, bookingId: string): void {
+export function invalidateAgencyBooking(
+  qc: QueryClient,
+  bookingId: string,
+): void {
   void qc.invalidateQueries({ queryKey: agencyKeys.all });
   void qc.invalidateQueries({ queryKey: bookingKeys.detail(bookingId) });
 }

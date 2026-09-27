@@ -34,7 +34,7 @@ export default function AgencyFleetPage() {
 }
 
 function FleetList() {
-  const { can } = usePermission();
+  const { can, branchScope } = usePermission();
   const canWrite = can("fleet:write");
   // Individual hosts need a verified registration per car — surface it here.
   const session = useAgencySession();
@@ -66,8 +66,14 @@ function FleetList() {
           />
         ) : cars.length === 0 ? (
           <EmptyState
-            title="No cars yet"
-            description="Add your first car to start receiving booking requests."
+            title={
+              query.hasNextPage ? "No cars on these pages" : "No cars available"
+            }
+            description={
+              query.hasNextPage
+                ? "Load more to find cars in your assigned branches."
+                : "There are no cars available within your access."
+            }
             action={
               canWrite ? (
                 <Link href="/agency/fleet/new" className={buttonVariants({})}>
@@ -103,8 +109,8 @@ function FleetList() {
                             href={`/agency/fleet/${car.id}`}
                             className="block truncate font-medium hover:text-primary hover:underline"
                           >
-                            {car.make?.name ?? "Make"} {car.model?.name ?? "Model"}{" "}
-                            {car.year}
+                            {car.make?.name ?? "Make"}{" "}
+                            {car.model?.name ?? "Model"} {car.year}
                           </Link>
                           <p className="truncate text-sm text-muted-foreground">
                             {car.plate ? `${car.plate} · ` : ""}
@@ -113,7 +119,9 @@ function FleetList() {
                           {showRegistration ? (
                             <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                               Registration
-                              <CarDocumentStatusBadge document={car.registration ?? null} />
+                              <CarDocumentStatusBadge
+                                document={car.registration ?? null}
+                              />
                             </p>
                           ) : null}
                         </div>
@@ -153,24 +161,27 @@ function FleetList() {
                 );
               })}
             </div>
-
-            <div className="mt-6 flex flex-col items-center gap-2">
-              <p className="text-sm text-muted-foreground">
-                Showing {cars.length} of {total} car{total === 1 ? "" : "s"}
-              </p>
-              {query.hasNextPage ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={query.isFetchingNextPage}
-                  onClick={() => query.fetchNextPage()}
-                >
-                  {query.isFetchingNextPage ? "Loading…" : "Load more"}
-                </Button>
-              ) : null}
-            </div>
           </>
         )}
+        {!query.isLoading && !query.isError ? (
+          <div className="mt-6 flex flex-col items-center gap-2">
+            <p className="text-sm text-muted-foreground">
+              {branchScope?.mode === "all"
+                ? `Showing ${cars.length} of ${total} cars`
+                : `Showing ${cars.length} accessible cars`}
+            </p>
+            {query.hasNextPage ? (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={query.isFetchingNextPage}
+                onClick={() => query.fetchNextPage()}
+              >
+                {query.isFetchingNextPage ? "Loading…" : "Load more"}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );

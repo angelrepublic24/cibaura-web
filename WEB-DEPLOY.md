@@ -28,13 +28,13 @@ usuario, breadcrumbs, extras, cookies, cabeceras, cuerpos y query/hash de la URL
 de petición. No se activan Replay, logs ni muestreo de trazas. Evitar incluir datos
 personales o credenciales en los mensajes de las excepciones.
 
-No se suben sourcemaps: no hay credenciales de upload proporcionadas y tampoco se
-publican mapas del cliente. Los stacks del navegador pueden estar minificados;
-SHA identifica el código correspondiente. El envío de errores no necesita token de
-upload. Para validar staging, configurar un DSN de pruebas, provocar una excepción
-desde una interacción controlada y verificar el evento y su SHA en Sentry; configurar
-allí el destinatario de alertas del equipo. `sentryConfigured=true` no verifica esos
-pasos externos. El smoke usa transporte en memoria y no afirma entrega real.
+Los sourcemaps se suben durante el build mediante el plugin Next.js de Sentry
+(Tarea 9, instrucciones abajo). Sin credenciales en staging se omite la subida y
+se advierte que los stacks pueden quedar minificados. El envío de eventos solo
+necesita DSN. Para validar staging, provocar una excepción desde una interacción
+controlada, verificar evento, SHA y archivo/línea originales en Sentry, y configurar
+allí los destinatarios de alertas. `sentryConfigured=true` no prueba entrega ni
+symbolication. Los smokes sin credenciales reales no afirman esos resultados.
 
 Node requerido: 22.13 o superior dentro de 22.x; SDK y herramientas actuales ya
 requieren esa base. CI usa 22.x y Docker conserva su base fijada por digest.
@@ -42,6 +42,46 @@ El SDK de servidor figura en `serverExternalPackages`: Node lo carga nativamente
 y standalone incluye la dependencia. Evita que Turbopack genere archivos con
 `node:inspector` en el nombre, incompatibles con la copia standalone en Windows.
 Referencia: [integración oficial Next.js](https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/).
+
+## Sourcemaps privados (Tarea 9)
+
+| Variable | Dónde se configura | Obligatoria | Uso |
+|---|---|---|---|
+| `SENTRY_AUTH_TOKEN` | Entorno del proceso; GitHub Actions **secret** del mismo nombre | Producción/release | Credencial de upload, solo build. Nunca `NEXT_PUBLIC_*`, archivo, Docker ARG, image ENV ni runtime. |
+| `SENTRY_ORG` | Entorno/Actions **variable** del mismo nombre; `.env.example` contiene el campo vacío | Producción/release | Slug real de la organización Sentry Cloud. Solo build. |
+| `SENTRY_PROJECT` | Entorno/Actions **variable** del mismo nombre; `.env.example` contiene el campo vacío | Producción/release | Slug real del proyecto web. Solo build. |
+
+El guard en `src/lib/sentry-build.ts` se ejecuta desde el prebuild y desde
+`next.config.ts` al compilar. Rechaza valores ausentes en producción; para staging
+con `NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY=true`, o desarrollo/CI, omitir credenciales
+desactiva upload y emite una advertencia. Si se configura upload, un fallo aborta
+el build también en staging. El tag de producción continúa prohibiendo el flag de
+pruebas y valida los valores antes de construir/publicar.
+
+Usar un token de organización para upload; alternativamente un token personal
+con permisos Project Read & Write y Release Admin. Guardarlo como secret de Actions
+o inyectarlo en el entorno del shell mediante el gestor de secretos. No escribirlo
+en `.env`, `.env.sentry-build-plugin`, `.sentryclirc` ni scripts. El workflow solo
+lo expone a preflight y build. Compose lo toma del entorno como **build secret**;
+Docker requiere BuildKit con soporte de secret mount `env` (Dockerfile 1.10+).
+No se monta en el contenedor que atiende tráfico. En un VPS con `sudo`, conservar
+solo esa variable: `sudo --preserve-env=SENTRY_AUTH_TOKEN docker compose ...`.
+
+El plugin oficial de Next sube artefactos después de compilar, identifica la
+release Sentry con `NEXT_PUBLIC_BUILD_SHA`, incluye los chunks de cliente y elimina
+los mapas de `.next/static` después de upload. No se publican sourcemaps del cliente.
+Si se añade o cambia el token para un mismo checkout, reconstruir con
+`docker compose build --no-cache`: los secretos no invalidan la caché de BuildKit.
+Cambiar el token en runtime no arregla una imagen compilada sin mapas.
+
+Sin credenciales reales se verifican guard, configuración del plugin instalado,
+fallo de upload fatal y ausencia del token en la configuración serializada. No se
+afirma upload ni symbolication real: al tener los valores, construir staging con
+upload, generar un error controlado y comprobar archivo TypeScript/línea original
+y SHA en Sentry. La configuración de alertas sigue siendo externa.
+
+Referencias: [Sentry Next.js](https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/),
+[secretos de build Docker](https://docs.docker.com/build/building/secrets/).
 
 ## Tarea 7: VPS de pruebas frente a release comercial
 
@@ -339,6 +379,8 @@ Equivalente para un entorno que exporta las variables del inventario:
 
 ```sh
 docker build --pull -t cibaura-web:release \
+  --secret id=sentry_auth_token,env=SENTRY_AUTH_TOKEN \
+  --build-arg SENTRY_ORG --build-arg SENTRY_PROJECT \
   --build-arg NEXT_PUBLIC_API_URL --build-arg NEXT_PUBLIC_SITE_URL --build-arg NEXT_PUBLIC_BUILD_SHA --build-arg NEXT_PUBLIC_SENTRY_DSN --build-arg BUILD_ENV_PROBE_API \
   --build-arg NEXT_PUBLIC_MEDIA_URL --build-arg NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY \
   --build-arg NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY --build-arg NEXT_PUBLIC_GOOGLE_MAPS_API_KEY \

@@ -3,12 +3,16 @@ services:
     image: ${WEB_IMAGE_REPOSITORY:-cibaura-web}:${WEB_IMAGE_TAG:-local}
     build:
       context: .
+      secrets:
+        - sentry_auth_token
       args:
         WEB_VERSION: ${WEB_VERSION:-unreleased}
         WEB_REVISION: ${WEB_REVISION:-unknown}
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?Set the public API URL}
         NEXT_PUBLIC_BUILD_SHA: ${NEXT_PUBLIC_BUILD_SHA:?Set the full build commit SHA}
         NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
+        SENTRY_ORG: ${SENTRY_ORG:-}
+        SENTRY_PROJECT: ${SENTRY_PROJECT:-}
         BUILD_ENV_PROBE_API: ${BUILD_ENV_PROBE_API:-false}
         NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?Set the public site URL}
         NEXT_PUBLIC_MEDIA_URL: ${NEXT_PUBLIC_MEDIA_URL:-}
@@ -28,3 +32,7 @@ services:
     init: true
     security_opt:
       - no-new-privileges:true
+
+secrets:
+  sentry_auth_token:
+    environment: SENTRY_AUTH_TOKEN

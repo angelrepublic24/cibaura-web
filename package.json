@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit",
     "build:ci": "node scripts/build-ci.mjs",
     "prebuild": "node scripts/verify-build-env.mjs",
-    "smoke": "node scripts/error-reporting-smoke.mjs && node scripts/release-stripe-smoke.mjs && node scripts/booking-lifecycle-smoke.mjs && node scripts/health-config-smoke.mjs && node scripts/deploy-config-smoke.mjs && node scripts/platform-config-smoke.mjs && node scripts/booking-guards-smoke.mjs && node scripts/seo-smoke.mjs"
+    "smoke": "node scripts/branch-scope-smoke.mjs && node scripts/sentry-build-smoke.mjs && node scripts/error-reporting-smoke.mjs && node scripts/release-stripe-smoke.mjs && node scripts/booking-lifecycle-smoke.mjs && node scripts/health-config-smoke.mjs && node scripts/deploy-config-smoke.mjs && node scripts/platform-config-smoke.mjs && node scripts/booking-guards-smoke.mjs && node scripts/seo-smoke.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.5.7",

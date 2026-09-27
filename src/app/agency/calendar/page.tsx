@@ -11,6 +11,8 @@ import {
 import { AgencyApi, agencyKeys } from "@/features/agency/api";
 import { PermissionGate } from "@/features/agency/components/permission-gate";
 import { useAllFleet } from "@/features/agency/hooks";
+import { useAgencySession } from "@/features/agency/hooks";
+import { occupancyForScope } from "@/features/agency/branch-scope";
 import type { AgencyCar, OccupancyEntry } from "@/shared/types/domain";
 import {
   currentMonth,
@@ -114,17 +116,38 @@ function OccupancyCalendar() {
 
   // Every car (all pages) — a <select> cannot paginate.
   const fleet = useAllFleet();
+  const session = useAgencySession();
+  const scope = session.isError
+    ? undefined
+    : session.data?.membership.branchScope;
+  // A selection may become invalid after a reassignment or a shorter API response.
+  const selectedCarId = fleet.cars.some((car) => car.id === carId) ? carId : "";
 
   const calendarQuery = useQuery({
-    queryKey: agencyKeys.calendar(carId || null, month),
-    queryFn: () => AgencyApi.calendar(carId || null, month),
+    queryKey: [
+      ...agencyKeys.calendar(selectedCarId || null, month),
+      session.data?.agency.id,
+      scope,
+    ],
+    queryFn: () => AgencyApi.calendar(selectedCarId || null, month),
+    enabled: Boolean(scope) && !fleet.isLoading && !fleet.isError,
   });
 
   const deleteBlock = useMutation({
-    mutationFn: (blockId: string) => AgencyApi.deleteManualBlock(blockId),
+    mutationFn: (blockId: string) => {
+      if (
+        !entries.some(
+          (entry) => entry.id === blockId && entry.source === "manual_block",
+        )
+      )
+        throw new Error(
+          "This block is no longer available within your access.",
+        );
+      return AgencyApi.deleteManualBlock(blockId);
+    },
     onSuccess: () =>
       qc.invalidateQueries({
-        queryKey: agencyKeys.calendar(carId || null, month),
+        queryKey: agencyKeys.calendar(selectedCarId || null, month),
       }),
   });
 
@@ -135,12 +158,17 @@ function OccupancyCalendar() {
     return map;
   }, [fleet.cars]);
 
-  const entries = calendarQuery.data ?? [];
+  const entries =
+    fleet.isLoading || fleet.isError
+      ? []
+      : occupancyForScope(calendarQuery.data ?? [], fleet.cars, scope).filter(
+          (entry) => !selectedCarId || entry.carId === selectedCarId,
+        );
   const isCurrentMonth = month === currentMonth();
 
   function invalidate() {
     qc.invalidateQueries({
-      queryKey: agencyKeys.calendar(carId || null, month),
+      queryKey: agencyKeys.calendar(selectedCarId || null, month),
     });
   }
 
@@ -220,8 +248,8 @@ function OccupancyCalendar() {
             <Label htmlFor="cal-car">Car</Label>
             <Select
               id="cal-car"
-              value={carId}
-              disabled={fleet.isLoading}
+              value={selectedCarId}
+              disabled={fleet.isLoading || fleet.isError}
               onChange={(e) => setCarId(e.target.value)}
             >
               <option value="">
@@ -241,7 +269,7 @@ function OccupancyCalendar() {
       {showBlockForm ? (
         <ManualBlockForm
           cars={fleet.cars}
-          carsLoading={fleet.isLoading}
+          carsLoading={fleet.isLoading || fleet.isError}
           onDone={() => {
             setShowBlockForm(false);
             invalidate();
@@ -250,7 +278,12 @@ function OccupancyCalendar() {
       ) : null}
 
       <div className="mt-6">
-        {calendarQuery.isLoading ? (
+        {fleet.isError ? (
+          <ErrorState
+            title="Could not load accessible cars"
+            onRetry={() => fleet.refetch()}
+          />
+        ) : fleet.isLoading || calendarQuery.isLoading ? (
           <LoadingState label="Loading occupancy…" />
         ) : calendarQuery.isError ? (
           <ErrorState
@@ -263,7 +296,7 @@ function OccupancyCalendar() {
             month={month}
             entries={entries}
             carsById={carsById}
-            singleCar={!!carId}
+            singleCar={!!selectedCarId}
           />
         ) : entries.length === 0 ? (
           <EmptyState
@@ -274,7 +307,7 @@ function OccupancyCalendar() {
           <OccupancyList
             entries={entries}
             carsById={carsById}
-            singleCar={!!carId}
+            singleCar={!!selectedCarId}
             onRemove={(id) => deleteBlock.mutate(id)}
             removing={deleteBlock.isPending}
           />
@@ -374,7 +407,8 @@ function MonthGrid({
                     entry={e}
                     label={
                       singleCar
-                        ? e.note ?? (e.source === "booking" ? "Booked" : "Blocked")
+                        ? (e.note ??
+                          (e.source === "booking" ? "Booked" : "Blocked"))
                         : carLabel(carsById.get(e.carId))
                     }
                   />
@@ -481,17 +515,23 @@ function ManualBlockForm({
   const [note, setNote] = useState("");
 
   const mutation = useMutation({
-    mutationFn: () =>
-      AgencyApi.createManualBlock({
+    mutationFn: () => {
+      if (carsLoading || !cars.some((car) => car.id === blockCarId))
+        throw new Error("Select an available car within your access.");
+      return AgencyApi.createManualBlock({
         carId: blockCarId,
         from,
         to,
         note: note || undefined,
-      }),
+      });
+    },
     onSuccess: onDone,
   });
 
-  const ready = !!blockCarId && !!from && !!to;
+  const selectedCarId = cars.some((car) => car.id === blockCarId)
+    ? blockCarId
+    : "";
+  const ready = !carsLoading && !!selectedCarId && !!from && !!to;
 
   return (
     <Card className="mt-4">
@@ -508,7 +548,7 @@ function ManualBlockForm({
             <Label htmlFor="mb-car">Car</Label>
             <Select
               id="mb-car"
-              value={blockCarId}
+              value={selectedCarId}
               disabled={carsLoading}
               onChange={(e) => setBlockCarId(e.target.value)}
             >
