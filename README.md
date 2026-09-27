@@ -1,87 +1,91 @@
 # Cibaura — Web
 
-Web frontend for **Cibaura**, a multi-vendor **rent-a-car marketplace**. One app serves two audiences:
+Marketplace de alquiler de carros en República Dominicana, con marca provisional.
+Next.js 15 App Router, React 19, TypeScript, TanStack Query y Tailwind CSS 4.
 
-- **Customers** — search cars by city + dates, browse agency storefronts, and request a booking.
-- **Agencies** — a full dashboard: fleet, calendar & offline blocks, booking inbox (accept/reject), branches & delivery zones, wallet, and **staff management with granular permissions**.
+- Clientes: catálogo, reservas, pagos, inspecciones y respuesta a reclamaciones.
+- Agencias y hosts individuales: flota, calendario, reservas, sucursales, zonas y wallet; personal según tipo de host y permisos.
+- Administración: órdenes, reclamaciones, verificaciones, pagos y configuración.
 
-> **Related repositories**
-> - ⚙️ API / backend: [`cibaura-server`](https://github.com/angelrepublic24/cibaura-server) — domain model + wire contract live in its `docs/`.
-> - 📱 Mobile app (Expo): [`cibaura-app`](https://github.com/angelrepublic24/cibaura-app)
+Repositorios relacionados: [API NestJS](https://github.com/angelrepublic24/cibaura-server) y [app Expo](https://github.com/angelrepublic24/cibaura-app).
 
-## Stack
+## Desarrollo local
 
-- **Next.js 15** (App Router, Turbopack) · **React 19** · **TypeScript**
-- **TanStack Query** for server state · **Tailwind CSS 4** (OKLCH brand tokens) · shadcn/ui-style primitives
-- Auth via httpOnly cookie; every agency surface is permission-gated with a `usePermission()` hook
+Usar Node 22.13 o superior dentro de 22.x (`.nvmrc`, `package.json`) y el backend en marcha. Su repositorio documenta base de datos, migraciones y usuarios de prueba.
 
-## Getting started
-
-Production build, Docker/Compose, HTTPS and the complete environment inventory:
-[WEB-DEPLOY.md](WEB-DEPLOY.md). Production builds reject local/example API and site URLs.
-
-```bash
-# 1. Install
-npm install
-
-# 2. Environment
-cp .env.example .env.local          # set NEXT_PUBLIC_API_URL (see below)
-
-# 3. Run
-npm run dev                         # http://localhost:3000  (needs the API running)
+```sh
+npm ci
+cp .env.example .env.local
 ```
 
-The backend must be running (default `http://localhost:4300`). See [`cibaura-server`](https://github.com/angelrepublic24/cibaura-server) for how to start it + seed demo data and logins.
+En PowerShell, usar `Copy-Item .env.example .env.local`. Reemplazar los placeholders de URL en `.env.local`:
 
-## Environment variables
+```dotenv
+NEXT_PUBLIC_API_URL=http://localhost:4300
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+```
 
-Every value is `NEXT_PUBLIC_*` and is **inlined into the browser bundle at build time**. Copy `.env.example` to `.env.local` for development; production builds fail loudly (`src/lib/config.ts`) when a required value is missing or wrong.
+```sh
+npm run dev
+```
 
-| Var | Required | Purpose |
-|---|---|---|
-| `NEXT_PUBLIC_API_URL` | yes | Base URL of the Cibaura API (e.g. `http://localhost:4300`; `/api` is appended automatically) |
-| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | yes (prod) | Stripe publishable key (`pk_test_…` / `pk_live_…`). Cards are tokenized by Stripe Elements; without it customers cannot save a card or book. A `pk_test_` key is refused in production unless `NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY=true` (staging) |
-| `NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY` | no | `true` lets a staging production build ship a test key |
-| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | no | Places autocomplete for door-to-door delivery addresses; without it address delivery is unavailable |
-| `NEXT_PUBLIC_LEGAL_COMPANY_NAME` | no | Legal entity shown on `/legal/terms` + `/legal/privacy` (fallback `Cibaura`) |
-| `NEXT_PUBLIC_LEGAL_RNC` | no | Dominican tax id; the RNC line is omitted when empty |
-| `NEXT_PUBLIC_LEGAL_ADDRESS` | no | Registered address (fallback `Santo Domingo, Dominican Republic`) |
-| `NEXT_PUBLIC_LEGAL_CONTACT_EMAIL` | no | Legal/privacy contact (fallback `legal@cibaura.com`) |
+Abrir `http://localhost:3000`. El cliente añade `/api` a la URL del backend si falta. Configurar el CORS del backend para ese origen exacto. Búsqueda y catálogo SSR requieren API accesible desde el navegador **y desde Next**.
 
-The terms version and the cancellation-policy figures are **not** env vars: the web reads them from `GET /legal/current` and never hardcodes them.
+Para probar tarjetas/reservas, añadir la clave pública Stripe de pruebas correspondiente al backend. Sin ella, desarrollo muestra pagos no configurados. Maps habilita direcciones de entrega; el DSN de Sentry habilita reporte de errores. Sin DSN, desarrollo advierte que no reportará errores. No copiar claves secretas al bundle ni guardar tokens Sentry en archivos de entorno.
 
-### Deployment: same registrable domain as the API
+## Configuración y operación
 
-The session rides in httpOnly **`SameSite=Lax`** cookies set by the API (ADR-0006). Browsers only attach those cookies to XHR/fetch when the web and the API share the same registrable domain (eTLD+1), e.g. `https://cibaura.com` + `https://api.cibaura.com`. A web on `*.vercel.app` talking to an API on `*.onrender.com` logs in "successfully" and then 401s on every request. There is deliberately no `rewrites()` proxy in `next.config.ts`; the API validates the domain pair at boot (`API_PUBLIC_URL` vs `FRONTEND_URL`), so deploy both under one domain.
+[WEB-DEPLOY.md](WEB-DEPLOY.md) es el runbook de variables, Hostinger VPS, Docker/Compose, TLS, staging, release y diagnóstico. [.env.example](.env.example) es la plantilla, sin valores de producción.
 
-## Scripts
+`NEXT_PUBLIC_SITE_URL` y `NEXT_PUBLIC_API_URL` son obligatorias en producción, sin defaults productivos. Deben ser HTTPS y compartir dominio registrable por las cookies `SameSite=Lax`. El guard rechaza destinos locales/de ejemplo. Todas las `NEXT_PUBLIC_*` se incrustan al compilar: cambiarlas exige reconstruir. Variables privadas de build/runtime se enumeran por separado en el runbook.
 
-| Script | Does |
+Los releases requieren identidad legal, Maps, SHA real de Git, Stripe live y Sentry con credenciales de subida de sourcemaps. Las excepciones explícitas de staging están en el runbook; no hay bypass para publicar destinos de ejemplo. `/health` informa configuración incrustada sin secretos y sonda al API; no certifica pagos ni entrega de eventos.
+
+Sentry captura errores de navegador, límites React y SSR. `error.tsx` y `global-error.tsx` muestran mensajes humanos. Los mapas de cliente se eliminan tras subirlos. Motivos: [DECISIONS.md](DECISIONS.md).
+
+## Superficies y renderizado
+
+| Rutas | Audiencia y comportamiento |
 |---|---|
-| `npm run dev` | Next dev server (Turbopack) |
-| `npm run build` / `npm start` | production build / serve |
-| `npm run typecheck` | `tsc --noEmit` |
-| `npm run lint` | ESLint |
+| `/` | Pública: contenido comercial y buscador; ciudades del buscador en cliente. |
+| `/agencies` | Pública: directorio precargado en servidor e hidratación TanStack Query. |
+| `/agencies/[slug]` | Pública: perfil, flota y reviews de agencia/host, con precarga e hidratación. |
+| `/agencies/[slug]/cars/[carId]` | Pública: ficha y reviews de su agencia, con precarga e hidratación. |
+| `/cars/[city]` | Pública: disponibilidad SSR con fechas; sin fechas, ciudad real, texto y enlaces a agencias. `all` representa todas las ciudades. |
+| `/become-host`, `/become-agency` | Captación pública; incorporación depende de sesión. |
+| `/legal/terms`, `/legal/privacy` | Texto servidor; versión/política dinámica consultadas en cliente. |
+| `/auth/login`, `/auth/register`, `/auth/forgot-password`, `/auth/reset-password`, `/admin/accept-invite` | Acceso público, `noindex`; invitación admin es excepción al área privada. |
+| `/account/*` | Cliente autenticado: perfil, favoritos, verificación, tarjetas y reservas. |
+| `/agency/*` | Dashboard del host/personal con permisos y restricciones de sucursal. |
+| `/admin/*` | Administración protegida; `/admin/bookings/[[...slug]]` redirige a órdenes. |
 
-Node **22** (`.nvmrc`, `engines`). CI (`.github/workflows/ci.yml`) runs typecheck → lint → build on every push/PR.
+Las cuatro superficies de catálogo usan Server Components y `HydrationBoundary`; los componentes cliente mantienen filtros y acciones. Metadata usa datos públicos del API, canonical, OG y Twitter. Robots, sitemap y JSON-LD se generan en servidor. El SSR depende de la API: un fallo de contenido imprescindible no se presenta como inventario vacío exitoso.
 
-## Structure
+Los guards y filtros visuales no sustituyen autorización del backend. Ocultar Staff al host individual tampoco constituye una barrera del servidor.
 
+| Detalle de reserva | Datos y acciones |
+|---|---|
+| `/account/bookings/[id]` | Depósito, inspecciones, liquidación, contrato y reclamación; respuesta según `respondBy`. Cotización de cancelación solo cuando el API la incluye para el dueño. |
+| `/agency/requests/[bookingId]` | Inspecciones, depósito, reclamación y liquidación; operaciones según permisos. Sin formulario de respuesta del cliente. |
+| `/admin/orders/[id]` | Desglose y ciclo de vida; enlace a la reclamación administrativa para decidir. |
+
+El espejo de tipos está en `src/shared/types/domain.ts`; el backend es dueño del contrato HTTP. Importes desde sus snapshots, sin recalcular un total de reserva.
+
+## Verificación
+
+```sh
+npm run typecheck
+npm run lint
+npm run lint:suppressions
+npm run build:ci
+npm run smoke
+node scripts/standalone-smoke.mjs
 ```
-src/
-  app/            App Router routes
-    cars/[city]                        search results
-    agencies/[slug]                    public agency storefront
-    agencies/[slug]/cars/[carId]       agency-scoped car detail
-    agency/…                           agency dashboard (fleet, calendar, requests,
-                                       branches, zones, wallet, staff)
-    account/…  admin/…  auth/…  legal/…
-  features/       cars, agencies, agency, bookings, auth, payments, legal,
-                  verification (api + components + hooks)
-  shared/         ui primitives, auth store/guard, api client, brand <Logo>, types (wire mirror)
-public/brand/     CIBAURA logo assets (isotype, wordmark, app icon, OG)
-```
 
-## Design
+Smoke requiere que build:ci haya terminado: utiliza `.next-ci/standalone`. CI valida además Caddy. El build CI es no productivo y usa fixtures; no acredita inventario, cobros ni credenciales reales. Producción: `npm run build` con valores del runbook. CI está en `.github/workflows/ci.yml`; publicación de imágenes, en `production-image.yml`.
 
-CIBAURA brand system: warm premium-minimalist — copper `#B8734E` as the accent, gold / olive / cream / navy as supporting tones, defined once as CSS variables in `src/app/globals.css`. The car is the hero; the UI stays quiet around it.
+## Organización y mantenimiento
+
+`src/app`: rutas; `src/features`: API, hooks y componentes por función; `src/shared`: tipos, UI, auth y SEO; `src/lib`: guards y monitoring. Tokens de diseño en `src/app/globals.css`; assets en `public/brand`.
+
+Actualizar esta guía al cambiar superficies/requisitos locales, el runbook junto con variables/workflows y las decisiones junto con sus reglas/pruebas. Resultados puntuales de gates y entregas pertenecen al PR, no a informes permanentes.
