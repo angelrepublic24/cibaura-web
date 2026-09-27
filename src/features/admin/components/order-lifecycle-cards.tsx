@@ -334,6 +334,7 @@ export function SettlementCard({
               <Row label="Advance already paid" value={formatMoneyCents(settlement.advanceCents, currency)} />
               <Row label="Host net" value={formatMoneyCents(settlement.hostNetCents, currency)} strong />
               <Row label="Platform net" value={formatMoneyCents(settlement.platformNetCents, currency)} strong />
+              <Row label="Tax allocated to the tax authority" value={formatMoneyCents(settlement.taxCents, currency)} />
             </dl>
           </div>
         )}

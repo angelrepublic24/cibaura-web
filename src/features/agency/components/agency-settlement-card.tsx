@@ -37,7 +37,10 @@ function describeSettleError(error: unknown): string {
     case API_ERROR_CODES.SETTLEMENT_ALREADY_FINALIZED:
       return "This booking was already settled. Refreshing…";
     default:
-      return getErrorMessage(error, "Could not settle the booking. Please try again.");
+      return getErrorMessage(
+        error,
+        "Could not settle the booking. Please try again.",
+      );
   }
 }
 
@@ -56,7 +59,8 @@ export function AgencySettlementCard({ booking }: { booking: BookingDetail }) {
   if (booking.state === "returned" && !finalized) {
     return <PendingSettlement booking={booking} settlement={settlement} />;
   }
-  if (settlement) return <FinalizedSettlement booking={booking} settlement={settlement} />;
+  if (settlement)
+    return <FinalizedSettlement booking={booking} settlement={settlement} />;
   if (booking.state === "settled") {
     return (
       <Card>
@@ -67,8 +71,8 @@ export function AgencySettlementCard({ booking }: { booking: BookingDetail }) {
           </CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          Settled on {formatDateTime(booking.timestamps.settledAt)} — your earnings were
-          credited to the wallet.
+          Settled on {formatDateTime(booking.timestamps.settledAt)} — your
+          earnings were credited to the wallet.
         </CardContent>
       </Card>
     );
@@ -93,7 +97,8 @@ function PendingSettlement({
   const windowKnown = !Number.isNaN(ends);
   const windowOpen = windowKnown && ends > now;
   const claimBlocking =
-    booking.claim?.status === "open" || booking.claim?.status === "under_review";
+    booking.claim?.status === "open" ||
+    booking.claim?.status === "under_review";
 
   const settle = useMutation({
     mutationFn: () => AgencyApi.settleRequest(booking.id),
@@ -105,7 +110,8 @@ function PendingSettlement({
     },
   });
 
-  const canSettle = canHandle && !windowOpen && !claimBlocking && !settle.isPending;
+  const canSettle =
+    canHandle && !windowOpen && !claimBlocking && !settle.isPending;
 
   return (
     <Card>
@@ -118,8 +124,9 @@ function PendingSettlement({
           <Badge variant="warning">Pending</Badge>
         </div>
         <CardDescription>
-          The car is back. Earnings are released to your wallet once the dispute window closes
-          with no open claim — automatically, or sooner by settling here.
+          The car is back. Earnings are released to your wallet once the dispute
+          window closes with no open claim — automatically, or sooner by
+          settling here.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
@@ -136,13 +143,18 @@ function PendingSettlement({
 
         {claimBlocking ? (
           <p className="rounded-[var(--radius-sm)] border border-amber-200 bg-amber-50 p-3 text-amber-900">
-            A damage claim is open — the booking settles once it is decided or withdrawn.
+            A damage claim is open — the booking settles once it is decided or
+            withdrawn.
           </p>
         ) : null}
 
         {canHandle ? (
           <div className="space-y-2">
-            <Button type="button" disabled={!canSettle} onClick={() => settle.mutate()}>
+            <Button
+              type="button"
+              disabled={!canSettle}
+              onClick={() => settle.mutate()}
+            >
               {settle.isPending ? "Settling…" : "Settle now"}
             </Button>
             {settle.isError ? (
@@ -151,9 +163,9 @@ function PendingSettlement({
               </p>
             ) : null}
             <p className="text-xs text-muted-foreground">
-              Settling credits your net earnings (and any captured claim) to the wallet and
-              refunds the customer whatever the policy owes them — for example after an early
-              return.
+              Settling credits your net earnings (and any captured claim) to the
+              wallet and refunds the customer whatever the policy owes them —
+              for example after an early return.
             </p>
           </div>
         ) : null}
@@ -180,34 +192,53 @@ function FinalizedSettlement({
             <Receipt className="h-4 w-4 text-primary" />
             Settlement
           </CardTitle>
-          <Badge variant={settlement.status === "finalized" ? "success" : "warning"}>
+          <Badge
+            variant={settlement.status === "finalized" ? "success" : "warning"}
+          >
             {settlement.status === "finalized" ? "Finalized" : "Pending"}
           </Badge>
         </div>
         <CardDescription>
           {settlementCaseLabel(settlement.case)}
-          {settlement.finalizedAt ? ` · finalized ${formatDateTime(settlement.finalizedAt)}` : ""}
+          {settlement.finalizedAt
+            ? ` · finalized ${formatDateTime(settlement.finalizedAt)}`
+            : ""}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
         {settlement.breakdown.length > 0 ? (
           <dl className="space-y-1 rounded-[var(--radius-sm)] border border-border p-3">
             {settlement.breakdown.map((line, i) => (
-              <div key={`${line.code}-${i}`} className="flex justify-between gap-4">
+              <div
+                key={`${line.code}-${i}`}
+                className="flex justify-between gap-4"
+              >
                 <dt className="text-muted-foreground">{line.label}</dt>
-                <dd className="font-medium text-foreground">{money(line.amountCents)}</dd>
+                <dd className="font-medium text-foreground">
+                  {money(line.amountCents)}
+                </dd>
               </div>
             ))}
           </dl>
         ) : null}
 
         <dl className="space-y-1.5 rounded-[var(--radius-sm)] bg-muted/60 p-3">
-          <Line label="Credited to your wallet" value={money(settlement.hostNetCents)} strong />
+          <Line
+            label="Credited to your wallet"
+            value={money(settlement.hostNetCents)}
+            strong
+          />
           {settlement.claimCents > 0 ? (
-            <Line label="Damage claim captured for you" value={money(settlement.claimCents)} />
+            <Line
+              label="Damage claim captured for you"
+              value={money(settlement.claimCents)}
+            />
           ) : null}
           {settlement.retentionCents > 0 ? (
-            <Line label="Late-cancellation retention" value={money(settlement.retentionCents)} />
+            <Line
+              label="Late-cancellation retention"
+              value={money(settlement.retentionCents)}
+            />
           ) : null}
           {settlement.advanceCents > 0 ? (
             <Line
@@ -227,7 +258,16 @@ function FinalizedSettlement({
               muted
             />
           ) : null}
-          <Line label="Platform fee" value={money(settlement.platformNetCents)} muted />
+          <Line
+            label="Platform fee"
+            value={money(settlement.platformNetCents)}
+            muted
+          />
+          <Line
+            label="Tax allocated to the tax authority"
+            value={money(settlement.taxCents)}
+            muted
+          />
         </dl>
       </CardContent>
     </Card>

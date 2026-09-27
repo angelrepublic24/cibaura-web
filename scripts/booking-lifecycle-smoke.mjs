@@ -44,6 +44,7 @@ const settlement = {
   advanceCents: 0,
   hostNetCents: 6900,
   platformNetCents: 1000,
+  taxCents: 1800,
   finalizedAt: "2026-09-25T10:00:00Z",
   disputeWindowEndsAt: null,
   breakdown: [],
@@ -309,6 +310,94 @@ for (const [state, currentClaim, interval] of [
     interval,
   );
   checks++;
+}
+// Deliberately inconsistent amounts prove the UI displays server figures rather
+// than recomputing totals. These are test fixtures, not real inventory.
+const money = load("src/shared/utils/money.ts");
+const { PriceBreakdown } = load(
+  "src/shared/components/price-breakdown.tsx",
+  "",
+  {
+    "@/shared/utils/money": money,
+  },
+);
+const pricing = {
+  currency: "USD",
+  days: 2,
+  ratePerDayCents: 10000,
+  deliveryFeeCents: 500,
+  subtotalCents: 20500,
+  commissionPct: 10,
+  commissionCents: 2050,
+  taxRatePct: 18,
+  taxCents: 3690,
+  totalCents: 99999,
+};
+for (const taxRatePct of [0, 18]) {
+  const result = render(PriceBreakdown, {
+    pricing: { ...pricing, taxRatePct, taxCents: taxRatePct ? 3690 : 0 },
+    depositCents: 35000,
+  });
+  assert(result.includes(`Tax (${money.formatPct(taxRatePct)})`));
+  assert(result.includes(money.formatMoneyCents(taxRatePct ? 3690 : 0, "USD")));
+  assert(result.includes(money.formatMoneyCents(99999, "USD")));
+  assert(result.includes(money.formatMoneyCents(35000, "USD")));
+  assert.match(result, /Delivery \(included in subtotal\)/);
+  assert.match(result, /Booking security deposit/);
+  checks++;
+}
+assert.match(
+  render(PriceBreakdown, { pricing, depositCents: 0, depositEstimate: true }),
+  /Estimated security deposit/,
+);
+checks++;
+const summary = load(
+  "src/features/bookings/components/booking-summary.tsx",
+  "",
+  {
+    "@/shared/components/price-breakdown": { PriceBreakdown },
+  },
+);
+assert(
+  render(summary.PricingCard, {
+    booking: {
+      ...booking,
+      pricing,
+      depositCents: 35000,
+      car: { depositCents: 20000 },
+    },
+  }).includes(money.formatMoneyCents(35000, "USD")),
+);
+checks++;
+for (const taxCents of [0, 1800]) {
+  const current = {
+    ...booking,
+    state: "settled",
+    settlement: { ...settlement, taxCents },
+  };
+  for (const result of [
+    render(
+      load("src/features/bookings/components/settlement-card.tsx")
+        .SettlementCard,
+      { booking: current },
+    ),
+    render(
+      load("src/features/agency/components/agency-settlement-card.tsx")
+        .AgencySettlementCard,
+      { booking: current },
+    ),
+    render(admin.SettlementCard, {
+      settlement: current.settlement,
+      currency: "USD",
+    }),
+  ]) {
+    assert.match(result, /Tax allocated to the tax authority/);
+    assert(result.includes(`USD ${(taxCents / 100).toFixed(2)}`));
+    assert.match(result, /USD 69.00/);
+    assert.match(result, /USD 10.00/);
+    assert.match(result, /USD 31.00/);
+    checks++;
+  }
 }
 console.log(
   `Booking lifecycle: ${checks} cases passed (serializer-shaped fixtures, actual response mutation/API path; no real booking writes).`,

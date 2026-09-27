@@ -1,12 +1,13 @@
 "use client";
 
+import { PriceBreakdown } from "@/shared/components/price-breakdown";
+
 import { Check } from "lucide-react";
 import {
   BOOKING_HAPPY_PATH,
   BOOKING_TERMINAL_STATES,
   type Booking,
 } from "@/shared/types/domain";
-import { formatMoneyCents, formatPct } from "@/shared/utils/money";
 import { closedBookingReason } from "@/shared/utils/booking-reasons";
 import {
   Card,
@@ -88,29 +89,7 @@ export function PricingCard({ booking }: { booking: Booking }) {
         <CardTitle className="text-base">Price breakdown</CardTitle>
       </CardHeader>
       <CardContent>
-        <dl className="space-y-1 text-sm">
-          <div className="flex justify-between">
-            <dt>
-              {p.days} day{p.days === 1 ? "" : "s"} x{" "}
-              {formatMoneyCents(p.ratePerDayCents, p.currency)}
-            </dt>
-            <dd>{formatMoneyCents(p.subtotalCents, p.currency)}</dd>
-          </div>
-          {p.deliveryFeeCents > 0 ? (
-            <div className="flex justify-between">
-              <dt>Delivery fee</dt>
-              <dd>{formatMoneyCents(p.deliveryFeeCents, p.currency)}</dd>
-            </div>
-          ) : null}
-          <div className="flex justify-between text-muted-foreground">
-            <dt>Service fee ({formatPct(p.commissionPct)})</dt>
-            <dd>{formatMoneyCents(p.commissionCents, p.currency)}</dd>
-          </div>
-          <div className="flex justify-between border-t border-border pt-1 font-semibold">
-            <dt>Total</dt>
-            <dd>{formatMoneyCents(p.totalCents, p.currency)}</dd>
-          </div>
-        </dl>
+        <PriceBreakdown pricing={p} depositCents={booking.depositCents} />
         <p className="mt-2 text-xs text-muted-foreground">
           Snapshot frozen at request time — computed by the server.
         </p>
