@@ -1,6 +1,6 @@
 # Despliegue del web Cibaura
 
-## Reporte de errores (Tarea 8)
+## Reporte de errores
 
 `NEXT_PUBLIC_SENTRY_DSN` es un valor público de **build**, no un token de
 administración. Copiar el DSN del proyecto web de Sentry al entorno de compilación
@@ -29,7 +29,7 @@ de petición. No se activan Replay, logs ni muestreo de trazas. Evitar incluir d
 personales o credenciales en los mensajes de las excepciones.
 
 Los sourcemaps se suben durante el build mediante el plugin Next.js de Sentry
-(Tarea 9, instrucciones abajo). Sin credenciales en staging se omite la subida y
+(instrucciones abajo). Sin credenciales en staging se omite la subida y
 se advierte que los stacks pueden quedar minificados. El envío de eventos solo
 necesita DSN. Para validar staging, provocar una excepción desde una interacción
 controlada, verificar evento, SHA y archivo/línea originales en Sentry, y configurar
@@ -43,7 +43,7 @@ y standalone incluye la dependencia. Evita que Turbopack genere archivos con
 `node:inspector` en el nombre, incompatibles con la copia standalone en Windows.
 Referencia: [integración oficial Next.js](https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/).
 
-## Sourcemaps privados (Tarea 9)
+## Sourcemaps privados
 
 | Variable | Dónde se configura | Obligatoria | Uso |
 |---|---|---|---|
@@ -83,7 +83,7 @@ y SHA en Sentry. La configuración de alertas sigue siendo externa.
 Referencias: [Sentry Next.js](https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/),
 [secretos de build Docker](https://docs.docker.com/build/building/secrets/).
 
-## Tarea 7: VPS de pruebas frente a release comercial
+## VPS de pruebas frente a release comercial
 
 Son dos caminos distintos aunque ambos usan un build Next NODE_ENV=production:
 
@@ -95,7 +95,7 @@ Son dos caminos distintos aunque ambos usan un build Next NODE_ENV=production:
 El gate `scripts/check-release-stripe.mjs` corre antes del build/publicación de
 cualquier tag: rechaza pk_test_, claves ausentes/malformadas y cualquier valor no
 vacío del flag, **incluido false**. Para producción hay que eliminar esa variable
-de Actions o dejarla vacía. No se imprime la clave. Los guards de build existentes
+de Actions o dejarla vacía. No se imprime la clave. Los guards de build
 siguen admitiendo pk_test_ con flag true para staging; no se relajan URL, SHA,
 identidad legal ni Maps. Un dispatch sobre un tag también es un release comercial.
 
@@ -115,7 +115,7 @@ Comprobar baked.buildSha y baked.stripeKeyPrefix=pk_test_. No crear un tag vX.Y.
 para probar: ese camino ahora rechaza test keys. Para pasar a producción, construir
 otra imagen desde el tag con valores comerciales; no reutilizar la imagen de pruebas.
 
-## Tarea 6: configuración visible y diferencias con PRODUCCION-SPEC.md §3.2
+## Configuración visible y preflight
 
 `GET /health` devuelve `status: "ok"` (liveness HTTP 200) y `baked` con apiUrl,
 siteUrl normalizada a origen, stripeKeyPrefix (solo pk_live_/pk_test_, o null),
@@ -125,7 +125,7 @@ corsMatched y ok. Sonda GET al API_URL normalizado + /health con Origin del siti
 sin credenciales, sin seguir redirects y con timeout de 2 segundos. Un API caído
 no reinicia el contenedor sano; consultar upstream.ok para disponibilidad funcional.
 
-NEXT_PUBLIC_BUILD_SHA es build-time obligatorio (40 hex), leído en config.ts:116;
+NEXT_PUBLIC_BUILD_SHA es build-time obligatorio (40 hex), leído en src/lib/config.ts;
 Docker lo recibe como ARG y Actions lo rellena con github.sha. En builds nativos o
 Compose fijarlo al resultado de `git rev-parse HEAD`, sobre el checkout a desplegar.
 No escribir un SHA inventado en .env.example. Las variables públicas siguen sin
@@ -142,30 +142,20 @@ exactamente igual a SITE_URL.origin. Actions lee vars.BUILD_ENV_PROBE_API.
 Una entrada backend FRONTEND_URL con barra final falla esa comparación. La sonda
 no prueba toda la sesión ni cookies; comprueba exactamente el contrato solicitado.
 
-Discrepancias resueltas o reportadas, sin editar la especificación del lead:
+La validación de dominios usa la misma aproximación que el backend, no
+una PSL completa; usar dominio propio. Caddy redirige con 301 desde
+WEB_REDIRECT_HOST al origen NEXT_PUBLIC_SITE_URL. Este web no consume
+SSR_SHARED_SECRET ni ALLOW_PLACEHOLDER_BUILD.
 
-| Tema | Resolución |
-|---|---|
-| Legal y Maps opcionales en el inventario anterior | El inventario anterior quedó obsoleto; ahora obligatorias salvo las excepciones explícitas. Plantilla legal vacía, sin identidad inventada. |
-| BUILD_SHA ausente | Implementado e incrustado desde Git/Actions. |
-| PSL vs aproximación backend | Se porta registrableDomain y los seis labels co/com/net/org/edu/gov, con mensaje backend idéntico. Única adaptación TS: fallback vacío por noUncheckedIndexedAccess en índice garantizado por longitud. Se retira tldts. |
-| Sufijos privados | La aproximación compartida acepta tenants distintos de github.io/vercel.app; no equivale a una PSL real. Es una limitación del contrato backend que ahora comparten ambos. Usar el dominio propio decidido, no tenants de proveedores. |
-| CANONICAL_HOST opcional / 308 en spec | Spec desactualizada frente al PR #13 aprobado: WEB_REDIRECT_HOST obligatorio en Compose TLS + SITE_URL, con 301 en Caddy. |
-| NEXT_PUBLIC_SENTRY_DSN | Implementado en Tarea 8; obligatorio en release, opcional con advertencia en staging de pruebas. |
-| SSR_SHARED_SECRET | Sigue pendiente; no se consume ni se exige en este web. |
-| ALLOW_PLACEHOLDER_BUILD en §3.4 | Contradice la decisión posterior: no existe ni se añade. CI compila en desarrollo; producción rechaza placeholders. |
-| Stripe test flag | Resuelto en Tarea 7: release por tag exige pk_live_ y flag ausente; staging por rama/Compose admite test con flag true. |
-| Cantidad de variables en §4 | La instrucción de “diez” quedó obsoleta al añadir BUILD_SHA; SSR pendiente no deben confundirse con valores ya consumidos. |
-
-`npm run smoke`, después de build:ci, ejecuta health-config, deploy-config,
-platform-config, booking-guards y seo-smoke. SEO usa copia aislada del standalone
-de CI y fixtures HTTP: evidencia de SSR y contrato, nunca de inventario real.
-Los datos de prueba no contaminan la caché del artefacto de producción.
+`npm run smoke` ejecuta las suites enumeradas en `package.json` y requiere
+que `npm run build:ci` haya terminado. SEO usa una copia aislada del standalone
+y fixtures HTTP: comprueba SSR/contrato, no inventario real. Consultar CI/PR
+para los resultados de cada revisión, no un conteo guardado en esta guía.
 
 ## Hostinger VPS limpio: camino concreto
 
 Usar un VPS Ubuntu 24.04 LTS (no hosting compartido). Entrar por SSH con un usuario
-con sudo. La marca y el dominio siguen pendientes: no hay default de producción.
+con sudo. Elegir el dominio del despliegue: no hay default de producción.
 
 Instalar Docker Engine y Compose desde el repositorio oficial:
 
@@ -241,7 +231,7 @@ caché que no se introducen en esta entrega.
 ## Identidad y publicación de releases
 
 Esquema propuesto y cableado: tags Git **vMAJOR.MINOR.PATCH**, versiones independientes
-por repositorio. Primer release propuesto: v0.1.0; no se ha creado ningún tag.
+por repositorio. El responsable elige la siguiente versión libre; los comandos usan v0.1.0 como ejemplo.
 PATCH para correcciones compatibles, MINOR para funciones compatibles, MAJOR para
 rupturas del contrato. El tag Git es la identidad de despliegue (package.json es
 privado y no se publica en npm). No mover/reutilizar tags; proteger v* mediante un
@@ -277,7 +267,7 @@ sudo docker compose --env-file .env.production.local -f compose.yml -f compose.p
 ```
 
 Rollback: restaurar la etiqueta anterior y sus valores, pull y up --no-build.
-Variables nuevas fuera de src: WEB_REDIRECT_HOST (runtime Caddy, obligatoria con
+Otras variables de infraestructura: WEB_REDIRECT_HOST (runtime Caddy, obligatoria con
 TLS), WEB_IMAGE_REPOSITORY (Compose), WEB_VERSION y WEB_REVISION (build, labels OCI;
 workflow los rellena). Todas las NEXT_PUBLIC_* conservan su inventario de abajo.
 
@@ -310,28 +300,33 @@ de Vercel/Render esperando que cambiar una variable habilite cookies entre sitio
 
 ## Variables públicas: todas son de BUILD
 
-Inventario completo de lecturas ejecutables `process.env` de `src`, tras este cambio.
+Inventario de configuración pública. Mantener esta tabla junto con config,
+.env.example, Dockerfile y workflows al añadir o cambiar variables.
 Todas las `NEXT_PUBLIC_*` se incrustan al compilar; cambiar `docker run -e` después
 **no modifica** API, SEO, medios, Stripe, Maps o identidad legal. Hay que reconstruir
 la imagen por entorno. No pasar claves secretas de Stripe ni credenciales de backend.
 
 | Variable                           | Referencia                             | Obligatoria en producción                         | Comportamiento / .env.example                                                                                            |
 | ---------------------------------- | -------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| NEXT_PUBLIC_API_URL | src/lib/config.ts:24 | Si | HTTPS, mismo dominio registrable que SITE_URL. Sin default en production. Documentada. |
-| NEXT_PUBLIC_SENTRY_DSN | src/lib/config.ts:120 | Sí; staging explícito con STRIPE_ALLOW_TEST_KEY=true puede omitirla | Pública/build; DSN de ingestión HTTPS. Documentada; sin default. Sin DSN: advertencia y health false. |
-| NEXT_PUBLIC_SITE_URL               | src/lib/config.ts:34                   | Sí, validada al cargar next.config                | Origen HTTPS sin path; metadataBase, canonical, OG, Twitter, robots y sitemap. Nueva; documentada.                       |
-| NEXT_PUBLIC_MEDIA_URL | src/lib/config.ts:46 | No | Host/prefijo adicional para optimizar medios. Sin valor, otros hosts siguen visibles con unoptimized. Documentada. |
-| NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY | src/lib/config.ts:67                   | Sí                                                | `pk_live_...`; sin clave no hay tarjetas/reservas. Rechaza claves secretas y placeholders. Documentada.                  |
-| NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY  | src/lib/config.ts:90                   | No                                                | Solo `true` habilita clave test en staging. No usar en producción comercial. Documentada.                                |
-| NEXT_PUBLIC_GOOGLE_MAPS_API_KEY    | src/shared/hooks/use-google-maps.ts:40; src/lib/config.ts:114 | Si, salvo ALLOW_MISSING_MAPS en staging nativo | Ausente: UI declara Maps no configurado. Configurar Places/Maps y restricción de referrer al dominio final. Documentada. |
-| NEXT_PUBLIC_LEGAL_COMPANY_NAME     | src/shared/config/legal.ts:20          | Si, salvo ALLOW_DEFAULT_LEGAL en staging nativo | Publica/build; tambien leida en src/lib/config.ts:105-108 para baked y guard. Documentada. |
-| NEXT_PUBLIC_LEGAL_RNC              | src/shared/config/legal.ts:22          | Si, salvo ALLOW_DEFAULT_LEGAL en staging nativo | Publica/build; tambien leida en src/lib/config.ts:105-108 para baked y guard. Documentada. |
-| NEXT_PUBLIC_LEGAL_ADDRESS          | src/shared/config/legal.ts:24          | Si, salvo ALLOW_DEFAULT_LEGAL en staging nativo | Publica/build; tambien leida en src/lib/config.ts:105-108 para baked y guard. Documentada. |
-| NEXT_PUBLIC_LEGAL_CONTACT_EMAIL    | src/shared/config/legal.ts:27          | Si, salvo ALLOW_DEFAULT_LEGAL en staging nativo | Publica/build; tambien leida en src/lib/config.ts:105-108 para baked y guard. Documentada. |
-| NODE_ENV | src/lib/config.ts:21,68 | Gestionada por Next / Docker | production para deploy; development solo en build:ci. No figura en .env.example. |
+| NEXT_PUBLIC_BUILD_SHA | src/lib/config.ts | Sí | SHA Git completo de 40 hex; Actions usa github.sha, Compose/build nativo recibe git rev-parse HEAD. Documentada. |
+| NEXT_PUBLIC_API_URL | src/lib/config.ts | Si | HTTPS, mismo dominio registrable que SITE_URL. Sin default en production. Documentada. |
+| NEXT_PUBLIC_SENTRY_DSN | src/lib/config.ts | Sí; staging explícito con STRIPE_ALLOW_TEST_KEY=true puede omitirla | Pública/build; DSN de ingestión HTTPS. Documentada; sin default. Sin DSN: advertencia y health false. |
+| NEXT_PUBLIC_SITE_URL               | src/lib/config.ts                   | Sí, validada al cargar next.config                | Origen HTTPS sin path; metadataBase, canonical, OG, Twitter, robots y sitemap. Documentada.                       |
+| NEXT_PUBLIC_MEDIA_URL | src/lib/config.ts | No | Host/prefijo adicional para optimizar medios. Sin valor, otros hosts siguen visibles con unoptimized. Documentada. |
+| NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY | src/lib/config.ts                   | Sí                                                | `pk_live_...`; sin clave no hay tarjetas/reservas. Rechaza claves secretas y placeholders. Documentada.                  |
+| NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY  | src/lib/config.ts                   | No                                                | Solo `true` habilita clave test en staging. No usar en producción comercial. Documentada.                                |
+| NEXT_PUBLIC_GOOGLE_MAPS_API_KEY    | src/shared/hooks/use-google-maps.ts; src/lib/config.ts | Si, salvo ALLOW_MISSING_MAPS en staging nativo | Ausente: UI declara Maps no configurado. Configurar Places/Maps y restricción de referrer al dominio final. Documentada. |
+| NEXT_PUBLIC_LEGAL_COMPANY_NAME     | src/shared/config/legal.ts          | Si, salvo ALLOW_DEFAULT_LEGAL en staging nativo | Publica/build; tambien leida en src/lib/config.ts para baked y guard. Documentada. |
+| NEXT_PUBLIC_LEGAL_RNC              | src/shared/config/legal.ts          | Si, salvo ALLOW_DEFAULT_LEGAL en staging nativo | Publica/build; tambien leida en src/lib/config.ts para baked y guard. Documentada. |
+| NEXT_PUBLIC_LEGAL_ADDRESS          | src/shared/config/legal.ts          | Si, salvo ALLOW_DEFAULT_LEGAL en staging nativo | Publica/build; tambien leida en src/lib/config.ts para baked y guard. Documentada. |
+| NEXT_PUBLIC_LEGAL_CONTACT_EMAIL    | src/shared/config/legal.ts          | Si, salvo ALLOW_DEFAULT_LEGAL en staging nativo | Publica/build; tambien leida en src/lib/config.ts para baked y guard. Documentada. |
 
-No hay lecturas de otras variables runtime de aplicación en `src`. Las menciones de
-`process.env.CONFIG_ENCRYPTION_KEY` en `src/features/admin/integrations.ts:53` y de
+`NODE_ENV` lo gestiona Next/Docker: production para despliegue; development
+para dev/build:ci. No es una variable pública configurable de la aplicación.
+
+Las variables privadas de upload están en la sección de sourcemaps; las
+excepciones y sonda de build, en preflight. No son NEXT_PUBLIC_* ni secretos runtime. Las menciones de
+`process.env.CONFIG_ENCRYPTION_KEY` en `src/features/admin/integrations.ts` y de
 `process.env` en la pantalla de integraciones son comentarios sobre **el backend**;
 no son variables del frontend y no deben copiarse aquí.
 
@@ -345,7 +340,7 @@ no son variables del frontend y no deben copiarse aquí.
 | WEB_HOST_PORT           | Puerto loopback publicado por Compose            | 3000              | compose.yml; no entra al bundle                            |
 | WEB_IMAGE_TAG           | Etiqueta local para identificar/retener imágenes | local             | compose.yml; no entra al bundle                            |
 
-Estas cinco opciones están documentadas como comentarios en `.env.example`.
+Estas opciones están documentadas como comentarios en `.env.example`.
 En Caddy, SITE_URL también se usa en runtime para seleccionar el dominio TLS: debe
 ser el mismo valor usado al compilar. PORT se pasa a ambos servicios. No establecer
 HOSTNAME a un nombre de dominio externo: es una interfaz de escucha, no el canonical.
@@ -425,15 +420,15 @@ El preflight enumera cada variable obligatoria ausente y falla. Docker fuerza
 NODE_ENV=production en el builder y ejecuta `npm run build`; nunca consume `.next-ci`.
 El job construye la imagen y verifica usuario no root, health, assets, optimizador
 y robots. En un tag SemVer publica en GHCR; en una rama solo valida. No despliega
-al VPS automáticamente. No se han creado variables
-Actions en nombre del dueño. Para probar cuando exista daemon: ejecutar los comandos
-Compose anteriores; CI de producción proporciona su propio daemon.
+al VPS automáticamente. Crear las variables y el secret SENTRY_AUTH_TOKEN antes de ejecutar el workflow.
+Para verificar la imagen localmente hace falta Docker operativo; ejecutar los
+comandos Compose anteriores. El runner proporciona su propio daemon.
 
 `src/lib/public-url.ts` se ejecuta desde next.config antes de compilar. En producción
 rechaza valores ausentes, localhost, IPs, nombres locales, .invalid, .example, .test,
 example.com/net/org, marcadores, HTTP, credenciales, query/hash y wildcards. SITE_URL
 rechaza paths y no tiene dominio por defecto. `src/lib/deployment-policy.ts` compara
-los dominios registrables con la misma aproximación del backend (ver Tarea 6).
+los dominios registrables con la misma aproximación del backend (ver DECISIONS.md).
 No distingue tenants de sufijos privados. Se aplica a
 producción; no existe ALLOW_PLACEHOLDER ni bypass equivalente en producción. Esto
 valida configuración, no DNS, propiedad del dominio ni disponibilidad de API.
@@ -443,38 +438,26 @@ Para actualizar: cambiar valores si hace falta, reconstruir y `up -d --wait`.
 Conservar una etiqueta anterior permite rollback con `docker compose ... up -d --no-build`
 usando su WEB_IMAGE_TAG y **los valores de su build**, incluidos dominio TLS y puerto.
 
-## Imágenes y constantes encontradas
+## Imágenes e identidad
 
-- Fotos API ya tenían remotePatterns y optimización condicional. El bypass restante
-  era para URLs externas heredadas. NEXT_PUBLIC_MEDIA_URL añade un host/prefijo
-  público autorizado; fotos y logos coincidentes usan el optimizador. Query strings
-  permitidas bajo ese prefijo. Sin la variable, o con otro host, se conserva la URL
-  externa con unoptimized para que siga visible; esa alternativa no mejora LCP.
-  No hay wildcard global ni autorización de documentos/KYC privados.
-- Los cuatro `unoptimized` incondicionales son PNG locales de marca pequeños en
-  `src/shared/components/logo.tsx:38,52,68,77`, no inventario ni peticiones externas.
-- Dominio fijo SEO eliminado de `src/shared/seo/metadata.ts`; todos sus consumidores
-  usan SITE_URL validada. Los ejemplos cibaura.com/api.cibaura.com en comentarios de
-  next.config y config no deciden destinos.
-- `src/app/layout.tsx:92`: https://drts.us es el crédito editorial del desarrollador,
-  no un endpoint ni dominio SEO. Se conserva y se reporta explícitamente.
-- `src/shared/config/legal.ts:20-30`: Cibaura, Santo Domingo y legal@cibaura.com son
-  fallbacks sustituibles por las cuatro variables legales existentes. Jurisdicción
-  Dominican Republic y versión fallback 2026-09-08 son contenido/contrato legal;
-  la versión real pertenece a GET /legal/current. No se traducen ni cambian aquí.
-- `src/shared/hooks/use-google-maps.ts:24`: maps.googleapis.com es el endpoint oficial
-  del proveedor. schema.org y purl.org en structured-data son vocabularios, no servidores
-  del despliegue; w3.org en el SVG del select es un namespace.
-- Correos example.com/customer@email.com/jane@agency.com son placeholders de inputs
-  (`admin/roots/page.tsx:171`, `agency/walk-in/page.tsx:109`, `staff-form.tsx:146`).
-  No hay teléfonos fijos en src: enlaces tel/mailto usan datos de la API.
+Las fotos del stream público API se optimizan. NEXT_PUBLIC_MEDIA_URL permite
+un host/prefijo adicional de medios públicos, incluidas queries. Otros hosts
+cargan directamente con unoptimized: siguen visibles pero sin mejora del
+optimizador. No autorizar documentos privados/KYC ni un wildcard global.
+Los PNG locales de marca también usan unoptimized.
+
+SEO usa SITE_URL validada. La marca/los assets siguen en el código; el dominio
+no. El enlace drts.us del layout es crédito editorial, no destino del API.
+Los fallbacks legales en `src/shared/config/legal.ts` solo aplican a desarrollo
+o excepción explícita; producción normal exige los cuatro valores legales.
+La versión de términos y cifras de cancelación vienen de GET /legal/current;
+no publicar una versión nueva editando solamente el fallback del web.
 
 ## Dependencias y fuentes
 
-Se fija Next/eslint-config-next 15.5.26 y Sharp 0.35.4. Se actualizan dependencias
-compatibles y PostCSS de Next a 8.5.28 mediante override acotado: el audit inicial
-detectó vulnerabilidades, incluido Next/Sharp; el audit posterior devuelve cero.
-No se migra a Next 16. El lockfile y digests de imágenes permiten repetir las versiones.
+`package.json`, el lockfile y los digests Docker fijan las dependencias. Al
+actualizarlas, ejecutar gates y revisar `npm audit`; un resultado anterior sin
+vulnerabilidades no certifica el estado actual.
 
 - [Next standalone y copia de assets](https://nextjs.org/docs/15/app/api-reference/config/next-config-js/output).
 - [Remote patterns e imágenes](https://nextjs.org/docs/15/app/api-reference/components/image).
@@ -486,29 +469,24 @@ No se migra a Next 16. El lockfile y digests de imágenes permiten repetir las v
 
 ```sh
 npm ci
-node scripts/deploy-config-smoke.mjs
-npm run build:ci
-node scripts/standalone-smoke.mjs
-npx tsc --noEmit
+npm run typecheck
 npm run lint
 npm run lint:suppressions
+npm run build:ci
+npm run smoke
+node scripts/standalone-smoke.mjs
 npm audit
 ```
 
-Los guards tienen 115 comprobaciones con valores sintéticos, incluidos dominios
-co.uk/com.do y sufijos privados. El smoke standalone comprueba seis respuestas HTTP:
-health JSON, asset público, optimizador Sharp, robots, HTML con canonical y CSS.
-Se informa el resultado final real de estos comandos en el PR.
+CI también instala Caddy y ejecuta `scripts/edge-smoke.mjs`. No ejecutar
+smoke en paralelo al build del que depende. El smoke standalone comprueba
+health, assets, optimizador Sharp, robots, canonical, CSS y cabeceras.
+Los resultados reales se registran en CI/PR, no en este runbook.
 
-El build de producción se prueba por separado con `npm run build` y valores reales:
-los placeholders/localhost deben fallar antes de compilar. El daemon local permanece
-apagado por instrucción del responsable. La imagen de producción queda verificable
-mediante el workflow manual cuando se peguen las variables; no se presenta el smoke
-de desarrollo como evidencia de una imagen Docker ni de inventario real.
+El build comercial se verifica por separado con `npm run build` y valores reales;
+placeholders/localhost deben fallar antes de compilar. Probar imagen Docker
+requiere daemon operativo o el workflow de imagen. El smoke de desarrollo no
+acredita una imagen comercial, entrega Sentry, inventario ni cobros reales.
 
-Resultados locales de esta revisión: build:ci exit 0 (51/51 páginas), standalone
-6/6 más cinco cabeceras, edge Caddy 6/6, guards 115/115, tsc 0 errores,
-ESLint 0 errores/0 warnings, supresiones 224 archivos
-limpios, npm audit 0 vulnerabilidades. Un npm run build con dominios registrables
-distintos salió con código 1 antes de compilar, como se exige. El preflight sin
-variables salió con código 1 enumerando API_URL, SITE_URL y la clave pública Stripe.
+Mantener esta guía al cambiar variables, Docker, proxy o release. Los motivos
+de las restricciones están en [DECISIONS.md](DECISIONS.md).
