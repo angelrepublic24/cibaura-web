@@ -1,5 +1,7 @@
 "use client";
 
+import { PriceBreakdown } from "@/shared/components/price-breakdown";
+
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -32,7 +34,6 @@ import { ErrorState, LoadingState } from "@/shared/components/states";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
-import { formatMoneyCents, formatPct } from "@/shared/utils/money";
 import { closedBookingReason } from "@/shared/utils/booking-reasons";
 import { formatIsoDate } from "@/shared/utils/dates";
 
@@ -205,29 +206,7 @@ function OrderDetail({ booking }: { booking: AdminBookingDetail }) {
             <CardTitle className="text-base">Price breakdown</CardTitle>
           </CardHeader>
           <CardContent>
-            <dl className="space-y-1 text-sm">
-              <div className="flex justify-between">
-                <dt>
-                  {p.days} day{p.days === 1 ? "" : "s"} ×{" "}
-                  {formatMoneyCents(p.ratePerDayCents, p.currency)}
-                </dt>
-                <dd>{formatMoneyCents(p.subtotalCents, p.currency)}</dd>
-              </div>
-              {p.deliveryFeeCents > 0 ? (
-                <div className="flex justify-between">
-                  <dt>Delivery fee</dt>
-                  <dd>{formatMoneyCents(p.deliveryFeeCents, p.currency)}</dd>
-                </div>
-              ) : null}
-              <div className="flex justify-between text-muted-foreground">
-                <dt>Platform commission ({formatPct(p.commissionPct)})</dt>
-                <dd>{formatMoneyCents(p.commissionCents, p.currency)}</dd>
-              </div>
-              <div className="flex justify-between border-t border-border pt-1 font-semibold">
-                <dt>Customer total</dt>
-                <dd>{formatMoneyCents(p.totalCents, p.currency)}</dd>
-              </div>
-            </dl>
+            <PriceBreakdown pricing={p} depositCents={booking.depositCents} />
           </CardContent>
         </Card>
 

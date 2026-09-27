@@ -38,8 +38,8 @@ export function SettlementCard({ booking }: { booking: BookingDetail }) {
         <CardContent className="text-sm text-muted-foreground">
           The car is back. {booking.agency.name} has a short dispute window to
           report damage; once it closes without a claim, your deposit hold is
-          released and the booking settles automatically. Any refund due —
-          for example after an early return — appears here.
+          released and the booking settles automatically. Any refund due — for
+          example after an early return — appears here.
         </CardContent>
       </Card>
     );
@@ -53,11 +53,15 @@ export function SettlementCard({ booking }: { booking: BookingDetail }) {
             <Receipt className="h-4 w-4" />
             Settlement
           </CardTitle>
-          <Badge variant={settlement.status === "finalized" ? "success" : "warning"}>
+          <Badge
+            variant={settlement.status === "finalized" ? "success" : "warning"}
+          >
             {settlement.status === "finalized" ? "Finalized" : "Pending"}
           </Badge>
         </div>
-        <CardDescription>{settlementCaseLabel(settlement.case)}</CardDescription>
+        <CardDescription>
+          {settlementCaseLabel(settlement.case)}
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
         <SettlementTiming settlement={settlement} />
@@ -65,7 +69,10 @@ export function SettlementCard({ booking }: { booking: BookingDetail }) {
         {settlement.breakdown.length > 0 ? (
           <dl className="space-y-1 rounded-[var(--radius-sm)] border border-border p-3">
             {settlement.breakdown.map((line, i) => (
-              <div key={`${line.code}-${i}`} className="flex justify-between gap-4">
+              <div
+                key={`${line.code}-${i}`}
+                className="flex justify-between gap-4"
+              >
                 <dt className="text-muted-foreground">{line.label}</dt>
                 <dd className="font-medium text-foreground">
                   {formatMoneyCents(line.amountCents, booking.pricing.currency)}
@@ -154,12 +161,26 @@ function RefundSummary({
     <div className="space-y-2">
       <dl className="space-y-1.5 rounded-[var(--radius-sm)] bg-muted/60 p-3">
         <div className="flex items-center justify-between">
+          <dt>Host net</dt>
+          <dd>{formatMoneyCents(settlement.hostNetCents, currency)}</dd>
+        </div>
+        <div className="flex items-center justify-between">
+          <dt>Platform net</dt>
+          <dd>{formatMoneyCents(settlement.platformNetCents, currency)}</dd>
+        </div>
+        <div className="flex items-center justify-between">
+          <dt>Tax allocated to the tax authority</dt>
+          <dd>{formatMoneyCents(settlement.taxCents, currency)}</dd>
+        </div>
+        <div className="flex items-center justify-between">
           <dt className="text-muted-foreground">Refunded to your card</dt>
           <dd className="text-lg font-semibold text-foreground">{refund}</dd>
         </div>
         {settlement.retentionCents > 0 ? (
           <div className="flex items-center justify-between">
-            <dt className="text-muted-foreground">Retained by {booking.agency.name}</dt>
+            <dt className="text-muted-foreground">
+              Retained by {booking.agency.name}
+            </dt>
             <dd className="font-medium text-red-700">
               {formatMoneyCents(settlement.retentionCents, currency)}
             </dd>

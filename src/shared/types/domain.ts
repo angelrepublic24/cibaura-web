@@ -448,7 +448,10 @@ export interface Pricing {
   commissionPct: number;
   /** round(subtotal × pct / 100), half-up. */
   commissionCents: number;
-  /** subtotal + commission (what the customer pays). */
+  /** Server-computed tax amount and the rate used; frozen on a booking. */
+  taxCents: number;
+  taxRatePct: number;
+  /** subtotal + commission + tax (server total; never recompute). */
   totalCents: number;
   currency: string; // 'USD'
 }
@@ -500,7 +503,7 @@ export interface Booking {
   cancellationReason: string | null;
   /** Renter identity — present ONLY for the agency/admin viewer. */
   customer?: BookingCustomerDto;
-  /** Effective deposit emitted on every booking; resolved by the backend, cents. */
+  /** Frozen booking deposit from the backend, cents; never use current car/config values. */
   depositCents: number;
   /** Check-in / check-out inspections (ADR-0011), lightweight refs. */
   inspections: { type: InspectionType; status: InspectionStatus; id: string }[];
@@ -1107,6 +1110,8 @@ export interface SettlementDto {
   advanceCents: number;
   hostNetCents: number;
   platformNetCents: number;
+  /** Tax allocated to the tax authority, outside both net amounts. */
+  taxCents: number;
   breakdown: SettlementLineDto[];
   disputeWindowEndsAt: string | null;
   finalizedAt: string | null;

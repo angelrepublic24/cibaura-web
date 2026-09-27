@@ -23,7 +23,7 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
 
 /**
  * "Deposit and cancellation policy" on the car page: the security deposit
- * frozen for this car (`CarDetailDto.depositCents` — car override or the
+ * currently resolved for this car (`CarDetailDto.depositCents` — car override or the
  * platform default, decided server-side), the three policy tiers from
  * `GET /legal/current`, and the published rental agreement
  * (`GET /legal/contracts/rental_agreement`, generic placeholders) so the
@@ -55,7 +55,7 @@ export function RentalPolicyCard({
       <CardContent className="space-y-4 text-sm">
         <div className="rounded-[var(--radius-sm)] bg-muted/60 p-3">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">
-            Security deposit
+            Estimated security deposit
           </p>
           {depositCents > 0 ? (
             <>
@@ -74,6 +74,9 @@ export function RentalPolicyCard({
               No deposit for this car
             </p>
           )}
+          <p className="mt-2 text-xs text-muted-foreground">
+            The deposit is confirmed when the booking is created.
+          </p>
         </div>
 
         <div>
@@ -143,8 +146,8 @@ export function RentalPolicyCard({
                 <ContractHtml html={contract.data.html} className="max-h-80" />
                 <p className="text-xs text-muted-foreground">
                   Bracketed placeholders are filled in with your details, the
-                  car and the host when you request — you will see and sign
-                  that exact text.
+                  car and the host when you request — you will see and sign that
+                  exact text.
                 </p>
               </div>
             ) : null

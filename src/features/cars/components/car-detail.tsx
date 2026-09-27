@@ -1,5 +1,7 @@
 "use client";
 
+import { PriceBreakdown } from "@/shared/components/price-breakdown";
+
 import { useMemo, useState } from "react";
 import Image from "next/image";
 import { isOptimizableImage } from "@/shared/config/media";
@@ -61,7 +63,7 @@ import type {
   Period,
   PickupType,
 } from "@/shared/types/domain";
-import { formatMoneyCents, formatPct } from "@/shared/utils/money";
+import { formatMoneyCents } from "@/shared/utils/money";
 import { formatIsoDate, isoDateParts, todayIso } from "@/shared/utils/dates";
 import { ErrorState, LoadingState } from "@/shared/components/states";
 import { Button } from "@/shared/components/ui/button";
@@ -326,7 +328,7 @@ function RentalConditions({
           </div>
           <div className="rounded-[var(--radius-sm)] bg-muted/60 p-3">
             <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-              Security deposit
+              Estimated security deposit
             </dt>
             <dd className="mt-0.5 font-semibold text-foreground">
               {depositCents > 0 ? formatMoneyCents(depositCents) : "None"}
@@ -913,39 +915,16 @@ function BookingPanel({
               className="py-4"
             />
           ) : quote ? (
-            <dl className="space-y-1.5 rounded-[var(--radius-sm)] border border-border bg-muted/60 p-4 text-sm">
-              <div className="flex justify-between">
-                <dt>
-                  {quote.days} day{quote.days === 1 ? "" : "s"} x{" "}
-                  {formatMoneyCents(quote.ratePerDayCents, quote.currency)}
-                </dt>
-                <dd>{formatMoneyCents(quote.subtotalCents, quote.currency)}</dd>
-              </div>
-              {quote.deliveryFeeCents > 0 ? (
-                <div className="flex justify-between">
-                  <dt>Delivery fee</dt>
-                  <dd>
-                    {formatMoneyCents(quote.deliveryFeeCents, quote.currency)}
-                  </dd>
-                </div>
-              ) : null}
-              <div className="flex justify-between text-muted-foreground">
-                <dt>Service fee ({formatPct(quote.commissionPct)})</dt>
-                <dd>
-                  {formatMoneyCents(quote.commissionCents, quote.currency)}
-                </dd>
-              </div>
-              <div className="mt-1 flex justify-between border-t border-border pt-2 text-base font-semibold">
-                <dt>Total</dt>
-                <dd>{formatMoneyCents(quote.totalCents, quote.currency)}</dd>
-              </div>
-              {car.depositCents > 0 ? (
-                <div className="flex justify-between border-t border-border pt-2 text-xs text-muted-foreground">
-                  <dt>Security deposit (held at check-in, not charged)</dt>
-                  <dd>{formatMoneyCents(car.depositCents, quote.currency)}</dd>
-                </div>
-              ) : null}
-            </dl>
+            <div className="rounded-[var(--radius-sm)] border border-border bg-muted/60 p-4">
+              <PriceBreakdown
+                pricing={quote}
+                depositCents={car.depositCents}
+                depositEstimate
+              />
+              <p className="mt-2 text-xs text-muted-foreground">
+                The deposit is confirmed when the booking is created.
+              </p>
+            </div>
           ) : null
         ) : (
           <p className="text-sm text-muted-foreground">
