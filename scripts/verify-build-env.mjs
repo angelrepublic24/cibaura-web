@@ -24,6 +24,7 @@ function load(file, modules = {}) {
 try {
   const helpers = load("src/lib/public-url.ts");
   const config = load("src/lib/config.ts", { "./public-url": helpers });
+  load("src/lib/sentry-build.ts").sentryBuildOptions(process.env, true, console.warn);
   if (!config.SENTRY_CONFIGURED)
     console.warn("[monitoring] NEXT_PUBLIC_SENTRY_DSN is missing. This build will NOT report errors; staging/development only.");
   if (process.env.NODE_ENV === "production") {

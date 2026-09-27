@@ -15,6 +15,7 @@ import { Card, CardContent } from "@/shared/components/ui/card";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
+import { PermissionGate } from "@/features/agency/components/permission-gate";
 
 /**
  * /agency/zones — delivery zones per branch (airport, hotel zone…), each with a
@@ -22,6 +23,14 @@ import { Select } from "@/shared/components/ui/select";
  * delivery. Pick a branch, then create/delete its zones.
  */
 export default function AgencyZonesPage() {
+  return (
+    <PermissionGate permission="zones:manage">
+      <AgencyZones />
+    </PermissionGate>
+  );
+}
+
+function AgencyZones() {
   const [branchId, setBranchId] = useState("");
 
   const branchesQuery = useQuery({
@@ -46,9 +55,7 @@ export default function AgencyZonesPage() {
           onChange={(e) => setBranchId(e.target.value)}
         >
           <option value="">
-            {branchesQuery.isError
-              ? "Branches unavailable"
-              : "Select a branch"}
+            {branchesQuery.isError ? "Branches unavailable" : "Select a branch"}
           </option>
           {(branchesQuery.data ?? []).map((b) => (
             <option key={b.id} value={b.id}>
@@ -102,7 +109,8 @@ function ZonesForBranch({ branchId }: { branchId: string }) {
 
   const remove = useMutation({
     mutationFn: (zoneId: string) => AgencyApi.deleteZone(zoneId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: agencyKeys.zones(branchId) }),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: agencyKeys.zones(branchId) }),
   });
 
   const feeValid = /^\d+(\.\d{1,2})?$/.test(fee);

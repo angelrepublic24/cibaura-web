@@ -27,6 +27,9 @@ const child = spawn(
       NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "",
       NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY: "false",
       NEXT_PUBLIC_SENTRY_DSN: "",
+      SENTRY_AUTH_TOKEN: "",
+      SENTRY_ORG: "",
+      SENTRY_PROJECT: "",
     },
   },
 );

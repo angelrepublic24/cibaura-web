@@ -65,6 +65,25 @@ assert.equal(denied.status, 1);
 checks++;
 assert(denied.stderr.includes("NEXT_PUBLIC_SENTRY_DSN is required"));
 checks++;
+const noUploadToken = spawnSync(
+  process.execPath,
+  ["scripts/verify-build-env.mjs"],
+  {
+    env: {
+      ...buildEnv,
+      NEXT_PUBLIC_SENTRY_DSN: config.SENTRY_DSN,
+      SENTRY_AUTH_TOKEN: "",
+      SENTRY_ORG: "fixture",
+      SENTRY_PROJECT: "fixture",
+    },
+    encoding: "utf8",
+    windowsHide: true,
+  },
+);
+assert.equal(noUploadToken.status, 1);
+checks++;
+assert(noUploadToken.stderr.includes("SENTRY_AUTH_TOKEN"));
+checks++;
 const staging = spawnSync(process.execPath, ["scripts/verify-build-env.mjs"], {
   env: {
     ...buildEnv,

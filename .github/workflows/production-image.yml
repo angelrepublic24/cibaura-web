@@ -22,6 +22,8 @@ jobs:
       NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
       NEXT_PUBLIC_BUILD_SHA: ${{ github.sha }}
       NEXT_PUBLIC_SENTRY_DSN: ${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+      SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+      SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
       BUILD_ENV_PROBE_API: ${{ vars.BUILD_ENV_PROBE_API }}
       NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL }}
       NEXT_PUBLIC_MEDIA_URL: ${{ vars.NEXT_PUBLIC_MEDIA_URL }}
@@ -58,12 +60,16 @@ jobs:
         run: node scripts/check-release-stripe.mjs
       - run: node scripts/check-production-env.mjs
       - run: node scripts/verify-build-env.mjs
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
       - run: node scripts/deploy-config-smoke.mjs
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run lint:suppressions
       - id: container
         run: docker compose build
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
       - name: Verify non-root container, health, static files and image optimizer
         run: |
           docker compose up -d --wait --wait-timeout 90
