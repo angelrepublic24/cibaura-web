@@ -491,12 +491,5 @@ acredita una imagen comercial, entrega Sentry, inventario ni cobros reales.
 Mantener esta guía al cambiar variables, Docker, proxy o release. Los motivos
 de las restricciones están en [DECISIONS.md](DECISIONS.md).
 
-## Sugerencia de destino por ubicación
-
-El botón de portada usa geolocalización del navegador (HTTPS o localhost) y
-[Geocoder de Maps JavaScript](https://developers.google.com/maps/documentation/javascript/geocoding)
-con NEXT_PUBLIC_GOOGLE_MAPS_API_KEY. Habilitar Geocoding API y Maps JavaScript API
-para esa clave y restringir sus referrers al sitio. Solo se carga Maps tras la
-acción y permiso; sin clave, permiso o coincidencia, sigue el selector manual.
-La sugerencia nunca cambia destino sin confirmación. Verificar el proveedor con
-clave real; los smokes usan respuestas simuladas y no certifican la cuota/configuración Google.
+La portada no solicita ubicación ni usa Geocoding. Maps sigue siendo necesario
+para el autocompletado de direcciones de entrega.

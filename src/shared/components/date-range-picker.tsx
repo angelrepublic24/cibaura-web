@@ -33,6 +33,8 @@ export function DateRangePicker({
   minDate,
   maxDate,
   isDayBlocked,
+  locale = "en-US",
+  showAvailabilityLegend = true,
   className,
 }: {
   value: DateRange;
@@ -40,13 +42,14 @@ export function DateRangePicker({
   /** Earliest selectable day (YYYY-MM-DD, inclusive). */
   minDate: string;
   /** Latest selectable day (YYYY-MM-DD, inclusive) — the availability window. */
-  maxDate: string;
+  maxDate?: string;
   isDayBlocked: (iso: string) => boolean;
+  locale?: string;
+  /** Hide when choosing search dates before a car's occupancy is known. */
+  showAvailabilityLegend?: boolean;
   className?: string;
 }) {
-  const [month, setMonth] = useState(() =>
-    (value.from || minDate).slice(0, 7),
-  );
+  const [month, setMonth] = useState(() => (value.from || minDate).slice(0, 7));
   /** Picking phase: after a pickup click we wait for the return click. */
   const [picking, setPicking] = useState<"from" | "to">(
     value.from && !value.to ? "to" : "from",
@@ -54,7 +57,7 @@ export function DateRangePicker({
   const [hover, setHover] = useState<string | null>(null);
 
   const monthMin = minDate.slice(0, 7);
-  const monthMax = maxDate.slice(0, 7);
+  const monthMax = maxDate?.slice(0, 7) ?? "9999-12";
   const canPrev = month > monthMin;
   const canNext = month < monthMax;
 
@@ -112,7 +115,7 @@ export function DateRangePicker({
           <ChevronLeft className="h-4 w-4" />
         </Button>
         <span className="text-sm font-semibold text-foreground">
-          {formatMonth(month)}
+          {formatMonth(month, locale)}
         </span>
         <Button
           type="button"
@@ -133,11 +136,15 @@ export function DateRangePicker({
         ))}
       </div>
 
-      <div className="mt-1 grid grid-cols-7 gap-1" onMouseLeave={() => setHover(null)}>
+      <div
+        className="mt-1 grid grid-cols-7 gap-1"
+        onMouseLeave={() => setHover(null)}
+      >
         {days.map((iso, i) => {
           if (!iso) return <span key={`pad-${i}`} />;
           const blocked = isDayBlocked(iso);
-          const outOfWindow = iso < minDate || iso > maxDate;
+          const outOfWindow =
+            iso < minDate || (maxDate !== undefined && iso > maxDate);
           const pickingReturn = picking === "to" && !!value.from;
           const validReturnBoundary =
             pickingReturn && isValidReturn(value.from, iso);
@@ -161,7 +168,7 @@ export function DateRangePicker({
               disabled={disabled}
               aria-disabled={disabled}
               aria-pressed={isFrom || isTo}
-              aria-label={`${formatLong(iso)}${blocked ? " (unavailable)" : ""}`}
+              aria-label={`${formatLong(iso, locale)}${blocked ? " (unavailable)" : ""}`}
               title={
                 blocked
                   ? validReturnBoundary
@@ -197,10 +204,12 @@ export function DateRangePicker({
       </div>
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-3 w-3 rounded-sm bg-[repeating-linear-gradient(135deg,transparent,transparent_2px,rgba(220,38,38,0.35)_2px,rgba(220,38,38,0.35)_4px)]" />
-          Unavailable
-        </span>
+        {showAvailabilityLegend ? (
+          <span className="inline-flex items-center gap-1.5">
+            <span className="inline-block h-3 w-3 rounded-sm bg-[repeating-linear-gradient(135deg,transparent,transparent_2px,rgba(220,38,38,0.35)_2px,rgba(220,38,38,0.35)_4px)]" />
+            Unavailable
+          </span>
+        ) : null}
         <span>
           {picking === "from"
             ? "Select your pickup day"
@@ -234,18 +243,21 @@ function shiftMonth(month: string, delta: number): string {
   return date.toISOString().slice(0, 7);
 }
 
-function formatMonth(month: string): string {
+function formatMonth(month: string, locale: string): string {
   const { year, month: monthOfYear } = isoMonthParts(month);
-  return new Date(Date.UTC(year, monthOfYear - 1, 1)).toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+  return new Date(Date.UTC(year, monthOfYear - 1, 1)).toLocaleDateString(
+    locale,
+    {
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    },
+  );
 }
 
-function formatLong(iso: string): string {
+function formatLong(iso: string, locale: string): string {
   const { year, month, day } = isoDateParts(iso);
-  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("en-US", {
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString(locale, {
     weekday: "long",
     month: "long",
     day: "numeric",

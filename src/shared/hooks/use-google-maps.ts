@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
  */
 let scriptLoadedPromise: Promise<void> | null = null;
 
-export function loadGoogleMaps(apiKey: string): Promise<void> {
+function loadGoogleMaps(apiKey: string): Promise<void> {
   if (typeof window === "undefined") return Promise.resolve();
   if (
     (window as unknown as { google?: { maps?: { places?: unknown } } }).google

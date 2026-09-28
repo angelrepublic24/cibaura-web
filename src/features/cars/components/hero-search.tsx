@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search } from "lucide-react";
+import { CalendarDays, Search } from "lucide-react";
 import { DestinationFields } from "./destination-fields";
 import { filtersToSearchParams } from "@/features/cars/filters";
 import { CAR_CATEGORIES } from "@/shared/types/domain";
 import { todayIso } from "@/shared/utils/dates";
 import { Button } from "@/shared/components/ui/button";
-import { Input } from "@/shared/components/ui/input";
+import { DateRangePicker } from "@/shared/components/date-range-picker";
 import { Label } from "@/shared/components/ui/label";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
  */
 export function HeroSearch() {
   const router = useRouter();
+  const [datesOpen, setDatesOpen] = useState(false);
   const [city, setCity] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -28,10 +29,19 @@ export function HeroSearch() {
   const noDates = !from && !to;
   const canSearch = !!city && (noDates || hasDates);
 
-  function browse() {
-    if (!city) return;
-    const qs = filtersToSearchParams({ category }).toString();
-    router.push(`/cars/${encodeURIComponent(city)}${qs ? `?${qs}` : ""}`);
+  const actionLabel = !city
+    ? "Choose a city"
+    : !noDates && !hasDates
+      ? "Choose return date"
+      : noDates
+        ? "Browse cars"
+        : "Check availability";
+  const dateLabel = from
+    ? `${displayDate(from)} - ${to ? displayDate(to) : "Return date"}`
+    : "Any dates";
+  function closeDates() {
+    setDatesOpen(false);
+    document.getElementById("hero-dates")?.focus();
   }
 
   function submit(e: React.FormEvent) {
@@ -51,53 +61,84 @@ export function HeroSearch() {
       onSubmit={submit}
       className="rounded-[var(--radius-lg)] border border-border bg-surface p-5 shadow-lg md:p-6"
     >
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_auto] md:items-start">
+      {/* Direct grid children share control bottoms; auto-fit accommodates a future
+          state field without fixed column counts or a mobile horizontal row. */}
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] items-end gap-4">
         <DestinationFields city={city} onCityChange={setCity} />
-
-        <div className="space-y-1.5">
-          <Label htmlFor="hero-from">Pickup date</Label>
-          <Input
-            id="hero-from"
-            type="date"
-            min={todayIso()}
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-          />
+        <div className="min-w-0 space-y-1.5">
+          <Label htmlFor="hero-dates">
+            Dates{" "}
+            <span className="normal-case tracking-normal">(optional)</span>
+          </Label>
+          <Button
+            id="hero-dates"
+            type="button"
+            variant="outline"
+            className="h-10 w-full justify-start px-3 text-sm"
+            aria-expanded={datesOpen}
+            aria-controls="hero-calendar"
+            onClick={() => setDatesOpen((open) => !open)}
+          >
+            <CalendarDays className="h-4 w-4 shrink-0" />
+            <span
+              className={from ? "truncate text-xs tabular-nums" : "truncate"}
+            >
+              {dateLabel}
+            </span>
+          </Button>
         </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="hero-to">Return date</Label>
-          <Input
-            id="hero-to"
-            type="date"
-            min={from || todayIso()}
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-          />
-        </div>
-
         <Button
           type="submit"
-          size="lg"
           disabled={!canSearch}
-          className="w-full md:w-auto"
+          className="h-10 w-full"
+          aria-label={actionLabel}
         >
           <Search className="h-4 w-4" />
-          {noDates ? "Browse cars" : "Check availability"}
+          {actionLabel}
         </Button>
       </div>
-
-      <p className="mt-3 text-sm text-muted-foreground">
-        Dates are optional for browsing. Add pickup and return dates to check
-        availability.
-      </p>
-      {city && !noDates && !hasDates ? (
-        <div className="mt-2 text-sm" role="status">
-          Choose a valid pickup and later return date, or{" "}
-          <button type="button" className="underline" onClick={browse}>
-            browse without dates
-          </button>
-          .
+      {datesOpen ? (
+        <div
+          id="hero-calendar"
+          className="mt-4 max-w-sm"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") closeDates();
+          }}
+        >
+          <DateRangePicker
+            value={{ from, to }}
+            minDate={todayIso()}
+            locale="en-GB"
+            showAvailabilityLegend={false}
+            isDayBlocked={() => false}
+            onChange={(range) => {
+              setFrom(range.from);
+              setTo(range.to);
+              if (range.from && range.to) closeDates();
+            }}
+          />
+          <div className="mt-2 flex justify-between gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setFrom("");
+                setTo("");
+                closeDates();
+              }}
+            >
+              Any dates
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={closeDates}
+            >
+              Close
+            </Button>
+          </div>
         </div>
       ) : null}
 
@@ -124,4 +165,9 @@ export function HeroSearch() {
       </div>
     </form>
   );
+}
+
+/** Day/month display only; URLs and the API retain ISO dates. */
+function displayDate(iso: string): string {
+  return `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 }
