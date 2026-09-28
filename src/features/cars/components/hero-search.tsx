@@ -63,7 +63,7 @@ export function HeroSearch() {
     >
       {/* Direct grid children share control bottoms; auto-fit accommodates a future
           state field without fixed column counts or a mobile horizontal row. */}
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] items-end gap-4">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] items-end gap-4">
         <DestinationFields city={city} onCityChange={setCity} />
         <div className="min-w-0 space-y-1.5">
           <Label htmlFor="hero-dates">
@@ -80,7 +80,11 @@ export function HeroSearch() {
             onClick={() => setDatesOpen((open) => !open)}
           >
             <CalendarDays className="h-4 w-4 shrink-0" />
-            <span className="truncate">{dateLabel}</span>
+            <span
+              className={from ? "truncate text-xs tabular-nums" : "truncate"}
+            >
+              {dateLabel}
+            </span>
           </Button>
         </div>
         <Button
