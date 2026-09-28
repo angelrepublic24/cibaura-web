@@ -66,6 +66,10 @@ tratamiento que los campos editables; varios habilitan selector. Cambiar país
 limpia ciudad. La portada no solicita ubicación: el visitante puede reservar
 antes de viajar y su posición no representa el destino.
 Fechas opcionales usan el calendario compartido y formato día/mes/año;
+recogida y devolución se editan desde botones independientes, con foco en la
+fecha elegida. Una recogida que invalida la devolución conserva la nueva recogida
+y pide otra devolución con aviso: no inventamos duración ni borramos ambas fechas.
+«Any dates» recupera el catálogo sin fechas. Se mantiene el intervalo `[from,to)`.
 la UI muestra qué falta en el botón. La cuadrícula alinea controles y se
 reorganiza según el ancho; estado no se añade hasta tener contrato de API.
 El catálogo resuelve slugs globalmente: ciudades con slug repetido quedan

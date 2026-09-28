@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/shared/components/ui/button";
 import { isoDateParts, isoMonthParts } from "@/shared/utils/dates";
@@ -35,6 +35,7 @@ export function DateRangePicker({
   isDayBlocked,
   locale = "en-US",
   showAvailabilityLegend = true,
+  editing,
   className,
 }: {
   value: DateRange;
@@ -47,14 +48,34 @@ export function DateRangePicker({
   locale?: string;
   /** Hide when choosing search dates before a car's occupancy is known. */
   showAvailabilityLegend?: boolean;
+  /** Edit one endpoint. Remount when changing endpoint to reset month/focus. */
+  editing?: "from" | "to";
   className?: string;
 }) {
-  const [month, setMonth] = useState(() => (value.from || minDate).slice(0, 7));
+  const initialDate = useRef(
+    (editing && value[editing]) ||
+      (editing === "to"
+        ? addDaysIso(value.from || minDate, 1)
+        : value.from || minDate),
+  );
+  const calendarRef = useRef<HTMLDivElement>(null);
+  const [month, setMonth] = useState(() => initialDate.current.slice(0, 7));
   /** Picking phase: after a pickup click we wait for the return click. */
-  const [picking, setPicking] = useState<"from" | "to">(
+  const [phase, setPicking] = useState<"from" | "to">(
     value.from && !value.to ? "to" : "from",
   );
   const [hover, setHover] = useState<string | null>(null);
+  const picking = editing ?? phase;
+  useEffect(() => {
+    if (!editing) return;
+    const selected = calendarRef.current?.querySelector<HTMLButtonElement>(
+      `[data-date="${initialDate.current}"]:not(:disabled)`,
+    );
+    const first = calendarRef.current?.querySelector<HTMLButtonElement>(
+      "[data-date]:not(:disabled)",
+    );
+    (selected ?? first)?.focus();
+  }, [editing]);
 
   const monthMin = minDate.slice(0, 7);
   const monthMax = maxDate?.slice(0, 7) ?? "9999-12";
@@ -73,6 +94,19 @@ export function DateRangePicker({
   }
 
   function pick(day: string) {
+    if (editing === "from") {
+      onChange({
+        from: day,
+        to: value.to && isValidReturn(day, value.to) ? value.to : "",
+      });
+      return;
+    }
+    if (editing === "to") {
+      if (value.from ? isValidReturn(value.from, day) : day > minDate) {
+        onChange({ from: value.from, to: day });
+      }
+      return;
+    }
     if (picking === "from") {
       onChange({ from: day, to: "" });
       setPicking("to");
@@ -95,6 +129,7 @@ export function DateRangePicker({
 
   return (
     <div
+      ref={calendarRef}
       className={cn(
         "rounded-[var(--radius-sm)] border border-border bg-surface p-3",
         className,
@@ -152,9 +187,13 @@ export function DateRangePicker({
           // a free day on/before the pickup (re-click restarts the selection).
           const disabled =
             outOfWindow ||
-            (pickingReturn
-              ? !(validReturnBoundary || (!blocked && iso <= value.from))
-              : blocked);
+            (editing === "to"
+              ? value.from
+                ? !validReturnBoundary
+                : iso <= minDate
+              : pickingReturn
+                ? !(validReturnBoundary || (!blocked && iso <= value.from))
+                : blocked);
           const isFrom = iso === value.from;
           const isTo = iso === value.to;
           const inRange =
@@ -165,6 +204,7 @@ export function DateRangePicker({
             <button
               key={iso}
               type="button"
+              data-date={iso}
               disabled={disabled}
               aria-disabled={disabled}
               aria-pressed={isFrom || isTo}
