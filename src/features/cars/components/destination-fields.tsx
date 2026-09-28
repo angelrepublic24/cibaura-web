@@ -10,6 +10,8 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
 
+export type Destination = { country: string; region: string; city: string };
+
 export function DestinationFields({
   country,
   region,
@@ -17,13 +19,19 @@ export function DestinationFields({
   onCountryChange,
   onRegionChange,
   onCityChange,
+  onDestinationChange,
+  idPrefix = "hero",
+  showCityRegions = false,
 }: {
   country: string;
   region: string;
   city: string;
-  onCountryChange: (code: string) => void;
-  onRegionChange: (slug: string) => void;
-  onCityChange: (slug: string) => void;
+  onDestinationChange?: (destination: Destination) => void;
+  idPrefix?: string;
+  showCityRegions?: boolean;
+  onCountryChange?: (code: string) => void;
+  onRegionChange?: (slug: string) => void;
+  onCityChange?: (slug: string) => void;
 }) {
   const countriesQuery = useQuery({
     queryKey: destinationKeys.countries,
@@ -58,21 +66,27 @@ export function DestinationFields({
   return (
     <>
       <div className="min-w-0 space-y-1.5">
-        <Label htmlFor="hero-country">Destination country</Label>
+        <Label htmlFor={`${idPrefix}-country`}>Destination country</Label>
         {countries.length === 1 ? (
           <Input
-            id="hero-country"
+            id={`${idPrefix}-country`}
             readOnly
             value={countries[0]?.name ?? ""}
             aria-label="Destination country (currently the only destination country)"
           />
         ) : (
           <Select
-            id="hero-country"
+            id={`${idPrefix}-country`}
             value={selectedCountry?.code ?? ""}
             disabled={countriesQuery.isPending || failed}
             onChange={(event) => {
-              onCountryChange(event.target.value);
+              if (onDestinationChange)
+                onDestinationChange({
+                  country: event.target.value,
+                  region: "",
+                  city: "",
+                });
+              else onCountryChange?.(event.target.value);
             }}
           >
             <option value="">
@@ -89,12 +103,20 @@ export function DestinationFields({
         )}
       </div>
       <div className="min-w-0 space-y-1.5">
-        <Label htmlFor="hero-region">{regionLabel}</Label>
+        <Label htmlFor={`${idPrefix}-region`}>{regionLabel}</Label>
         <Select
-          id="hero-region"
+          id={`${idPrefix}-region`}
           value={region}
           disabled={!country || regionsQuery.isPending || regionsQuery.isError}
-          onChange={(event) => onRegionChange(event.target.value)}
+          onChange={(event) => {
+            if (onDestinationChange)
+              onDestinationChange({
+                country,
+                region: event.target.value,
+                city: "",
+              });
+            else onRegionChange?.(event.target.value);
+          }}
         >
           <option value="">
             {country && regionsQuery.isPending ? "Loading regions..." : "All"}
@@ -107,13 +129,19 @@ export function DestinationFields({
         </Select>
       </div>
       <div className="min-w-0 space-y-1.5">
-        <Label htmlFor="hero-city">City</Label>
+        <Label htmlFor={`${idPrefix}-city`}>City</Label>
         <Select
-          id="hero-city"
+          id={`${idPrefix}-city`}
           value={city}
           disabled={!selectedCountry || citiesQuery.isPending || failed}
           onChange={(event) => {
-            onCityChange(event.target.value);
+            if (onDestinationChange)
+              onDestinationChange({
+                country,
+                region,
+                city: event.target.value,
+              });
+            else onCityChange?.(event.target.value);
           }}
         >
           <option value="">
@@ -126,6 +154,12 @@ export function DestinationFields({
               disabled={!hasUniqueCitySlug(item, cities)}
             >
               {item.name}
+              {showCityRegions &&
+              !region &&
+              item.regionId &&
+              regions.find((entry) => entry.id === item.regionId)
+                ? `, ${regions.find((entry) => entry.id === item.regionId)?.name}`
+                : ""}
               {hasUniqueCitySlug(item, cities)
                 ? ""
                 : " — currently unavailable"}

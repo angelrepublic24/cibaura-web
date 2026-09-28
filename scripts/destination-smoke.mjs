@@ -433,3 +433,110 @@ assert(afterBoundary.props.disabled);
 console.log(
   "Destination smoke: country/city, ambiguous slugs, optional date browse, shared picker, day/month display, independent endpoint editing, month selection, trigger focus restoration, incomplete-range feedback and half-open blocked boundaries passed (fixtures).",
 );
+
+// Results opt in to atomic cascades and region labels; homepage stays unchanged.
+regions.push(
+  {
+    id: "nj",
+    countryId: "us",
+    slug: "new-jersey",
+    name: "New Jersey",
+    kind: "state",
+  },
+  {
+    id: "de",
+    countryId: "us",
+    slug: "delaware",
+    name: "Delaware",
+    kind: "state",
+  },
+);
+cities.push(
+  {
+    id: "nj-city",
+    countryId: "us",
+    regionId: "nj",
+    name: "Newark",
+    slug: "newark",
+  },
+  {
+    id: "de-city",
+    countryId: "us",
+    regionId: "de",
+    name: "Newark",
+    slug: "newark-de",
+  },
+);
+countryData = countries;
+let selection = { country: "US", region: "", city: "newark" };
+const renderResultsDestination = () =>
+  DestinationFields({
+    ...selection,
+    idPrefix: "sr",
+    showCityRegions: true,
+    onDestinationChange: (next) => {
+      selection = next;
+    },
+  });
+const labelText = (node) =>
+  Array.isArray(node)
+    ? node.map(labelText).join("")
+    : typeof node === "string"
+      ? node
+      : node?.props
+        ? labelText(node.props.children)
+        : "";
+tree = renderResultsDestination();
+assert.equal(
+  labelText(
+    find(
+      tree,
+      (node) => node.type === "option" && node.props.value === "newark",
+    ),
+  ),
+  "Newark, New Jersey",
+);
+assert.equal(
+  labelText(
+    find(
+      tree,
+      (node) => node.type === "option" && node.props.value === "newark-de",
+    ),
+  ),
+  "Newark, Delaware",
+);
+find(tree, (node) => node.props?.id === "sr-region").props.onChange({
+  target: { value: "delaware" },
+});
+assert.equal(selection.city, "");
+assert.equal(selection.country, "US");
+tree = renderResultsDestination();
+assert.equal(
+  labelText(
+    find(
+      tree,
+      (node) => node.type === "option" && node.props.value === "newark-de",
+    ),
+  ),
+  "Newark",
+);
+assert(
+  !find(
+    tree,
+    (node) => node.type === "option" && node.props.value === "newark",
+  ),
+);
+find(tree, (node) => node.props?.id === "sr-city").props.onChange({
+  target: { value: "newark-de" },
+});
+assert.equal(selection.city, "newark-de");
+tree = renderResultsDestination();
+find(tree, (node) => node.props?.id === "sr-country").props.onChange({
+  target: { value: "DO" },
+});
+assert.equal(selection.country, "DO");
+assert.equal(selection.region, "");
+assert.equal(selection.city, "");
+console.log(
+  "Results destination smoke: 10 cascade and Newark assertions passed (fixtures).",
+);
