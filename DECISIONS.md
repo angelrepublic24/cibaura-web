@@ -61,10 +61,13 @@ Referencias: `src/features/admin/platform-config-contract.ts`, `platform-config-
 ## Destino elegido, no ubicación asumida
 
 País y ciudad describen dónde se alquila, no dónde está el visitante.
-Un país se muestra preseleccionado sin desplegable; varios habilitan selector.
-Cambiar país limpia ciudad. La ubicación solo se solicita tras pulsar el botón;
-Google Maps propone una ciudad del catálogo y el usuario confirma o descarta.
-Fallo o rechazo conserva el flujo manual. No se persisten coordenadas.
+Un país se muestra preseleccionado como control de solo lectura con el mismo
+tratamiento que los campos editables; varios habilitan selector. Cambiar país
+limpia ciudad. La portada no solicita ubicación: el visitante puede reservar
+antes de viajar y su posición no representa el destino.
+Fechas opcionales usan el calendario compartido y formato día/mes/año;
+la UI muestra qué falta en el botón. La cuadrícula alinea controles y se
+reorganiza según el ancho; estado no se añade hasta tener contrato de API.
 El catálogo resuelve slugs globalmente: ciudades con slug repetido quedan
 inhabilitadas en este buscador hasta disponer de resolución por país/ID en backend.
 Reseñas bajo la flota, con valoración enlazada en cabecera: primero los carros,
