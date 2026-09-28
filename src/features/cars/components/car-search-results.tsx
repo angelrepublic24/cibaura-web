@@ -13,6 +13,7 @@ import {
 import { CarFiltersPanel } from "@/features/cars/components/car-filters-panel";
 import { CarCard } from "@/features/cars/components/car-card";
 import { SearchModeToggle } from "@/shared/components/search-mode-toggle";
+import { DestinationsApi, destinationKeys } from "../destinations";
 import type { Car, City } from "@/shared/types/domain";
 import { formatIsoDate, todayIso } from "@/shared/utils/dates";
 import { EmptyState, ErrorState } from "@/shared/components/states";
@@ -53,12 +54,21 @@ export function CarSearchResults({
   });
 
   const citiesQuery = useQuery({
-    queryKey: agencyProfileKeys.availableCities(),
-    queryFn: AgenciesApi.availableCities,
+    queryKey: filters.country
+      ? destinationKeys.scopedCities(filters.country, filters.region)
+      : agencyProfileKeys.availableCities(),
+    queryFn: filters.country
+      ? () => DestinationsApi.cities(filters.country, filters.region)
+      : AgenciesApi.availableCities,
   });
 
   function applyFilters(next: CarSearchFilters) {
-    const sp = filtersToSearchParams({ ...next, page: undefined });
+    const sp = filtersToSearchParams({
+      ...next,
+      country: filters.country,
+      region: filters.region,
+      page: undefined,
+    });
     const qs = sp.toString();
     router.replace(`/cars/${encodeURIComponent(city)}${qs ? `?${qs}` : ""}`);
   }

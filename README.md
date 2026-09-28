@@ -89,3 +89,5 @@ Smoke requiere que build:ci haya terminado: utiliza `.next-ci/standalone`. CI va
 `src/app`: rutas; `src/features`: API, hooks y componentes por función; `src/shared`: tipos, UI, auth y SEO; `src/lib`: guards y monitoring. Tokens de diseño en `src/app/globals.css`; assets en `public/brand`.
 
 Actualizar esta guía al cambiar superficies/requisitos locales, el runbook junto con variables/workflows y las decisiones junto con sus reglas/pruebas. Resultados puntuales de gates y entregas pertenecen al PR, no a informes permanentes.
+
+La portada usa la variante B elegida por el dueño (botón debajo a todo el ancho). Para comparar en local: [variante A](http://localhost:3000/?searchLayout=A) (botón compacto en fila de escritorio) y [variante B](http://localhost:3000/?searchLayout=B). País → región → ciudad; solo país obligatorio, fechas opcionales. Catálogo amplio: `/cars/all?country=DO`, región: `/cars/all?country=DO&region=<slug>`. Los enlaces `/cars/[city]` siguen vigentes.

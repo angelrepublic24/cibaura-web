@@ -1,5 +1,7 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
+import { DestinationsApi, destinationKeys } from "../destinations";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarDays, Search } from "lucide-react";
@@ -17,7 +19,7 @@ import { cn } from "@/lib/utils";
  * Submitting navigates to /cars/[city]?from&to[&category] — the results
  * page derives its query key from those URL params.
  */
-export function HeroSearch() {
+export function HeroSearch({ layout = "B" }: { layout?: "A" | "B" } = {}) {
   const router = useRouter();
   const [editing, setEditing] = useState<"from" | "to" | null>(null);
   const [city, setCity] = useState("");
@@ -27,12 +29,23 @@ export function HeroSearch() {
 
   const [notice, setNotice] = useState("");
 
+  const [country, setCountry] = useState("");
+  const [region, setRegion] = useState("");
+  const countriesQuery = useQuery({
+    queryKey: destinationKeys.countries,
+    queryFn: DestinationsApi.countries,
+  });
+  const countries = countriesQuery.data ?? [];
+  const selectedCountry =
+    countries.find((item) => item.code === country) ??
+    (countries.length === 1 ? countries[0] : undefined);
+
   const hasDates = !!from && !!to && to > from && from >= todayIso();
   const noDates = !from && !to;
-  const canSearch = !!city && (noDates || hasDates);
+  const canSearch = !!selectedCountry && (noDates || hasDates);
 
-  const actionLabel = !city
-    ? "Choose a city"
+  const actionLabel = !selectedCountry
+    ? "Choose a country"
     : !noDates && !hasDates
       ? !from
         ? "Choose pickup date"
@@ -49,12 +62,16 @@ export function HeroSearch() {
     e.preventDefault();
     if (!canSearch) return;
     const sp = filtersToSearchParams({
+      country: selectedCountry?.code,
+      region: region || undefined,
       from: from || undefined,
       to: to || undefined,
       category,
     });
     const qs = sp.toString();
-    router.push(`/cars/${encodeURIComponent(city)}${qs ? `?${qs}` : ""}`);
+    router.push(
+      `/cars/${encodeURIComponent(city || "all")}${qs ? `?${qs}` : ""}`,
+    );
   }
 
   return (
@@ -62,10 +79,30 @@ export function HeroSearch() {
       onSubmit={submit}
       className="rounded-[var(--radius-lg)] border border-border bg-surface p-5 shadow-lg md:p-6"
     >
-      {/* Direct grid children share control bottoms; auto-fit accommodates a future
-          state field without fixed column counts or a mobile horizontal row. */}
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] items-end gap-4">
-        <DestinationFields city={city} onCityChange={setCity} />
+      {/* Both previews stack on phones; desktop A keeps a compact action inline. */}
+      <div
+        className={cn(
+          "grid grid-cols-1 items-end gap-4 sm:grid-cols-2",
+          layout === "A"
+            ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_auto]"
+            : "lg:grid-cols-4",
+        )}
+      >
+        <DestinationFields
+          country={selectedCountry?.code ?? ""}
+          region={region}
+          city={city}
+          onCityChange={setCity}
+          onCountryChange={(code) => {
+            setCountry(code);
+            setRegion("");
+            setCity("");
+          }}
+          onRegionChange={(slug) => {
+            setRegion(slug);
+            setCity("");
+          }}
+        />
         <div className="min-w-0 space-y-1.5">
           <Label id="hero-dates-label">
             Dates{" "}
@@ -109,10 +146,15 @@ export function HeroSearch() {
         <Button
           type="submit"
           disabled={!canSearch}
-          className="h-10 w-full"
+          className={cn(
+            "h-10 w-full",
+            layout === "B"
+              ? "col-span-full"
+              : "sm:col-span-2 lg:col-span-1 lg:px-3",
+          )}
           aria-label={actionLabel}
         >
-          <Search className="h-4 w-4" />
+          <Search className="h-4 w-4 shrink-0" />
           {actionLabel}
         </Button>
       </div>

@@ -3,7 +3,14 @@ import { cache } from "react";
 import { notFound } from "next/navigation";
 import { API_URL } from "@/lib/config";
 import type { AgencyPublicProfile } from "@/features/agencies/api";
-import type { Car, CarDetail, City, Paginated } from "@/shared/types/domain";
+import type {
+  Car,
+  CarDetail,
+  City,
+  Country,
+  Region,
+  Paginated,
+} from "@/shared/types/domain";
 import { formatMoneyCents } from "@/shared/utils/money";
 
 /** Public GETs only: never forward session cookies or use the browser interceptors. */
@@ -42,14 +49,61 @@ export const getPublicAgency = cache(async (slug: string) => {
   return agency;
 });
 
-export const getPublicCity = cache(async (slug: string) => {
-  if (slug === "all") return { slug: "all", name: "the Dominican Republic" };
-  const cities = await publicGet<City[]>("/geo/cities");
-  if (!cities) throw new Error("Public city catalog unavailable");
-  const city = cities.find((item) => item.slug === slug);
-  if (!city) notFound();
-  return city;
-});
+export const getPublicCity = cache(
+  async (slug: string, country?: string, region?: string) => {
+    const basePath = `/cars/${encodeURIComponent(slug)}`;
+    let countryData: Country | undefined;
+    let regionData: Region | undefined;
+    if (country) {
+      const countries = await publicGet<Country[]>("/geo/countries");
+      countryData = countries?.find(
+        (item) => item.code.toUpperCase() === country.toUpperCase(),
+      );
+      if (!countryData) notFound();
+    }
+    if (region) {
+      if (!countryData) notFound();
+      const regions = await publicGet<Region[]>(
+        `/geo/regions?country=${encodeURIComponent(countryData.code)}`,
+      );
+      regionData = regions?.find((item) => item.slug === region);
+      if (!regionData) notFound();
+    }
+    if (slug === "all") {
+      const params = new URLSearchParams();
+      if (countryData) params.set("country", countryData.code);
+      if (regionData) params.set("region", regionData.slug);
+      return {
+        slug,
+        name: regionData
+          ? `${regionData.name}, ${countryData?.name}`
+          : (countryData?.name ?? "All destinations"),
+        path: basePath + (params.size ? `?${params}` : ""),
+      };
+    }
+    const cities = await publicGet<City[]>("/geo/cities");
+    if (!cities) throw new Error("Public city catalog unavailable");
+    const matches = cities.filter(
+      (item) =>
+        item.slug === slug &&
+        (!countryData || item.countryId === countryData.id) &&
+        (!regionData || item.regionId === regionData.id),
+    );
+    if (matches.length !== 1) notFound();
+    const city = matches[0];
+    if (!city) notFound();
+    // Existing unique-city URLs remain canonical. Country disambiguates collisions.
+    const ambiguous = cities.filter((item) => item.slug === slug).length > 1;
+    return {
+      ...city,
+      path:
+        basePath +
+        (ambiguous && countryData
+          ? `?country=${encodeURIComponent(countryData.code)}`
+          : ""),
+    };
+  },
+);
 
 /** Visit each successful page before continuing, so callers can retain partial progress. */
 export async function allPublicPages<T>(

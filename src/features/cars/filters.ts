@@ -9,6 +9,8 @@
 import { isIsoDate } from "@/shared/utils/dates";
 
 export interface CarSearchFilters {
+  country?: string;
+  region?: string;
   /** Date range (ISO dates, half-open [from, to)). */
   from?: string;
   to?: string;
@@ -44,6 +46,8 @@ export function parseCarFilters(sp: RawSearchParams): CarSearchFilters {
   const from = str(sp.from);
   const to = str(sp.to);
   return {
+    country: str(sp.country)?.toUpperCase(),
+    region: str(sp.region),
     from: isIsoDate(from) ? from : undefined,
     to: isIsoDate(to) ? to : undefined,
     make: str(sp.make),
@@ -65,6 +69,8 @@ export function filtersToSearchParams(f: CarSearchFilters): URLSearchParams {
   const set = (k: string, v: string | number | undefined) => {
     if (v !== undefined && v !== "") sp.set(k, String(v));
   };
+  set("country", f.country);
+  set("region", f.region);
   set("from", f.from);
   set("to", f.to);
   set("make", f.make);

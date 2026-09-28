@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   DestinationsApi,
@@ -12,10 +11,18 @@ import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
 
 export function DestinationFields({
+  country,
+  region,
   city,
+  onCountryChange,
+  onRegionChange,
   onCityChange,
 }: {
+  country: string;
+  region: string;
   city: string;
+  onCountryChange: (code: string) => void;
+  onRegionChange: (slug: string) => void;
   onCityChange: (slug: string) => void;
 }) {
   const countriesQuery = useQuery({
@@ -24,16 +31,28 @@ export function DestinationFields({
   });
   const citiesQuery = useQuery({
     queryKey: destinationKeys.cities,
-    queryFn: DestinationsApi.cities,
+    queryFn: () => DestinationsApi.cities(),
   });
   const countries = countriesQuery.data ?? [];
   const cities = citiesQuery.data ?? [];
-  const [countryId, setCountryId] = useState("");
-  const selectedCountry =
-    countries.find((country) => country.id === countryId) ??
-    (countries.length === 1 ? countries[0] : undefined);
+  const selectedCountry = countries.find((item) => item.code === country);
+  const regionsQuery = useQuery({
+    queryKey: destinationKeys.regions(country),
+    queryFn: () => DestinationsApi.regions(country),
+    enabled: !!country,
+  });
+  const regions = regionsQuery.data ?? [];
+  const selectedRegion = regions.find((item) => item.slug === region);
+  const kinds = [...new Set(regions.map((item) => item.kind))];
+  const kind =
+    selectedRegion?.kind || (kinds.length === 1 ? kinds[0] : "region");
+  const regionLabel = kind
+    ? kind.charAt(0).toUpperCase() + kind.slice(1).replaceAll("_", " ")
+    : "Region";
   const countryCities = cities.filter(
-    (item) => item.countryId === selectedCountry?.id,
+    (item) =>
+      item.countryId === selectedCountry?.id &&
+      (!region || item.regionId === selectedRegion?.id),
   );
   const failed = countriesQuery.isError || citiesQuery.isError;
   return (
@@ -50,11 +69,10 @@ export function DestinationFields({
         ) : (
           <Select
             id="hero-country"
-            value={selectedCountry?.id ?? ""}
+            value={selectedCountry?.code ?? ""}
             disabled={countriesQuery.isPending || failed}
             onChange={(event) => {
-              setCountryId(event.target.value);
-              onCityChange("");
+              onCountryChange(event.target.value);
             }}
           >
             <option value="">
@@ -63,12 +81,30 @@ export function DestinationFields({
                 : "Choose a country"}
             </option>
             {countries.map((country) => (
-              <option key={country.id} value={country.id}>
+              <option key={country.id} value={country.code}>
                 {country.name}
               </option>
             ))}
           </Select>
         )}
+      </div>
+      <div className="min-w-0 space-y-1.5">
+        <Label htmlFor="hero-region">{regionLabel}</Label>
+        <Select
+          id="hero-region"
+          value={region}
+          disabled={!country || regionsQuery.isPending || regionsQuery.isError}
+          onChange={(event) => onRegionChange(event.target.value)}
+        >
+          <option value="">
+            {country && regionsQuery.isPending ? "Loading regions..." : "All"}
+          </option>
+          {regions.map((item) => (
+            <option key={item.id} value={item.slug}>
+              {item.name}
+            </option>
+          ))}
+        </Select>
       </div>
       <div className="min-w-0 space-y-1.5">
         <Label htmlFor="hero-city">City</Label>
@@ -81,7 +117,7 @@ export function DestinationFields({
           }}
         >
           <option value="">
-            {citiesQuery.isPending ? "Loading cities…" : "Choose a city"}
+            {citiesQuery.isPending ? "Loading cities…" : "All cities"}
           </option>
           {countryCities.map((item) => (
             <option
@@ -97,6 +133,18 @@ export function DestinationFields({
           ))}
         </Select>
       </div>
+      {regionsQuery.isError ? (
+        <p role="alert" className="col-span-full text-sm">
+          Regions could not be loaded. You can still browse the country.{" "}
+          <button
+            type="button"
+            className="underline"
+            onClick={() => void regionsQuery.refetch()}
+          >
+            Try again
+          </button>
+        </p>
+      ) : null}
       {failed ? (
         <p role="alert" className="col-span-full text-sm">
           Destinations could not be loaded.{" "}
@@ -120,7 +168,8 @@ export function DestinationFields({
       !failed &&
       countryCities.length === 0 ? (
         <p className="col-span-full text-sm">
-          No cities are listed in this country yet. Choose another destination.
+          No cities are listed for this selection. You can still browse without
+          choosing a city.
         </p>
       ) : null}
     </>

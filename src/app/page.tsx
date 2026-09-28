@@ -11,7 +11,12 @@ export function generateMetadata() {
   });
 }
 
-export default function HomePage() {
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const layout = (await searchParams).searchLayout === "A" ? "A" : "B";
   return (
     <div>
       <OrganizationJsonLd />
@@ -52,7 +57,7 @@ export default function HomePage() {
           </div>
 
           <div className="mt-8">
-            <HeroSearch />
+            <HeroSearch layout={layout} />
           </div>
         </div>
       </section>

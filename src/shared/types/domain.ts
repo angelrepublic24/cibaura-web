@@ -48,7 +48,17 @@ export interface Country {
   code: string; // ISO-3166 alpha-2, e.g. "DO"
 }
 
+export interface Region {
+  id: string;
+  countryId: string;
+  name: string;
+  slug: string;
+  code: string | null;
+  kind: string;
+}
+
 export interface City {
+  regionId: string | null;
   id: string;
   countryId: string;
   name: string;
@@ -287,6 +297,11 @@ export interface CarDocumentAdminDto extends CarDocumentDto {
  * `null`); the full gallery lives on `CarDetail.photos`.
  */
 export interface Car {
+  location: {
+    city: { id: string; name: string; slug: string };
+    region: { id: string; name: string; slug: string; kind: string } | null;
+    countryCode: string;
+  };
   id: string;
   branchId: string;
   agency: CarAgencyRef;

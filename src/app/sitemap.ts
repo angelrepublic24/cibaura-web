@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 import { connection } from "next/server";
 import { unstable_cache } from "next/cache";
 import type { AgencyPublicProfile } from "@/features/agencies/api";
-import type { Car, City } from "@/shared/types/domain";
+import type { Car, City, Country } from "@/shared/types/domain";
 import { API_URL } from "@/lib/config";
 import { absoluteUrl } from "@/shared/seo/metadata";
 import { allPublicPages, carPath, publicGet } from "@/shared/seo/public-api";
@@ -21,8 +21,29 @@ const getSitemap = unstable_cache(
     try {
       const cities = await publicGet<City[]>("/agencies/available-cities");
       if (!cities) throw new Error("Available cities endpoint unavailable");
-      for (const city of cities)
-        paths.add(`/cars/${encodeURIComponent(city.slug)}`);
+      const catalog = await publicGet<City[]>("/geo/cities");
+      if (!catalog) throw new Error("City catalog unavailable");
+      const collisions = new Set(
+        catalog
+          .filter((city) =>
+            catalog.some(
+              (other) => other.id !== city.id && other.slug === city.slug,
+            ),
+          )
+          .map((city) => city.slug),
+      );
+      const countries = collisions.size
+        ? await publicGet<Country[]>("/geo/countries")
+        : [];
+      for (const city of cities) {
+        const path = `/cars/${encodeURIComponent(city.slug)}`;
+        if (!collisions.has(city.slug)) paths.add(path);
+        else {
+          const country = countries?.find((item) => item.id === city.countryId);
+          if (country)
+            paths.add(`${path}?country=${encodeURIComponent(country.code)}`);
+        }
+      }
       await allPublicPages<AgencyPublicProfile>(
         "/agencies?sort=name",
         async (agencies) => {
@@ -70,7 +91,7 @@ const getSitemap = unstable_cache(
       .slice(0, 50_000)
       .map((path) => ({ url: absoluteUrl(path) }));
   },
-  ["public-sitemap-v2", API_URL],
+  ["public-sitemap-v3", API_URL],
   { revalidate: 300 },
 );
 

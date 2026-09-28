@@ -6,7 +6,7 @@ Reglas que debe preservar cada cambio. Quien cambie una regla actualiza su motiv
 
 Una pausa no es borrado: `paused` conserva HTTP 200, canonical y contenido, con Offer `OutOfStock` y sin formulario de reserva. `draft` devuelve 404. Siguen aplicando agencia verificada y pertenencia a sucursal activa. El sitemap enumera inventario activo, sin fabricar un catálogo de pausados.
 
-La validación de perfil/detalle termina antes de iniciar streaming. Los límites `loading.tsx` retirados permitían una pantalla not-found con HTTP 200; sin ellos se preserva el 404 real. Se acepta perder el skeleton inicial; recuperarlo exige preservar el status antes de enviar encabezados.
+La validación de perfil/detalle y destino del catálogo termina antes de iniciar streaming. Los límites `loading.tsx` retirados permitían una pantalla not-found con HTTP 200; sin ellos se preserva el 404 real, también para una ciudad ambigua sin país. Se acepta perder el skeleton inicial; recuperarlo exige preservar el status antes de enviar encabezados.
 
 El catálogo se precarga con un QueryClient por petición y las mismas query keys del cliente. Metadata y render comparten consultas. No se reenvían cookies en fetch público ni se comparte sesión entre peticiones. La disponibilidad con fechas no hereda caché persistente del catálogo. Sin fechas se muestra el catálogo publicado y enlaces, sin afirmar disponibilidad.
 
@@ -70,9 +70,21 @@ recogida y devolución se editan desde botones independientes, con foco en la
 fecha elegida. Una recogida que invalida la devolución conserva la nueva recogida
 y pide otra devolución con aviso: no inventamos duración ni borramos ambas fechas.
 «Any dates» recupera el catálogo sin fechas. Se mantiene el intervalo `[from,to)`.
-la UI muestra qué falta en el botón. La cuadrícula alinea controles y se
-reorganiza según el ancho; estado no se añade hasta tener contrato de API.
-El catálogo resuelve slugs globalmente: ciudades con slug repetido quedan
-inhabilitadas en este buscador hasta disponer de resolución por país/ID en backend.
+La UI muestra qué falta en el botón. País es obligatorio; región, ciudad y
+fechas son opcionales. Cambiar país limpia región/ciudad y cambiar región limpia
+ciudad. Ciudades sin región siguen disponibles al buscar en todo el país.
+El API recibe country (código) y region (slug); no se filtra una sola página de
+resultados en el cliente. Las tarjetas muestran location.city y countryCode.
+El selector presenta el kind recibido con mayúscula inicial y espacios, en el
+idioma inglés actual de la UI, sin mapa por país. Si conviven varios tipos,
+la etiqueta genérica es Region hasta seleccionar uno; entonces usa su tipo
+exacto (incluido Capital district). Una futura traducción del enum pertenece
+al idioma de la UI, no a una condición por país.
+Los listados amplios usan /cars/all?country=...&region=... y canonical propio.
+Una ciudad con slug único conserva /cars/[city] como canonical; una colisión
+entre países requiere country. Fechas y facetas no crean otro canonical.
+Las variantes de portada /?searchLayout=A (botón compacto en fila de escritorio)
+y /?searchLayout=B (botón en fila propia) comparten canonical /. Ambas se apilan
+en móvil. El dueño eligió B: es la presentación predeterminada en `/`.
 Reseñas bajo la flota, con valoración enlazada en cabecera: primero los carros,
 luego evidencia de confianza, sin alterar a quién pertenece el AggregateRating.
