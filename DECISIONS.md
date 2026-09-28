@@ -8,7 +8,7 @@ Una pausa no es borrado: `paused` conserva HTTP 200, canonical y contenido, con 
 
 La validación de perfil/detalle termina antes de iniciar streaming. Los límites `loading.tsx` retirados permitían una pantalla not-found con HTTP 200; sin ellos se preserva el 404 real. Se acepta perder el skeleton inicial; recuperarlo exige preservar el status antes de enviar encabezados.
 
-El catálogo se precarga con un QueryClient por petición y las mismas query keys del cliente. Metadata y render comparten consultas. No se reenvían cookies en fetch público ni se comparte sesión entre peticiones. La disponibilidad con fechas no hereda caché persistente del catálogo. Sin fechas se muestran ciudad y enlaces, no supuesta disponibilidad.
+El catálogo se precarga con un QueryClient por petición y las mismas query keys del cliente. Metadata y render comparten consultas. No se reenvían cookies en fetch público ni se comparte sesión entre peticiones. La disponibilidad con fechas no hereda caché persistente del catálogo. Sin fechas se muestra el catálogo publicado y enlaces, sin afirmar disponibilidad.
 
 Referencias: `src/shared/seo/public-api.ts`, `prefetch.ts`, rutas públicas; regresión: `scripts/seo-smoke.mjs`.
 
@@ -57,3 +57,15 @@ Comisión y política se guardan por separado en sus rutas específicas; se vali
 La UI conserva límite 0–7 de `earlyReturnPenaltyDays`, aunque su adaptador admite lectura hasta 30. Resolver con el contrato del servidor, no truncando datos. `checkinAdvancePct` se conserva si llega, incluido cero, pero es de solo lectura; confirmar reserva y confirmar check-in no se presumen el mismo evento de pago.
 
 Referencias: `src/features/admin/platform-config-contract.ts`, `platform-config-api.ts`, `components/platform-config-form.tsx`; regresión: platform-config smoke.
+
+## Destino elegido, no ubicación asumida
+
+País y ciudad describen dónde se alquila, no dónde está el visitante.
+Un país se muestra preseleccionado sin desplegable; varios habilitan selector.
+Cambiar país limpia ciudad. La ubicación solo se solicita tras pulsar el botón;
+Google Maps propone una ciudad del catálogo y el usuario confirma o descarta.
+Fallo o rechazo conserva el flujo manual. No se persisten coordenadas.
+El catálogo resuelve slugs globalmente: ciudades con slug repetido quedan
+inhabilitadas en este buscador hasta disponer de resolución por país/ID en backend.
+Reseñas bajo la flota, con valoración enlazada en cabecera: primero los carros,
+luego evidencia de confianza, sin alterar a quién pertenece el AggregateRating.

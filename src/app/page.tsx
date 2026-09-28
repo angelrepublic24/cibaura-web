@@ -4,7 +4,11 @@ import { pageMetadata, SITE_DESCRIPTION } from "@/shared/seo/metadata";
 import { OrganizationJsonLd } from "@/shared/seo/structured-data";
 
 export function generateMetadata() {
-  return pageMetadata({ title: "Car rental in the Dominican Republic", description: SITE_DESCRIPTION, path: "/" });
+  return pageMetadata({
+    title: "Car rental in the Dominican Republic",
+    description: SITE_DESCRIPTION,
+    path: "/",
+  });
 }
 
 export default function HomePage() {
@@ -39,11 +43,11 @@ export default function HomePage() {
             <h1 className="font-display mt-5 text-4xl leading-[1.05] text-foreground md:text-6xl">
               Find the perfect car,
               <br />
-              rented by people nearby.
+              where you want to go.
             </h1>
             <p className="mt-5 max-w-xl text-base text-muted-foreground md:text-lg">
-              Pick a city and your dates, compare real cars from verified
-              agencies, and book in minutes — no counter, no surprises.
+              Choose your destination country, city and dates. Compare cars from
+              verified agencies, and book in minutes — no counter, no surprises.
             </p>
           </div>
 

@@ -47,11 +47,11 @@ Sentry captura errores de navegador, límites React y SSR. `error.tsx` y `global
 
 | Rutas | Audiencia y comportamiento |
 |---|---|
-| `/` | Pública: contenido comercial y buscador; ciudades del buscador en cliente. |
+| `/` | Pública: buscador país → ciudad → fechas; destinos del API en cliente. |
 | `/agencies` | Pública: directorio precargado en servidor e hidratación TanStack Query. |
 | `/agencies/[slug]` | Pública: perfil, flota y reviews de agencia/host, con precarga e hidratación. |
 | `/agencies/[slug]/cars/[carId]` | Pública: ficha y reviews de su agencia, con precarga e hidratación. |
-| `/cars/[city]` | Pública: disponibilidad SSR con fechas; sin fechas, ciudad real, texto y enlaces a agencias. `all` representa todas las ciudades. |
+| `/cars/[city]` | Pública: disponibilidad SSR con fechas; sin fechas, catálogo publicado SSR y enlaces a agencias, sin afirmar disponibilidad. `all` representa todas las ciudades. |
 | `/become-host`, `/become-agency` | Captación pública; incorporación depende de sesión. |
 | `/legal/terms`, `/legal/privacy` | Texto servidor; versión/política dinámica consultadas en cliente. |
 | `/auth/login`, `/auth/register`, `/auth/forgot-password`, `/auth/reset-password`, `/admin/accept-invite` | Acceso público, `noindex`; invitación admin es excepción al área privada. |

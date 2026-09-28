@@ -41,13 +41,15 @@ export function CarSearchResults({
 
   // Availability is a server-side anti-join, so the backend REQUIRES a date
   // range (`start`/`end`). Only fire the search once both are present;
-  // otherwise prompt for dates instead of sending a request that 400s.
-  const hasDates = !!filters.from && !!filters.to;
+  // otherwise fetch the published catalog without claiming availability.
+  const hasDates = !!filters.from && !!filters.to && filters.to > filters.from;
 
   const query = useQuery({
-    queryKey: carKeys.search(city, filters),
-    queryFn: () => CarsApi.search(city, filters),
-    enabled: hasDates,
+    queryKey: hasDates
+      ? carKeys.search(city, filters)
+      : carKeys.catalog(city, filters),
+    queryFn: () =>
+      hasDates ? CarsApi.search(city, filters) : CarsApi.catalog(city, filters),
   });
 
   const citiesQuery = useQuery({
@@ -94,7 +96,7 @@ export function CarSearchResults({
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Available cars
+            {hasDates ? "Available cars" : "Car catalog"}
           </p>
           <h1 className="font-display mt-1 text-3xl capitalize text-foreground">
             {cityName ?? (city === "all" ? "All cities" : city)}
@@ -114,7 +116,7 @@ export function CarSearchResults({
             </>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Pick your dates to see available cars
+              Browse cars now. Choose dates to check availability.
             </p>
           )}
         </div>
@@ -138,12 +140,7 @@ export function CarSearchResults({
         </aside>
 
         <section>
-          {!hasDates ? (
-            <EmptyState
-              title="Choose your rental dates"
-              description="Availability depends on your pickup and return dates — set them above to see cars that are free for your whole trip."
-            />
-          ) : query.isLoading ? (
+          {query.isLoading ? (
             <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
                 <CarCardSkeleton key={i} />

@@ -12,6 +12,7 @@ import type { CarSearchFilters } from "@/features/cars/filters";
 import {
   agencyCarsParams,
   carSearchParams,
+  carCatalogParams,
 } from "@/features/cars/request-params";
 import type { Car, City, Paginated } from "@/shared/types/domain";
 
@@ -74,4 +75,10 @@ export async function prefetchCities(client: QueryClient) {
     queryKey: agencyProfileKeys.availableCities(),
     queryFn: () => requiredGet<City[]>("/agencies/available-cities"),
   });
+}
+
+export function getCarCatalog(city: string, filters: CarSearchFilters) {
+  return requiredGet<Paginated<Car>>(
+    `/cars/catalog?${queryString(carCatalogParams(city, filters))}`,
+  );
 }
