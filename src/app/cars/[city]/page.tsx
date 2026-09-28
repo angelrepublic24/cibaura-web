@@ -9,6 +9,7 @@ import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { carKeys } from "@/features/cars/api";
 import {
   getCarSearch,
+  getCarCatalog,
   getDirectory,
   prefetchCities,
   publicQueryClient,
@@ -17,7 +18,7 @@ import {
 /**
  * /cars/[city] — search results. Filters live in the URL (shareable +
  * SEO). Availability is prefetched only with dates. Without dates, render
- * the real city and agency links until a date-free car catalog exists.
+ * the published catalog and agency links without claiming availability.
  */
 type Props = {
   params: Promise<{ city: string }>;
@@ -39,7 +40,7 @@ export default async function CarsByCityPage({ params, searchParams }: Props) {
   const location = await getPublicCity(city);
   const filters = parseCarFilters(await searchParams);
   const client = publicQueryClient();
-  const hasDates = !!filters.from && !!filters.to;
+  const hasDates = !!filters.from && !!filters.to && filters.to > filters.from;
   const [, directory] = await Promise.all([
     Promise.all([
       prefetchCities(client),
@@ -48,7 +49,10 @@ export default async function CarsByCityPage({ params, searchParams }: Props) {
             queryKey: carKeys.search(city, filters),
             queryFn: () => getCarSearch(city, filters),
           })
-        : Promise.resolve(),
+        : client.fetchQuery({
+            queryKey: carKeys.catalog(city, filters),
+            queryFn: () => getCarCatalog(city, filters),
+          }),
     ]),
     hasDates
       ? Promise.resolve(null)

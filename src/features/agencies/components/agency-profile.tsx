@@ -102,9 +102,6 @@ export function AgencyProfile({
         agencyId={agency.id}
       />
 
-      {/* Reviews up top — easy to find before browsing the fleet. */}
-      <AgencyReviews slug={slug} reviewCount={agency.reviewCount} />
-
       <div className="mt-10 grid gap-6 lg:grid-cols-[280px_1fr]">
         <aside>
           {/* The SAME faceted filter panel as the car search. Branch + sort are
@@ -137,6 +134,7 @@ export function AgencyProfile({
           />
         </section>
       </div>
+      <AgencyReviews slug={slug} reviewCount={agency.reviewCount} />
     </div>
   );
 }
@@ -234,7 +232,17 @@ function AgencyHeader({
               <PrivateHostBadge kind={kind} />
             </div>
             <div className="mt-1.5">
-              <StarRating rating={ratingAvg} count={reviewCount} />
+              {reviewCount > 0 ? (
+                <a
+                  href="#agency-reviews"
+                  className="inline-flex rounded-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-primary"
+                  aria-label={`Read ${reviewCount} agency reviews, rated ${ratingAvg} out of 5`}
+                >
+                  <StarRating rating={ratingAvg} count={reviewCount} />
+                </a>
+              ) : (
+                <StarRating rating={ratingAvg} count={reviewCount} />
+              )}
             </div>
           </div>
           <FavoriteButton agencyId={agencyId} className="mb-1 ml-auto" />
@@ -461,7 +469,11 @@ export function AgencyReviews({
   const hasNext = page * pageSize < total;
 
   return (
-    <section className="mt-8 border-t border-border pt-8">
+    <section
+      id="agency-reviews"
+      tabIndex={-1}
+      className="mt-8 scroll-mt-24 border-t border-border pt-8"
+    >
       <h2 className="font-display text-2xl text-foreground">
         Reviews
         {total > 0 ? (

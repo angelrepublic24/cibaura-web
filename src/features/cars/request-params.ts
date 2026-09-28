@@ -41,3 +41,11 @@ export function agencyCarsParams(filters: AgencyCarsFilters) {
     pageSize: filters.pageSize,
   };
 }
+
+/** Published inventory only, with no availability/date parameters. */
+export function carCatalogParams(city: string, filters: CarSearchFilters) {
+  return {
+    ...facets(filters),
+    city: city && city !== "all" ? city : undefined,
+  };
+}

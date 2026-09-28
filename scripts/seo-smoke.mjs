@@ -145,7 +145,10 @@ async function runScenario(partial) {
       data = { ...car, id: draftId, status: "draft" };
     else if (path === `/cars/${pausedId}`)
       data = { ...car, id: pausedId, status: "paused" };
-    else if (path === "/cars/search") {
+    else if (path === "/cars/catalog") {
+      assert(!url.searchParams.has("start") && !url.searchParams.has("end"));
+      data = paginate([car]);
+    } else if (path === "/cars/search") {
       if (!url.searchParams.has("start") || !url.searchParams.has("end")) {
         res.writeHead(400);
         res.end();
@@ -246,6 +249,12 @@ async function runScenario(partial) {
       );
       const profile = await html("/agencies/fixture-agency");
       check(
+        visible(profile).includes('href="#agency-reviews"') &&
+          visible(profile).indexOf("Toyota") <
+            visible(profile).indexOf('id="agency-reviews"'),
+        "Agency review anchor follows fleet, with rating link in header",
+      );
+      check(
         text(profile).includes(agency.name) &&
           text(profile).includes("Toyota Corolla"),
         "Agency profile and car grid are SSR",
@@ -295,6 +304,11 @@ async function runScenario(partial) {
         "Zero-review entity omits all rating/review blocks",
       );
       const cityHtml = await html("/cars/fixture-city");
+      check(
+        visible(cityHtml).includes("Toyota") &&
+          visible(cityHtml).includes("Corolla"),
+        "Date-free catalog cars are visible in SSR HTML",
+      );
       check(
         text(cityHtml).includes("Fixture City") &&
           visible(cityHtml).includes('href="/agencies/fixture-agency"'),

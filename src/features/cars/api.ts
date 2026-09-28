@@ -8,7 +8,7 @@ import type {
   Pricing,
 } from "@/shared/types/domain";
 import type { CarSearchFilters } from "@/features/cars/filters";
-import { carSearchParams } from "./request-params";
+import { carSearchParams, carCatalogParams } from "./request-params";
 
 /**
  * Public cars API module (search + detail + availability + server quote).
@@ -31,6 +31,8 @@ export const carKeys = {
   all: ["cars"] as const,
   search: (city: string, filters: CarSearchFilters) =>
     ["cars", "search", city, filters] as const,
+  catalog: (city: string, filters: CarSearchFilters) =>
+    ["cars", "catalog", city, filters] as const,
   detail: (carId: string) => ["cars", "detail", carId] as const,
   availability: (carId: string, from: string, to: string) =>
     ["cars", "availability", carId, from, to] as const,
@@ -40,10 +42,20 @@ export const carKeys = {
     to: string,
     pickup: PickupType,
     deliveryZoneId?: string,
-  ) => ["cars", "quote", carId, from, to, pickup, deliveryZoneId ?? null] as const,
+  ) =>
+    ["cars", "quote", carId, from, to, pickup, deliveryZoneId ?? null] as const,
 };
 
 export const CarsApi = {
+  async catalog(
+    city: string,
+    filters: CarSearchFilters,
+  ): Promise<Paginated<Car>> {
+    const res = await Api.get<Paginated<Car>>("/cars/catalog", {
+      params: carCatalogParams(city, filters),
+    });
+    return res.data;
+  },
   /**
    * Slug-first search. The backend `SearchCarsDto` accepts EITHER a UUID
    * (`cityId`/`makeId`/`modelId`) OR a URL-safe slug (`city`/`make`/`model`)
@@ -54,7 +66,10 @@ export const CarsApi = {
    * against CarOccupancy). Callers must not hit this without dates — the
    * results page gates on `from && to` (see CarSearchResults).
    */
-  async search(city: string, filters: CarSearchFilters): Promise<Paginated<Car>> {
+  async search(
+    city: string,
+    filters: CarSearchFilters,
+  ): Promise<Paginated<Car>> {
     const res = await Api.get("/cars/search", {
       params: carSearchParams(city, filters),
     });
