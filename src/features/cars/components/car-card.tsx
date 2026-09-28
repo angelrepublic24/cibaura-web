@@ -89,6 +89,11 @@ export function CarCard({
           <PrivateHostBadge kind={car.agency.kind} />
         </p>
 
+        <p className="mt-2 text-sm text-muted-foreground">
+          {car.location?.city.name ?? "Location unavailable"}
+          {car.location ? `, ${car.location.countryCode}` : ""}
+        </p>
+
         {/* Key specs as small quiet chips. */}
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1.5 capitalize">

@@ -24,9 +24,21 @@ const photoId = "44444444-4444-4444-8444-444444444444";
 const city = {
   id: "city",
   countryId: "country",
+  regionId: "region",
   slug: "fixture-city",
   name: "Fixture City",
 };
+const duplicateCities = [
+  { ...city, id: "shared-do", slug: "shared-city", name: "Shared DO" },
+  {
+    ...city,
+    id: "shared-us",
+    countryId: "us",
+    regionId: null,
+    slug: "shared-city",
+    name: "Shared US",
+  },
+];
 const agency = {
   id: "agency",
   slug: "fixture-agency",
@@ -56,6 +68,7 @@ const emptyAgency = {
 const car = {
   id,
   branchId: "branch",
+  location: { city, region: null, countryCode: "DO" },
   agency,
   make: { id: "make", name: "Toyota" },
   model: { id: "model", name: "Corolla" },
@@ -121,7 +134,23 @@ async function runScenario(partial) {
       return;
     }
     if (path === "/agencies/available-cities" || path === "/geo/cities")
-      data = [city];
+      data = [city, ...duplicateCities];
+    else if (path === "/geo/countries")
+      data = [
+        { id: "country", code: "DO", name: "Fixture Country" },
+        { id: "us", code: "US", name: "Other Country" },
+      ];
+    else if (path === "/geo/regions")
+      data = [
+        {
+          id: "region",
+          countryId: "country",
+          slug: "fixture-region",
+          name: "Fixture Region",
+          kind: "province",
+          code: null,
+        },
+      ];
     else if (path === "/agencies")
       data = paginate(page === 1 ? [agency] : [emptyAgency], 2, page);
     else if (path === "/agencies/fixture-agency") data = agency;
@@ -242,6 +271,73 @@ async function runScenario(partial) {
       ].map((match) => JSON.parse(match[1]));
     }
     if (!partial) {
+      const countryCatalog = await html("/cars/all?country=DO");
+      check(
+        text(countryCatalog).includes("Fixture Country"),
+        "Country SSR uses API name",
+      );
+      check(
+        /<p[^>]*>Fixture City(?:<!-- -->)?,(?:<!-- -->)? DO<\/p>/.test(
+          visible(countryCatalog),
+        ),
+        "Nationwide cards show the car city and country",
+      );
+      check(
+        visible(countryCatalog).includes(
+          'rel="canonical" href="https://web.ci.invalid/cars/all?country=DO"',
+        ),
+        "Country has its own canonical",
+      );
+      const regionCatalog = await html(
+        "/cars/all?country=DO&region=fixture-region&page=2",
+      );
+      check(
+        text(regionCatalog).includes("Fixture Region, Fixture Country"),
+        "Region SSR uses API names",
+      );
+      check(
+        requests.some(
+          (path) =>
+            path.includes("/cars/catalog?") &&
+            path.includes("country=DO") &&
+            path.includes("region=fixture-region") &&
+            path.includes("page=2"),
+        ),
+        "Region scope reaches paginated API request",
+      );
+      await html(
+        "/cars/all?country=DO&region=fixture-region&from=2026-12-01&to=2026-12-03",
+      );
+      check(
+        requests.some(
+          (path) =>
+            path.includes("/cars/search?") &&
+            path.includes("country=DO") &&
+            path.includes("region=fixture-region") &&
+            path.includes("start=2026-12-01"),
+        ),
+        "Availability preserves country and region",
+      );
+      const scopedCity = await html(
+        "/cars/fixture-city?country=DO&region=fixture-region",
+      );
+      check(
+        visible(scopedCity).includes(
+          'rel="canonical" href="https://web.ci.invalid/cars/fixture-city"',
+        ),
+        "Unique city keeps indexed canonical",
+      );
+      const collision = await html("/cars/shared-city?country=DO");
+      check(
+        visible(collision).includes(
+          'rel="canonical" href="https://web.ci.invalid/cars/shared-city?country=DO"',
+        ),
+        "Colliding city keeps country in canonical",
+      );
+      check(
+        (await fetch(base + "/cars/shared-city")).status === 404,
+        "Ambiguous city never picks a country silently",
+      );
       const directory = await html("/agencies");
       check(
         text(directory).includes(agency.name),
@@ -303,6 +399,7 @@ async function runScenario(partial) {
         !zero.aggregateRating && !zero.review,
         "Zero-review entity omits all rating/review blocks",
       );
+      const beforeCity = requests.length;
       const cityHtml = await html("/cars/fixture-city");
       check(
         visible(cityHtml).includes("Toyota") &&
@@ -315,7 +412,9 @@ async function runScenario(partial) {
         "Date-free city has real city name and internal agency links",
       );
       check(
-        !requests.some((path) => path.startsWith(apiPrefix + "/cars/search")),
+        !requests
+          .slice(beforeCity)
+          .some((path) => path.startsWith(apiPrefix + "/cars/search")),
         "Date-free city never calls availability search",
       );
       const dated = await html(
@@ -396,6 +495,11 @@ async function runScenario(partial) {
         ? !sitemap.includes(`/cars/${secondId}`)
         : sitemap.includes(`/cars/${secondId}`),
       "Full sitemap visits page 2; partial sitemap excludes failed page",
+    );
+    check(
+      sitemap.includes("/cars/shared-city?country=DO") &&
+        sitemap.includes("/cars/shared-city?country=US"),
+      "Sitemap scopes colliding city URLs by country",
     );
     const before = requests.length;
     await html("/sitemap.xml");

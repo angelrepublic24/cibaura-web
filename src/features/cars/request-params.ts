@@ -27,6 +27,8 @@ function facets(filters: CarSearchFilters) {
 export function carSearchParams(city: string, filters: CarSearchFilters) {
   return {
     ...facets(filters),
+    country: filters.country,
+    region: filters.region,
     city: city && city !== "all" ? city : undefined,
     start: filters.from,
     end: filters.to,
@@ -46,6 +48,8 @@ export function agencyCarsParams(filters: AgencyCarsFilters) {
 export function carCatalogParams(city: string, filters: CarSearchFilters) {
   return {
     ...facets(filters),
+    country: filters.country,
+    region: filters.region,
     city: city && city !== "all" ? city : undefined,
   };
 }

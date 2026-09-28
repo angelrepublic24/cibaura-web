@@ -25,20 +25,28 @@ type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+  searchParams,
+}: Props): Promise<Metadata> {
   const { city } = await params;
-  const { name } = await getPublicCity(city);
+  const filters = parseCarFilters(await searchParams);
+  const { name, path } = await getPublicCity(
+    city,
+    filters.country,
+    filters.region,
+  );
   return pageMetadata({
     title: `Cars in ${name}`,
     description: `Search rental cars in ${name}. Choose your dates, compare local agencies and private hosts, and request a booking on Cibaura.`,
-    path: `/cars/${encodeURIComponent(city)}`,
+    path,
   });
 }
 
 export default async function CarsByCityPage({ params, searchParams }: Props) {
   const { city } = await params;
-  const location = await getPublicCity(city);
   const filters = parseCarFilters(await searchParams);
+  const location = await getPublicCity(city, filters.country, filters.region);
   const client = publicQueryClient();
   const hasDates = !!filters.from && !!filters.to && filters.to > filters.from;
   const [, directory] = await Promise.all([
@@ -54,7 +62,7 @@ export default async function CarsByCityPage({ params, searchParams }: Props) {
             queryFn: () => getCarCatalog(city, filters),
           }),
     ]),
-    hasDates
+    hasDates || filters.country
       ? Promise.resolve(null)
       : getDirectory({ city: city === "all" ? undefined : city }),
   ]);
@@ -65,15 +73,15 @@ export default async function CarsByCityPage({ params, searchParams }: Props) {
         items={[
           { name: "Home", path: "/" },
           {
-            name: city === "all" ? "All cities" : location.name,
-            path: `/cars/${encodeURIComponent(city)}`,
+            name: location.name,
+            path: location.path,
           },
         ]}
       />
       <HydrationBoundary state={dehydrate(client)}>
         <CarSearchResults
           city={city}
-          cityName={city === "all" ? "All cities" : location.name}
+          cityName={location.name}
           filters={filters}
         />
       </HydrationBoundary>
@@ -99,16 +107,18 @@ export default async function CarsByCityPage({ params, searchParams }: Props) {
               </li>
             ))}
           </ul>
-          <Link
-            className="inline-block text-primary underline"
-            href={
-              city === "all"
-                ? "/agencies"
-                : `/agencies?city=${encodeURIComponent(city)}`
-            }
-          >
-            Browse rental agencies in {location.name}
-          </Link>
+          {!filters.country && (
+            <Link
+              className="inline-block text-primary underline"
+              href={
+                city === "all"
+                  ? "/agencies"
+                  : `/agencies?city=${encodeURIComponent(city)}`
+              }
+            >
+              Browse rental agencies in {location.name}
+            </Link>
+          )}
         </section>
       )}
     </div>

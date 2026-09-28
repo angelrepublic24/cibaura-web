@@ -10,9 +10,26 @@ const countries = [
   { id: "us", code: "US", name: "United States" },
 ];
 const cities = [
-  { id: "sd", countryId: "do", slug: "santo-domingo", name: "Santo Domingo" },
-  { id: "mi", countryId: "us", slug: "miami", name: "Miami" },
+  {
+    id: "sd",
+    countryId: "do",
+    regionId: "santo",
+    slug: "santo-domingo",
+    name: "Santo Domingo",
+  },
+  { id: "mi", countryId: "us", regionId: null, slug: "miami", name: "Miami" },
 ];
+const regions = [
+  {
+    id: "santo",
+    countryId: "do",
+    slug: "santo-domingo",
+    name: "Santo Domingo",
+    kind: "province",
+  },
+];
+let countryValue = "",
+  regionValue = "";
 let focusedTrigger;
 let states = [],
   index = 0,
@@ -81,7 +98,12 @@ const { DestinationFields } = load(
     "../destinations": destinations,
     "@tanstack/react-query": {
       useQuery: ({ queryKey }) => ({
-        data: queryKey[1] === "countries" ? countryData : cities,
+        data:
+          queryKey[1] === "countries"
+            ? countryData
+            : queryKey[1] === "regions"
+              ? regions
+              : cities,
       }),
     },
   },
@@ -89,6 +111,17 @@ const { DestinationFields } = load(
 const render = () => {
   index = 0;
   return DestinationFields({
+    country: countryValue,
+    region: regionValue,
+    onCountryChange: (value) => {
+      countryValue = value;
+      regionValue = "";
+      cityValue = "";
+    },
+    onRegionChange: (value) => {
+      regionValue = value;
+      cityValue = "";
+    },
     city: cityValue,
     onCityChange: (value) => {
       cityValue = value;
@@ -103,7 +136,7 @@ function nodes(tree) {
 const find = (tree, predicate) => nodes(tree).find(predicate);
 let tree = render();
 find(tree, (node) => node.props?.id === "hero-country").props.onChange({
-  target: { value: "do" },
+  target: { value: "DO" },
 });
 tree = render();
 assert(
@@ -118,7 +151,7 @@ assert(
 );
 cityValue = "santo-domingo";
 find(tree, (node) => node.props?.id === "hero-country").props.onChange({
-  target: { value: "us" },
+  target: { value: "US" },
 });
 assert.equal(cityValue, "", "country change clears city");
 countryData = [countries[0]];
@@ -150,6 +183,9 @@ const filters = load("src/features/cars/filters.ts", {
 });
 let navigation;
 const { HeroSearch } = load("src/features/cars/components/hero-search.tsx", {
+  "@tanstack/react-query": { useQuery: () => ({ data: countryData }) },
+  "../destinations": destinations,
+  "./destination-fields": { DestinationFields },
   "next/navigation": {
     useRouter: () => ({
       push: (url) => {
@@ -167,18 +203,23 @@ const home = () => {
   index = 0;
   return HeroSearch();
 };
+countryData = countries;
 states = [];
 tree = home();
 assert(!nodes(tree).some((node) => node.props?.type === "date"));
 assert(find(tree, (node) => node.props?.type === "submit").props.disabled);
 assert.equal(
   find(tree, (node) => node.props?.type === "submit").props["aria-label"],
-  "Choose a city",
+  "Choose a country",
 );
+states[6] = "DO";
+tree = home();
+tree.props.onSubmit({ preventDefault() {} });
+assert.equal(navigation, "/cars/all?country=DO");
 states[1] = "santo-domingo";
 tree = home();
 tree.props.onSubmit({ preventDefault() {} });
-assert.equal(navigation, "/cars/santo-domingo");
+assert.equal(navigation, "/cars/santo-domingo?country=DO");
 find(tree, (node) => node.props?.id === "hero-from").props.onClick();
 tree = home();
 let calendar = find(tree, (node) => node.type === picker.DateRangePicker);
@@ -201,7 +242,89 @@ assert(
   find(tree, (node) => node.props?.["aria-label"] === "Return: 05/10/2026"),
 );
 tree.props.onSubmit({ preventDefault() {} });
-assert.equal(navigation, "/cars/santo-domingo?from=2026-10-03&to=2026-10-05");
+assert.equal(
+  navigation,
+  "/cars/santo-domingo?country=DO&from=2026-10-03&to=2026-10-05",
+);
+// The actual parent owns cascades; country and region survive search navigation.
+states[7] = "santo-domingo";
+tree = home();
+find(tree, (node) => node.type === DestinationFields).props.onRegionChange(
+  "another-region",
+);
+assert.equal(states[1], "");
+assert.equal(states[7], "another-region");
+tree = home();
+tree.props.onSubmit({ preventDefault() {} });
+assert(navigation.startsWith("/cars/all?country=DO&region=another-region&"));
+find(tree, (node) => node.type === DestinationFields).props.onCountryChange(
+  "US",
+);
+assert.equal(states[1], "");
+assert.equal(states[7], "");
+assert.equal(
+  params.carCatalogParams("all", { country: "DO", region: "santo-domingo" })
+    .country,
+  "DO",
+);
+assert.equal(
+  params.carSearchParams("all", {
+    country: "DO",
+    region: "santo-domingo",
+    from: "2026-10-03",
+    to: "2026-10-05",
+  }).region,
+  "santo-domingo",
+);
+countryValue = "DO";
+regionValue = "santo-domingo";
+tree = render();
+assert.equal(
+  find(tree, (node) => node.props?.htmlFor === "hero-region").props.children,
+  "Province",
+);
+assert(
+  nodes(tree).some(
+    (node) => node.type === "option" && node.props.value === "santo-domingo",
+  ),
+);
+countryValue = "US";
+regionValue = "";
+tree = render();
+assert(
+  nodes(tree).some(
+    (node) => node.type === "option" && node.props.value === "miami",
+  ),
+  "unassigned cities remain selectable without a region",
+);
+assert(
+  destinations.hasUniqueCitySlug(cities[0], [
+    ...cities,
+    { ...cities[0], id: "other", countryId: "us" },
+  ]),
+  "country scopes duplicate city slugs",
+);
+regions.push({
+  id: "capital",
+  countryId: "do",
+  slug: "capital",
+  name: "Capital",
+  kind: "capital_district",
+});
+countryValue = "DO";
+regionValue = "";
+tree = render();
+assert.equal(
+  find(tree, (node) => node.props?.htmlFor === "hero-region").props.children,
+  "Region",
+);
+regionValue = "capital";
+tree = render();
+assert.equal(
+  find(tree, (node) => node.props?.htmlFor === "hero-region").props.children,
+  "Capital district",
+);
+regions.pop();
 // Endpoint editing preserves the other date, opens its month and keeps boundaries.
 function edit(endpoint, value, day, blocked = () => false) {
   states = [];
@@ -238,7 +361,16 @@ assert.equal(result.changed.from, "");
 assert.equal(result.changed.to, "2026-09-28");
 result = edit("to", { from: "2026-10-31", to: "" }, "2026-11-01");
 assert.equal(result.changed.to, "2026-11-01");
-states = ["from", "santo-domingo", "2026-10-03", "2026-10-05"];
+states = [
+  "from",
+  "santo-domingo",
+  "2026-10-03",
+  "2026-10-05",
+  undefined,
+  "",
+  "DO",
+  "",
+];
 tree = home();
 find(tree, (node) => node.type === picker.DateRangePicker).props.onChange({
   from: "2026-10-06",
