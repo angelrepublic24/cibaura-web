@@ -1,0 +1,56 @@
+[
+  {
+    "file": "feed/01-launch.jpg",
+    "width": 1254,
+    "height": 1254,
+    "bytes": 247763
+  },
+  {
+    "file": "feed/02-how-it-works.jpg",
+    "width": 1254,
+    "height": 1254,
+    "bytes": 221140
+  },
+  {
+    "file": "feed/03-why-it-matters.jpg",
+    "width": 1254,
+    "height": 1254,
+    "bytes": 267164
+  },
+  {
+    "file": "feed/04-become-a-host.jpg",
+    "width": 1254,
+    "height": 1254,
+    "bytes": 282977
+  },
+  {
+    "file": "stories/01-launch.jpg",
+    "width": 940,
+    "height": 1672,
+    "bytes": 229149
+  },
+  {
+    "file": "stories/02-how-it-works.jpg",
+    "width": 941,
+    "height": 1672,
+    "bytes": 183159
+  },
+  {
+    "file": "stories/03-why-it-matters.jpg",
+    "width": 941,
+    "height": 1672,
+    "bytes": 244466
+  },
+  {
+    "file": "stories/04-become-a-host.jpg",
+    "width": 941,
+    "height": 1672,
+    "bytes": 267645
+  },
+  {
+    "file": "youtube/thumbnail.jpg",
+    "width": 1672,
+    "height": 941,
+    "bytes": 292864
+  }
+]
