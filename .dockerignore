@@ -16,3 +16,5 @@ coverage
 Dockerfile*
 compose*.yml
 compose*.yaml
+# Offline marketing deliverables: never send to the image build context.
+/marketing/
