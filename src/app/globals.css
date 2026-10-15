@@ -50,6 +50,11 @@
   --navy: #04044A;
   --navy-foreground: #FFFFFF; /* 18.7:1 */
   --cream: #EAF3FE; /* pale tint for text-on-dark that is not pure white */
+  /* Neon — brand sheet colour #3. ONLY legible on `--navy` (12.4:1 there,
+     1.51:1 on the light canvas), so every call site must sit on the dark
+     strip. Pair it with `text-navy` when it carries a filled control. */
+  --neon: #00E7FF;
+  --neon-foreground: #04044A; /* navy ink on a neon fill */
 
   /* Focus ring follows the accent */
   --ring: #000675;
@@ -96,6 +101,8 @@
   --color-navy: var(--navy);
   --color-navy-foreground: var(--navy-foreground);
   --color-cream: var(--cream);
+  --color-neon: var(--neon);
+  --color-neon-foreground: var(--neon-foreground);
   --color-ring: var(--ring);
   --color-destructive: var(--destructive);
   --color-success: var(--success);
@@ -151,4 +158,13 @@ body {
 :focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
+}
+
+/* The ring is Royal, which all but disappears on the brand dark surface
+   (#000675 on #04044A ≈ 1.1:1 — a keyboard user would lose the cursor).
+   Inside any `bg-navy` block the ring switches to Neon, 12.4:1 there.
+   Keyed off the utility class because `bg-navy` IS how every dark brand
+   surface is declared (footer, homepage supply band). */
+.bg-navy :focus-visible {
+  outline-color: var(--neon);
 }

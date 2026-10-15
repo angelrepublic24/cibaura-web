@@ -4,6 +4,7 @@ import { unstable_cache } from "next/cache";
 import type { AgencyPublicProfile } from "@/features/agencies/api";
 import type { Car, City, Country } from "@/shared/types/domain";
 import { API_URL } from "@/lib/config";
+import { AGENCY_SIGNUP_PATH, HOST_SIGNUP_PATH } from "@/shared/config/supply";
 import { absoluteUrl } from "@/shared/seo/metadata";
 import { allPublicPages, carPath, publicGet } from "@/shared/seo/public-api";
 
@@ -13,8 +14,8 @@ const getSitemap = unstable_cache(
       "/",
       "/agencies",
       "/cars/all",
-      "/become-host",
-      "/become-agency",
+      HOST_SIGNUP_PATH,
+      AGENCY_SIGNUP_PATH,
       "/legal/terms",
       "/legal/privacy",
     ]);

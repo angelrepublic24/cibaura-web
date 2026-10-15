@@ -15,6 +15,10 @@ import {
   isRevokedStatus,
 } from "@/features/agency/access-revoked";
 import { HostWizard } from "@/features/agencies/components/host-wizard";
+import {
+  AGENCY_SIGNUP_PATH,
+  HOST_SIGNUP_PATH,
+} from "@/shared/config/supply";
 import { LoadingState } from "@/shared/components/states";
 import { buttonVariants } from "@/shared/components/ui/button";
 import { Card, CardContent } from "@/shared/components/ui/card";
@@ -110,7 +114,10 @@ function ValueProp() {
         </div>
         <p className="mt-4 text-sm text-muted-foreground">
           Running a rent-a-car business with several branches?{" "}
-          <Link href="/become-agency" className="font-medium text-primary hover:underline">
+          <Link
+            href={AGENCY_SIGNUP_PATH}
+            className="font-medium text-primary hover:underline"
+          >
             Apply as an agency instead
           </Link>
           .
@@ -146,7 +153,7 @@ export default function BecomeHostPage() {
                 </p>
               </div>
               <Link
-                href="/auth/login?next=/become-host"
+                href={`/auth/login?next=${HOST_SIGNUP_PATH}`}
                 className={buttonVariants({ variant: "default" })}
               >
                 Log in to continue

@@ -17,6 +17,11 @@ import {
  * /agency dashboard). Header + the SAME faceted filter panel as car search
  * + photo-forward car grid + reviews. Filters live in the URL (shareable),
  * with the same query keys prefetched on the server and hydrated in the client.
+ *
+ * STATUS CODE — no `loading.tsx` and no `<Suspense>` around these fetches:
+ * either one flushes a 200 shell before the body can call `notFound()`, so
+ * an unknown or unverified slug would read as "exists, empty". See the longer
+ * note in `src/app/cars/[city]/page.tsx`.
  */
 type Props = {
   params: Promise<{ slug: string }>;

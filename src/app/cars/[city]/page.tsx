@@ -19,6 +19,21 @@ import {
  * /cars/[city] — search results. Filters live in the URL (shareable +
  * SEO). Availability is prefetched only with dates. Without dates, render
  * the published catalog and agency links without claiming availability.
+ *
+ * STATUS CODE — do not add a `loading.tsx` to this route, and do not move
+ * these fetches below a `<Suspense>` boundary. Both flush a 200 shell before
+ * the body finishes, and after that first byte the status can no longer
+ * change: an unknown city would answer "200 and empty" (worse for search
+ * than a clean 404) and an API outage would answer 200 with a blank page
+ * instead of 500. Measured on a production build: with the fetches below a
+ * boundary, a 503 from `/cars/catalog` returns 200 on every user agent, and
+ * the real markup ships inside `<div hidden>` even for the HTML-limited bots
+ * Next blocking-renders for (Bingbot, LinkedInBot, Slackbot,
+ * facebookexternalhit). Awaiting here costs the route its route-transition
+ * skeleton; `<CarSearchResults/>` still renders its own card skeletons for
+ * every filter and page change, which is where the waiting actually happens.
+ * `scripts/seo-smoke.mjs` asserts the status codes against a production
+ * server so this cannot regress silently.
  */
 type Props = {
   params: Promise<{ city: string }>;

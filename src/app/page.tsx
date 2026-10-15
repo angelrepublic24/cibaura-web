@@ -1,5 +1,6 @@
 import { ShieldCheck, KeyRound, MessagesSquare } from "lucide-react";
 import { HeroSearch } from "@/features/cars/components/hero-search";
+import { HostCtaBand } from "@/features/agencies/components/host-cta-band";
 import { pageMetadata, SITE_DESCRIPTION } from "@/shared/seo/metadata";
 import { OrganizationJsonLd } from "@/shared/seo/structured-data";
 
@@ -136,6 +137,12 @@ export default async function HomePage({
           })}
         </div>
       </section>
+
+      {/* The supply side, once. Everything above this point speaks to a
+          renter; this band is the only thing on the page addressed to the
+          person who OWNS the car. Last, so it never competes with the
+          search. */}
+      <HostCtaBand />
     </div>
   );
 }
