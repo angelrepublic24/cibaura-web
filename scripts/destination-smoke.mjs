@@ -178,8 +178,11 @@ const picker = load("src/shared/components/date-range-picker.tsx", {
   "@/shared/utils/dates": dates,
   "@/lib/utils": { cn: (...values) => values.filter(Boolean).join(" ") },
 });
+// `filters.ts` validates the query string with zod; the loader stubs every
+// module it is not handed, and a stubbed `z` fails at module evaluation.
 const filters = load("src/features/cars/filters.ts", {
   "@/shared/utils/dates": dates,
+  zod: require("zod"),
 });
 let navigation;
 const { HeroSearch } = load("src/features/cars/components/hero-search.tsx", {
@@ -539,4 +542,114 @@ assert.equal(selection.region, "");
 assert.equal(selection.city, "");
 console.log(
   "Results destination smoke: 10 cascade and Newark assertions passed (fixtures).",
+);
+
+// ── URL filter parsing: degrade, never explode ─────────────────────────────
+// The query string is the least trusted input in the web app, and it becomes
+// a TanStack cache key and an API query string. These lock the contract the
+// zod schemas in `features/cars/filters.ts` have to keep: malformed input
+// yields `undefined`, nothing throws, and the permissive numeric grammar the
+// live URLs already rely on stays permissive.
+const agencyFilters = load("src/features/agencies/filters.ts", {
+  "@/features/cars/filters": filters,
+  zod: require("zod"),
+});
+let parserChecks = 0;
+const parsed = (sp) => {
+  parserChecks++;
+  return filters.parseCarFilters(sp);
+};
+
+// Unparseable numbers mean "no filter" — they never become 0.
+for (const value of [undefined, "", "   ", "abc", "2022abc", "1,000"]) {
+  assert.equal(parsed({ year_min: value }).yearMin, undefined);
+}
+// Blank text means "no filter"; anything else is passed through verbatim.
+for (const value of [undefined, "", "   "]) {
+  assert.equal(parsed({ make: value }).make, undefined);
+}
+assert.equal(parsed({ category: "banana" }).category, "banana");
+// Non-finite never reaches the wire: it would also collide with null in the
+// query-key hash.
+for (const value of ["Infinity", "-Infinity", "NaN", "1e309"]) {
+  assert.equal(parsed({ page: value }).page, undefined);
+}
+// ...but the grammar `Number()` accepts stays accepted, zero included.
+assert.equal(parsed({ page: "0" }).page, 0);
+assert.equal(parsed({ year_min: "-3" }).yearMin, -3);
+assert.equal(parsed({ year_max: "2024.9" }).yearMax, 2024.9);
+assert.equal(parsed({ price_min: "0x10" }).priceMin, 16);
+assert.equal(parsed({ price_max: " 7 " }).priceMax, 7);
+// Repeated parameters: Next hands over an array, the first entry wins.
+assert.equal(parsed({ make: ["toyota", "honda"] }).make, "toyota");
+assert.equal(parsed({ make: ["", "honda"] }).make, undefined);
+assert.equal(parsed({ year_min: ["5", "9"] }).yearMin, 5);
+// Trimming, and the country-only upper-casing.
+assert.equal(parsed({ make: " toyota " }).make, "toyota");
+assert.equal(parsed({ country: " do " }).country, "DO");
+assert.equal(parsed({ region: " Cibao " }).region, "Cibao");
+// Dates are a SHAPE check: the backend owns the calendar.
+assert.equal(parsed({ from: " 2026-08-01 " }).from, "2026-08-01");
+assert.equal(parsed({ from: "2026-13-45" }).from, "2026-13-45");
+assert.equal(parsed({ from: "2026-8-1" }).from, undefined);
+// Enums are exact and case-sensitive, and nothing throws on junk.
+assert.equal(
+  agencyFilters.parseAgencyCarFilters({ sort: " year_desc " }).sort,
+  "year_desc",
+);
+assert.equal(
+  agencyFilters.parseAgencyCarFilters({ sort: "YEAR_DESC" }).sort,
+  undefined,
+);
+assert.equal(
+  agencyFilters.parseAgencyDirectoryFilters({ sort: ["top_rated", "x"] }).sort,
+  "top_rated",
+);
+// A storefront is a catalog: dates never survive it.
+assert.equal(
+  agencyFilters.parseAgencyCarFilters({ from: "2026-08-01", to: "2026-08-05" })
+    .from,
+  undefined,
+);
+// The whole bag of hostile values at once, on every known key, must not throw.
+const HOSTILE = [
+  undefined,
+  "",
+  "   ",
+  "<script>",
+  "💥",
+  "null",
+  "Infinity",
+  "0x10",
+  [],
+  ["a", "b"],
+];
+const PARAM_KEYS = [
+  "country",
+  "region",
+  "from",
+  "to",
+  "make",
+  "model",
+  "year_min",
+  "year_max",
+  "color",
+  "category",
+  "transmission",
+  "price_min",
+  "price_max",
+  "page",
+  "branch",
+  "sort",
+  "city",
+];
+for (const value of HOSTILE) {
+  const sp = Object.fromEntries(PARAM_KEYS.map((key) => [key, value]));
+  parsed(sp);
+  agencyFilters.parseAgencyCarFilters(sp);
+  agencyFilters.parseAgencyDirectoryFilters(sp);
+  parserChecks += 2;
+}
+console.log(
+  `URL filter smoke: ${parserChecks} parses degraded safely; no input threw.`,
 );
