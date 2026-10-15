@@ -6,15 +6,21 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 const require = createRequire(import.meta.url);
-function load(file, dependencies) {
+function load(file, dependencies, jsx = false) {
   const { outputText } = ts.transpileModule(readFileSync(file, "utf8"), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS },
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      ...(jsx ? { jsx: ts.JsxEmit.ReactJSX } : {}),
+    },
   });
   const exports = {};
   runInNewContext(outputText, {
     exports,
+    console,
     require: (name) => dependencies[name] ?? require(name),
   });
   return exports;
@@ -278,6 +284,74 @@ await test("No request targets the superseded single-purpose routes", () => {
     calls.some(({ path }) => path.startsWith("/admin/config/")),
     false,
   );
+});
+
+await test("The console renders an input for every one of the fifteen", () => {
+  // The regression this guards: the form used to expose four settings while
+  // the contract described more, and nothing failed when they diverged.
+  const cn = (...values) =>
+    values
+      .flat(Infinity)
+      .filter((value) => typeof value === "string")
+      .join(" ");
+  const ui = (file) =>
+    load(`src/shared/components/ui/${file}.tsx`, { "@/lib/utils": { cn } }, true);
+  const { PlatformConfigForm } = load(
+    "src/features/admin/components/platform-config-form.tsx",
+    {
+      "@/features/admin/api": {
+        AdminApi: { updateConfig: async () => ({}) },
+        adminKeys: { config: () => ["admin", "config"] },
+      },
+      "@/features/admin/platform-config-contract": contract,
+      "@/features/legal/api": { legalKeys: { all: ["legal"] } },
+      "@/shared/api/errors": { getErrorMessage: (_error, fallback) => fallback },
+      "@/lib/utils": { cn },
+      "@hookform/resolvers/zod": { zodResolver: () => undefined },
+      "react-hook-form": {
+        useForm: () => ({
+          register: (name) => ({ name }),
+          handleSubmit: () => () => {},
+          reset: () => {},
+          formState: { errors: {}, dirtyFields: {}, isDirty: false },
+        }),
+      },
+      "@tanstack/react-query": {
+        useQueryClient: () => ({ setQueryData: () => {}, invalidateQueries: () => {} }),
+        useMutation: () => ({ isPending: false, error: null, mutate: () => {}, reset: () => {} }),
+      },
+      "@/shared/components/ui/button": ui("button"),
+      "@/shared/components/ui/card": ui("card"),
+      "@/shared/components/ui/input": ui("input"),
+      "@/shared/components/ui/label": ui("label"),
+      "@/shared/components/ui/select": ui("select"),
+    },
+    true,
+  );
+  const html = renderToStaticMarkup(
+    React.createElement(PlatformConfigForm, { config: DEFAULTS }),
+  );
+  const rendered = new Set(
+    [...html.matchAll(/name="([^"]+)"/g)].map((match) => match[1]),
+  );
+  const fields = Object.keys(contract.platformConfigFormSchema.shape);
+  assert.equal(fields.length, 15);
+  for (const field of fields) {
+    assert.ok(rendered.has(field), `${field} has no input in the console`);
+  }
+  // The bounds the old console could not express are on screen.
+  for (const hint of ["0 – 30", "12 – 168", "6 – 72", "3 – 60"]) {
+    assert.ok(html.includes(hint), `the ${hint} range is not shown`);
+  }
+  // The tax defect warning is rendered, after the field it warns about.
+  assert.ok(html.includes("Open defect"), "tax warning missing");
+  assert.ok(
+    html.indexOf("Tax rate") < html.indexOf("Open defect"),
+    "tax warning must sit with the field",
+  );
+  for (const base of ["commission", "subtotal", "total"]) {
+    assert.ok(html.includes(`value="${base}"`), `${base} is not selectable`);
+  }
 });
 
 console.log(
