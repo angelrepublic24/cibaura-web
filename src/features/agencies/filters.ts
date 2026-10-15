@@ -10,6 +10,9 @@
 import {
   parseCarFilters,
   filtersToSearchParams,
+  urlEnum,
+  urlNumber,
+  urlText,
 } from "@/features/cars/filters";
 import type {
   AgencyCarsFilters,
@@ -20,24 +23,30 @@ import type {
 
 type RawSearchParams = Record<string, string | string[] | undefined>;
 
-function one(v: string | string[] | undefined): string | undefined {
-  const s = Array.isArray(v) ? v[0] : v;
-  return s && s.trim().length > 0 ? s.trim() : undefined;
-}
-
 // ── Storefront catalog ────────────────────────────────────────────────────
 
-const CAR_SORTS: AgencyCarsSort[] = ["price_asc", "price_desc", "year_desc"];
+/**
+ * The same zod field schemas the car search uses (`features/cars/filters`):
+ * one definition of "a URL string", "a URL number" and "a URL enum", all of
+ * them degrading to `undefined` instead of throwing.
+ */
+const carSortParam = urlEnum<AgencyCarsSort>([
+  "price_asc",
+  "price_desc",
+  "year_desc",
+]);
 
 /** Same faceting as car search (make/model/year/specs/price) + branch + sort. */
 export function parseAgencyCarFilters(sp: RawSearchParams): AgencyCarsFilters {
   const base = parseCarFilters(sp);
-  const sortRaw = one(sp.sort);
-  const sort = CAR_SORTS.includes(sortRaw as AgencyCarsSort)
-    ? (sortRaw as AgencyCarsSort)
-    : undefined;
   // A storefront is a catalog, not an availability search — drop any dates.
-  return { ...base, from: undefined, to: undefined, branchId: one(sp.branch), sort };
+  return {
+    ...base,
+    from: undefined,
+    to: undefined,
+    branchId: urlText.parse(sp.branch),
+    sort: carSortParam.parse(sp.sort),
+  };
 }
 
 export function agencyCarFiltersToSearchParams(
@@ -51,19 +60,20 @@ export function agencyCarFiltersToSearchParams(
 
 // ── Directory ─────────────────────────────────────────────────────────────
 
-const DIR_SORTS: AgencyDirectorySort[] = ["top_rated", "most_reviews", "name"];
+const directorySortParam = urlEnum<AgencyDirectorySort>([
+  "top_rated",
+  "most_reviews",
+  "name",
+]);
 
 export function parseAgencyDirectoryFilters(
   sp: RawSearchParams,
 ): AgencyDirectoryFilters {
-  const sortRaw = one(sp.sort);
-  const sort = DIR_SORTS.includes(sortRaw as AgencyDirectorySort)
-    ? (sortRaw as AgencyDirectorySort)
-    : undefined;
-  const pageRaw = one(sp.page);
-  const page =
-    pageRaw && Number.isFinite(Number(pageRaw)) ? Number(pageRaw) : undefined;
-  return { city: one(sp.city), sort, page };
+  return {
+    city: urlText.parse(sp.city),
+    sort: directorySortParam.parse(sp.sort),
+    page: urlNumber.parse(sp.page),
+  };
 }
 
 export function agencyDirectoryFiltersToSearchParams(

@@ -242,12 +242,15 @@ export interface AdminRevenueQuery {
  * Platform admin API module (platform_admin only).
  *
  * Real backend routes (verified against the controllers):
- *  - GET   /admin/config -> { commissionPct, cancellationPolicy }
- *  - PATCH /admin/config/commission -> { commissionPct }
- *  - PATCH /admin/config/cancellation-policy -> CancellationPolicyDto
+ *  - GET   /admin/config          -> the flat 15-setting PlatformConfig
+ *  - PATCH /admin/config          -> the DIFF in, the COMPLETE config out
  *      (commission is SNAPSHOTTED into each booking at request time —
  *       changing it never rewrites existing bookings; the policy figures are
- *       snapshotted into each settlement when it is computed)
+ *       snapshotted into each settlement when it is computed. The older
+ *       single-purpose /commission and /cancellation-policy routes still
+ *       exist on the server for back-compat; this client no longer uses
+ *       them, because four of the fifteen settings is what left the other
+ *       eleven editable only in psql.)
  *  - POST  /catalog/makes { name }                 -> CatalogMake  (admin)
  *  - POST  /catalog/makes/:makeId/models { name }  -> CatalogModel (admin)
  *
