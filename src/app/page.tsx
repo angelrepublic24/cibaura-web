@@ -20,9 +20,18 @@ export default async function HomePage({
   return (
     <div>
       <OrganizationJsonLd />
-      {/* Hero — big, airy, brand-toned. No third-party stock imagery: the
-          backdrop is a warm layered gradient built from the brand tokens
-          (cream → copper glow → olive haze), so nothing external loads. */}
+      {/* Hero — two columns on desktop: the message and the search on the
+          left, a vehicle on the right. The big isotype used to be the ONLY
+          thing on the right, which left that half reading as empty space; it
+          is now a secondary detail layered over the photo.
+
+          The photo is a CSS background with the gradient as its fallback
+          layer, so the section still looks finished while no real photograph
+          exists. Drop a file at /hero/car.jpg and it appears — no code change.
+
+          Top padding came down from pt-20/md:pt-28 so the search sits higher
+          in the fold and the page invites scrolling instead of filling the
+          whole screen with the headline. */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 -z-10" aria-hidden>
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,var(--accent-soft)_0%,transparent_55%),radial-gradient(ellipse_at_bottom_left,var(--olive-soft)_0%,transparent_50%),linear-gradient(180deg,var(--gold-soft)_0%,var(--background)_70%)]" />
@@ -30,33 +39,50 @@ export default async function HomePage({
           <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
         </div>
 
-        {/* Faint brand isotype watermark — pure decoration. */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/brand/isotype.png"
-          alt=""
-          aria-hidden
-          className="pointer-events-none absolute -right-8 -top-8 -z-10 h-56 w-56 select-none opacity-[0.05] md:h-80 md:w-80"
-        />
+        {/* The photograph BLEEDS off the right edge instead of sitting in a
+            floating card. A rounded panel beside the text read as something
+            pasted on rather than as part of the page — and while no real photo
+            exists it read as an empty box with no explanation at all.
 
-        <div className="relative z-10 mx-auto max-w-6xl px-4 pb-14 pt-20 md:pb-24 md:pt-28">
+            It also sits behind the message column rather than beside it, so
+            the search below keeps the FULL content width. Splitting the row
+            cost the search ~45% of its width and truncated every field
+            ("Choose a co…", "Pic…", "Re…"), which broke the one element that
+            has to work on this page. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 right-0 hidden w-[46%] lg:block"
+        >
+          <div className="absolute inset-0 bg-[image:url('/hero/car.jpg'),linear-gradient(130deg,var(--muted)_0%,var(--accent-soft)_60%,var(--surface)_100%)] bg-cover bg-center" />
+          {/* Fades the image into the page on its left and bottom edges, so
+              there is no hard seam where the photo stops. */}
+          <div className="absolute inset-0 bg-gradient-to-r from-background via-background/55 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand/isotype.png"
+            alt=""
+            className="absolute -right-10 top-8 h-44 w-44 select-none opacity-[0.10]"
+          />
+        </div>
+
+        <div className="relative z-10 mx-auto max-w-6xl px-4 pb-12 pt-10 md:pb-16 md:pt-14">
           <div className="max-w-2xl">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface/70 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur">
               <ShieldCheck className="h-3.5 w-3.5 text-primary" />
               Verified local rent-a-car agencies
             </span>
-            <h1 className="font-display mt-5 text-4xl leading-[1.05] text-foreground md:text-6xl">
-              Find the perfect car,
-              <br />
-              where you want to go.
+            <h1 className="mt-4 text-4xl font-bold leading-[1.06] tracking-[-0.03em] text-foreground md:text-5xl">
+              Find the right car for your next trip.
             </h1>
-            <p className="mt-5 max-w-xl text-base text-muted-foreground md:text-lg">
-              Choose your destination country, city and dates. Compare cars from
-              verified agencies, and book in minutes — no counter, no surprises.
+            <p className="mt-4 max-w-xl text-base text-muted-foreground md:text-lg">
+              Compare cars from local agencies. Choose your destination and
+              dates to get started.
             </p>
           </div>
 
-          <div className="mt-8">
+          {/* Full width again — the fields need the room. */}
+          <div className="mt-7">
             <HeroSearch layout={layout} />
           </div>
         </div>
