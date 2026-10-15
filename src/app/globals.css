@@ -1,13 +1,20 @@
 @import "tailwindcss";
 
 /* ------------------------------------------------------------------ *
- * Cibaura design system — CIBAURA BRAND (warm premium minimalist).
+ * Cibaura design system — CIBAURA BRAND 2026 (Guía Rápida, DOBLEEMEDIA).
  *
- * Palette straight from the brand sheet: copper (#B8734E) as the one
- * confident accent, gold (#D2B48C) and olive (#6B705C) as supporting
- * brand tones, cream (#E8DCC2) for warm surfaces / text-on-dark, and
- * navy (#0D1117) for the brand's dark moments (footer, hero panels,
- * the logo tile). Light-first & airy — the car is the hero.
+ * The sheet gives four colours: Sky #00A4FF, Neon #00E7FF, Royal #000675
+ * and White. Only ROYAL survives on a light surface — Sky measures 2.71:1
+ * against white and Neon 1.51:1, both under the 4.5:1 floor. So Royal
+ * carries every control and link, and the two bright blues live only on
+ * the dark strip (footer, hero panels), where they reach 6.9:1 and 12.4:1.
+ * Light-first & airy — the car is the hero.
+ *
+ * Replaces the 2025 copper/cream palette. Three token NAMES survive that
+ * rename — `--gold`, `--olive`, `--cream` — because between them they have
+ * three call sites, and renaming would mean touching components for no
+ * visual gain. Their values are brand blues now; read the value, not the
+ * name.
  *
  * All colors are declared as CSS variables and mapped into the Tailwind
  * v4 theme via `@theme inline`, so `bg-background`, `text-foreground`,
@@ -16,58 +23,57 @@
  * ------------------------------------------------------------------ */
 :root {
   /* Surfaces */
-  --background: #faf7f1; /* warm cream paper (derived from #E8DCC2) */
-  --surface: #ffffff; /* cards sit slightly brighter than the page */
-  --foreground: #14181f; /* navy ink (brand #0D1117, lifted for text) */
+  --background: #F4F7FC; /* page canvas — a hair of blue, not pure white */
+  --surface: #FFFFFF; /* cards sit brighter than the page, so they lift */
+  --foreground: #0A0E2E; /* ink, derived from Royal (18.8:1 on the canvas) */
 
-  /* Warm stone neutrals (chosen, not pure gray) */
-  --muted: #f2efe9; /* subtle fills, chips, hovers */
-  --muted-foreground: #6e6a62; /* secondary text (warm stone) */
-  --border: #e7e2d9; /* hairline borders, warm */
-  --border-strong: #d9d3c8; /* emphasized dividers */
+  /* Cool neutrals, biased toward the accent rather than inherited grey */
+  --muted: #EDF3FB; /* subtle fills, chips, hovers */
+  --muted-foreground: #59627D; /* secondary text (6.1:1 on a card) */
+  --border: #DCE4F0; /* hairline borders */
+  --border-strong: #C3CFE2; /* hover affordance, not a component boundary */
 
-  /* Accent — the one confident brand color (copper) */
-  --primary: #b8734e;
-  --primary-hover: #a2603a;
-  --primary-foreground: #ffffff;
-  --accent-soft: #f5e9dd; /* tinted copper background */
-  --accent-soft-foreground: #8a4e2e;
+  /* Accent — Royal, the only brand blue readable on light */
+  --primary: #000675; /* white on it: 16.4:1 */
+  --primary-hover: #0E16A8; /* lighter, not darker: the button is dark */
+  --primary-foreground: #FFFFFF;
+  --accent-soft: #E6F2FF; /* tinted background for chips and soft buttons */
+  --accent-soft-foreground: #00456F; /* 8.9:1 on that tint */
 
-  /* Supporting brand tones */
-  --gold: #d2b48c; /* secondary — highlights, subtle fills */
-  --gold-soft: #f4ead8;
-  --olive: #6b705c; /* tertiary — quiet chips, muted marks */
-  --olive-soft: #ecede7;
+  /* Supporting tones — legacy NAMES, brand-blue values (see header note) */
+  --gold: #00A4FF; /* Sky — highlights and subtle fills */
+  --gold-soft: #E3F2FF;
+  --olive: #00517F; /* darkened Sky, usable as text on light */
+  --olive-soft: #E9F0F8;
 
-  /* Brand dark surface — footer, hero panels, the logo tile */
-  --navy: #0d1117;
-  --navy-foreground: #e8dcc2; /* cream text on navy */
-  --cream: #e8dcc2;
+  /* Brand dark surface — footer and hero panels. This is where Neon lives. */
+  --navy: #04044A;
+  --navy-foreground: #FFFFFF; /* 18.7:1 */
+  --cream: #EAF3FE; /* pale tint for text-on-dark that is not pure white */
 
   /* Focus ring follows the accent */
-  --ring: #b8734e;
+  --ring: #000675;
 
   /* Feedback */
   --destructive: #dc2626;
-  --success: #15803d;
+  --success: #147238;
   --success-soft: #e7f4ec;
-  --warning: #b45309;
+  --warning: #A94D08;
   --warning-soft: #fbf1e3;
 
-  /* Elevation — soft, low, warm-tinted shadows */
-  --shadow-sm: 0 1px 2px rgba(13, 17, 23, 0.04), 0 1px 3px rgba(13, 17, 23, 0.06);
-  --shadow-md: 0 4px 12px rgba(13, 17, 23, 0.06), 0 2px 4px rgba(13, 17, 23, 0.05);
-  --shadow-lg: 0 12px 32px rgba(13, 17, 23, 0.10), 0 4px 8px rgba(13, 17, 23, 0.06);
+  /* Elevation — soft, low, tinted with the ink rather than pure black */
+  --shadow-sm: 0 1px 2px rgba(10, 14, 46, 0.04), 0 1px 3px rgba(10, 14, 46, 0.06);
+  --shadow-md: 0 4px 12px rgba(10, 14, 46, 0.06), 0 2px 4px rgba(10, 14, 46, 0.05);
+  --shadow-lg: 0 12px 32px rgba(10, 14, 46, 0.10), 0 4px 8px rgba(10, 14, 46, 0.06);
 
   /* Radius scale — generous, modern */
   --radius: 0.875rem; /* 14px — default card/control roundness */
   --radius-sm: 0.5rem;
   --radius-lg: 1.25rem;
 
-  /* Display font: an elegant system serif so headings read as editorial.
-     System stack = zero network fetch (keeps the build gate green). */
-  --font-display: ui-serif, Georgia, "Times New Roman", "Playfair Display",
-    serif;
+  /* One family everywhere (see .font-display below). System stack = zero
+     network fetch, which keeps the build gate green. */
+  --font-display: var(--font-geist-sans), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 @theme inline {
@@ -124,8 +130,10 @@ body {
   letter-spacing: -0.006em;
 }
 
-/* Editorial display headings — the type-pairing distinction. Applied via
-   the `.font-display` utility on hero/section headings. */
+/* Display headings. The 2025 design paired an editorial serif against the
+   body sans; the 2026 brief asks for ONE sans across navigation, titles,
+   cards and forms, and the wordmark has no serifs either. The utility stays
+   so call sites keep working — it now only carries the tighter tracking. */
 .font-display {
   font-family: var(--font-display);
   letter-spacing: -0.02em;
@@ -133,7 +141,7 @@ body {
   font-weight: 500;
 }
 
-/* A soft, warm selection tint that matches the accent. */
+/* Selection tint drawn from the accent. */
 ::selection {
   background: var(--accent-soft);
   color: var(--accent-soft-foreground);

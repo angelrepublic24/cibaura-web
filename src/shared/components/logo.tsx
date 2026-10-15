@@ -1,20 +1,33 @@
 import Image from "next/image";
 
 /**
- * Cibaura brand mark. Assets live in /public/brand (extracted from the brand
- * sheet). Three variants:
+ * Cibaura brand mark — the 2026 identity (Guía Rápida de Marca, DOBLEEMEDIA).
  *
- *  - "lockup" (default): the navy isotype tile + the wordmark. Use `onDark`
- *    to flip the wordmark cream (dark surfaces) vs navy (light surfaces).
- *    The tile carries its own navy background, so it reads on ANY surface.
- *  - "mark": just the isotype tile (compact / square slots).
- *  - "full": the full colour lockup (isotype + wordmark + tagline). Built for
- *    DARK surfaces only (its strokes are the brand's cream/copper on navy).
+ * The supplied artwork is a single LOCKUP: the six-armed isotype and the
+ * wordmark are one piece, drawn together with their own spacing. The previous
+ * assets were two files composed at render time; keeping that here would draw
+ * the isotype twice. So "lockup" is one image, not a composition.
  *
- * Assets are `unoptimized` (small, pre-sized PNGs with baked transparency) so
- * they render identically in `next dev` and a static export.
+ *  - "lockup" (default): isotype + wordmark. `onDark` picks the white artwork
+ *    for dark surfaces; otherwise the blue-to-navy one for light surfaces.
+ *  - "mark": the isotype alone, for square slots. It is blue on transparency,
+ *    NOT a tile with its own background, so it needs a light surface — pass
+ *    `onDark` nothing and place it accordingly.
+ *
+ * Sizing is deliberate rather than inherited: inside the lockup the wordmark's
+ * cap height is only ~a third of the image, so a 24px lockup leaves letters
+ * near 8px and the name stops being readable. 36px on desktop and 32px on
+ * mobile keep it legible, which is what the brief asks for on phones.
+ *
+ * These PNGs carry real transparency. They are a raster trace of the PDF —
+ * replace them with the vector files as soon as the studio supplies them, or
+ * they will soften on high-density screens.
  */
 type LogoVariant = "lockup" | "mark" | "full";
+
+const LOCKUP_W = 1230;
+const LOCKUP_H = 284;
+const MARK = 272;
 
 export function Logo({
   variant = "lockup",
@@ -30,53 +43,26 @@ export function Logo({
   if (variant === "mark") {
     return (
       <Image
-        src="/brand/app-icon.png"
+        src="/brand/isotype.png"
         alt="Cibaura"
-        width={512}
-        height={512}
+        width={MARK}
+        height={MARK}
         priority={priority}
         unoptimized
-        className={className ?? "h-8 w-8 rounded-[var(--radius-sm)]"}
+        className={className ?? "h-8 w-8"}
       />
     );
   }
 
-  if (variant === "full") {
-    return (
-      <Image
-        src="/brand/logo-full.png"
-        alt="Cibaura — mobility, reservations, rental marketplace"
-        width={986}
-        height={543}
-        priority={priority}
-        unoptimized
-        className={className ?? "h-auto w-56"}
-      />
-    );
-  }
-
-  // lockup
   return (
-    <span className={`inline-flex items-center gap-2.5 ${className ?? ""}`}>
-      <Image
-        src="/brand/app-icon.png"
-        alt=""
-        aria-hidden
-        width={512}
-        height={512}
-        priority={priority}
-        unoptimized
-        className="h-8 w-8 shrink-0 rounded-[var(--radius-sm)]"
-      />
-      <Image
-        src={onDark ? "/brand/wordmark.png" : "/brand/wordmark-dark.png"}
-        alt="Cibaura"
-        width={982}
-        height={128}
-        priority={priority}
-        unoptimized
-        className="h-[18px] w-auto"
-      />
-    </span>
+    <Image
+      src={onDark ? "/brand/wordmark.png" : "/brand/wordmark-dark.png"}
+      alt="Cibaura"
+      width={LOCKUP_W}
+      height={LOCKUP_H}
+      priority={priority}
+      unoptimized
+      className={className ?? "h-8 w-auto md:h-9"}
+    />
   );
 }

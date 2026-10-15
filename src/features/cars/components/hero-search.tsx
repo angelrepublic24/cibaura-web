@@ -44,15 +44,17 @@ export function HeroSearch({ layout = "B" }: { layout?: "A" | "B" } = {}) {
   const noDates = !from && !to;
   const canSearch = !!selectedCountry && (noDates || hasDates);
 
+  // The ready state says what the button DOES, in the same words both times.
+  // It used to split into "Browse cars" and "Check availability" depending on
+  // whether dates were set, which made the primary action of the page read as
+  // two different features.
   const actionLabel = !selectedCountry
     ? "Choose a country"
     : !noDates && !hasDates
       ? !from
         ? "Choose pickup date"
         : "Choose return date"
-      : noDates
-        ? "Browse cars"
-        : "Check availability";
+      : "Search cars";
   function closeDates() {
     setEditing(null);
     document.getElementById(`hero-${editing}`)?.focus();
@@ -148,6 +150,12 @@ export function HeroSearch({ layout = "B" }: { layout?: "A" | "B" } = {}) {
           disabled={!canSearch}
           className={cn(
             "h-10 w-full",
+            // The shared `disabled:opacity-50` fades the royal blue into a
+            // washed lavender that reads as a broken brand colour rather than
+            // as "not yet". A neutral grey says unavailable without dragging
+            // the brand through it. Overridden here, not globally: other
+            // disabled buttons in the app are not brand-coloured.
+            "disabled:opacity-100 disabled:bg-muted disabled:text-muted-foreground disabled:border disabled:border-border",
             layout === "B"
               ? "col-span-full"
               : "sm:col-span-2 lg:col-span-1 lg:px-3",
