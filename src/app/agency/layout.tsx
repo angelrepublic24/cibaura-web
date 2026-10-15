@@ -18,6 +18,10 @@ import {
 } from "lucide-react";
 import { RoleGuard } from "@/shared/auth/guard";
 import {
+  AGENCY_SIGNUP_PATH,
+  HOST_SIGNUP_PATH,
+} from "@/shared/config/supply";
+import {
   AgencyAccessRevoked,
   isAgencyAccessRevokedError,
   isRevokedStatus,
@@ -83,7 +87,7 @@ function VerificationBanner() {
           Your cars won&apos;t appear in public search yet. Upload your
           documents from the{" "}
           <Link
-            href={individual ? "/become-host" : "/become-agency"}
+            href={individual ? HOST_SIGNUP_PATH : AGENCY_SIGNUP_PATH}
             className="font-medium text-warning underline underline-offset-2 hover:no-underline"
           >
             application page

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
-import { parseCarFilters } from "@/features/cars/filters";
+import { Suspense } from "react";
+import { parseCarFilters, type CarSearchFilters } from "@/features/cars/filters";
 import { CarSearchResults } from "@/features/cars/components/car-search-results";
+import { CarSearchSkeleton } from "@/features/cars/components/car-search-skeleton";
 import { pageMetadata } from "@/shared/seo/metadata";
 import { BreadcrumbJsonLd } from "@/shared/seo/structured-data";
 import { getPublicCity } from "@/shared/seo/public-api";
@@ -19,6 +21,15 @@ import {
  * /cars/[city] — search results. Filters live in the URL (shareable +
  * SEO). Availability is prefetched only with dates. Without dates, render
  * the published catalog and agency links without claiming availability.
+ *
+ * STATUS CODE: this route is the main organic landing page, so an unknown
+ * city slug must answer a real 404 — never "200 and empty", which tells
+ * Google the URL exists. That is why there is NO `loading.tsx` here: a
+ * route-level loading file wraps the segment in Suspense, and the 200 shell
+ * is already on the wire before the page body can call `notFound()`. The
+ * skeleton instead lives on an in-page boundary BELOW the gate (see
+ * `<CityResults/>`), which keeps both. `scripts/seo-smoke.mjs` asserts the
+ * status codes against a production server so this cannot regress silently.
  */
 type Props = {
   params: Promise<{ city: string }>;
@@ -46,7 +57,46 @@ export async function generateMetadata({
 export default async function CarsByCityPage({ params, searchParams }: Props) {
   const { city } = await params;
   const filters = parseCarFilters(await searchParams);
+  // 404 GATE — awaited in the page body, so an unknown city, country or
+  // region is decided before the first byte leaves. Nothing rendered below
+  // may call notFound(): by then the 200 is committed.
   const location = await getPublicCity(city, filters.country, filters.region);
+
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-8">
+      <BreadcrumbJsonLd
+        items={[
+          { name: "Home", path: "/" },
+          {
+            name: location.name,
+            path: location.path,
+          },
+        ]}
+      />
+      <Suspense fallback={<CarSearchSkeleton />}>
+        <CityResults city={city} cityName={location.name} filters={filters} />
+      </Suspense>
+    </div>
+  );
+}
+
+/**
+ * Everything that needs the API. Streams in behind `<CarSearchSkeleton/>`, so
+ * the page frame paints immediately instead of waiting out a round trip —
+ * dated searches run with `revalidate: 0`, so they always pay for one.
+ *
+ * Only reachable once the city exists, and it never calls `notFound()`: the
+ * prefetch helpers throw on failure (→ the error boundary), they do not 404.
+ */
+async function CityResults({
+  city,
+  cityName,
+  filters,
+}: {
+  city: string;
+  cityName: string;
+  filters: CarSearchFilters;
+}) {
   const client = publicQueryClient();
   const hasDates = !!filters.from && !!filters.to && filters.to > filters.from;
   const [, directory] = await Promise.all([
@@ -68,28 +118,13 @@ export default async function CarsByCityPage({ params, searchParams }: Props) {
   ]);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
-      <BreadcrumbJsonLd
-        items={[
-          { name: "Home", path: "/" },
-          {
-            name: location.name,
-            path: location.path,
-          },
-        ]}
-      />
+    <>
       <HydrationBoundary state={dehydrate(client)}>
-        <CarSearchResults
-          city={city}
-          cityName={location.name}
-          filters={filters}
-        />
+        <CarSearchResults city={city} cityName={cityName} filters={filters} />
       </HydrationBoundary>
       {!hasDates && (
         <section className="mt-10 space-y-4">
-          <h2 className="font-display text-2xl">
-            Rent a car in {location.name}
-          </h2>
+          <h2 className="font-display text-2xl">Rent a car in {cityName}</h2>
           <p className="text-muted-foreground">
             Explore local agencies and private hosts, compare their cars and
             rental conditions, then choose your dates to check availability and
@@ -116,11 +151,11 @@ export default async function CarsByCityPage({ params, searchParams }: Props) {
                   : `/agencies?city=${encodeURIComponent(city)}`
               }
             >
-              Browse rental agencies in {location.name}
+              Browse rental agencies in {cityName}
             </Link>
           )}
         </section>
       )}
-    </div>
+    </>
   );
 }

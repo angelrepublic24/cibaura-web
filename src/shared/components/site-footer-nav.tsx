@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { AgenciesApi, agencyProfileKeys } from "@/features/agencies/api";
 import { useAuthStore } from "@/shared/auth/store";
+import { AGENCY_SIGNUP_PATH, HOST_SIGNUP_PATH } from "@/shared/config/supply";
 
 /** How many per-city links the footer shows at most. */
 const MAX_CITY_LINKS = 4;
@@ -53,10 +54,10 @@ export function SiteFooterNav() {
       </Link>
       {!isAgency ? (
         <>
-          <Link href="/become-host" className="hover:text-cream">
+          <Link href={HOST_SIGNUP_PATH} className="hover:text-cream">
             Rent out your car
           </Link>
-          <Link href="/become-agency" className="hover:text-cream">
+          <Link href={AGENCY_SIGNUP_PATH} className="hover:text-cream">
             Become an agency
           </Link>
         </>

@@ -23,6 +23,16 @@ import Link from "next/link";
  * store-scoped product URL). The `slug` segment is canonical/cosmetic; the
  * `carId` does the fetching. Trip dates ride in the query string so the
  * SERVER-side quote panel pre-fills them.
+ *
+ * STATUS CODE: a malformed id, an unpublished draft or a car on a hidden
+ * branch must answer a real 404, so there is deliberately NO `loading.tsx`
+ * here — a route-level loading file wraps the segment in Suspense and flushes
+ * a 200 shell before the page body can call `notFound()`.
+ *
+ * Unlike the two grid routes, this page gets no in-page skeleton either:
+ * `getPublicCar` IS the gate AND the entire above-the-fold content (gallery,
+ * title, price, JSON-LD), so there is nothing left to stream behind a
+ * fallback. A skeleton here would mean fetching the car twice.
  */
 type Props = {
   params: Promise<{ slug: string; carId: string }>;

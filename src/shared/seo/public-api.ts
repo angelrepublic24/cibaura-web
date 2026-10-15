@@ -12,6 +12,21 @@ import type {
   Paginated,
 } from "@/shared/types/domain";
 import { formatMoneyCents } from "@/shared/utils/money";
+import {
+  agencySlugSchema,
+  carIdSchema,
+  citySlugSchema,
+  countryCodeSchema,
+  matchesParam,
+  regionSlugSchema,
+} from "./route-params";
+
+/**
+ * Route params reach these getters straight from the URL, so each one opens
+ * with a zod SHAPE check (`./route-params`) and 404s before touching the API.
+ * The lookups below then decide EXISTENCE. Shape first keeps a path scanner
+ * off the backend entirely.
+ */
 
 /** Public GETs only: never forward session cookies or use the browser interceptors. */
 export async function publicGet<T>(
@@ -29,7 +44,7 @@ export async function publicGet<T>(
 }
 
 export const getPublicCar = cache(async (id: string) => {
-  if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)) notFound();
+  if (!matchesParam(carIdSchema, id)) notFound();
   const car = await publicGet<CarDetail>(`/cars/${encodeURIComponent(id)}`);
   // Backend CarStatus is draft | active | paused (no maintenance state).
   // Paused listings retain their public URL; only drafts were never published.
@@ -42,6 +57,7 @@ export const getPublicCar = cache(async (id: string) => {
 });
 
 export const getPublicAgency = cache(async (slug: string) => {
+  if (!matchesParam(agencySlugSchema, slug)) notFound();
   const agency = await publicGet<AgencyPublicProfile>(
     `/agencies/${encodeURIComponent(slug)}`,
   );
@@ -51,6 +67,11 @@ export const getPublicAgency = cache(async (slug: string) => {
 
 export const getPublicCity = cache(
   async (slug: string, country?: string, region?: string) => {
+    if (!matchesParam(citySlugSchema, slug)) notFound();
+    if (country !== undefined && !matchesParam(countryCodeSchema, country))
+      notFound();
+    if (region !== undefined && !matchesParam(regionSlugSchema, region))
+      notFound();
     const basePath = `/cars/${encodeURIComponent(slug)}`;
     let countryData: Country | undefined;
     let regionData: Region | undefined;

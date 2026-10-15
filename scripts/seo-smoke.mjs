@@ -257,6 +257,27 @@ async function runScenario(partial) {
       );
       return body;
     }
+    /**
+     * Status-only probe, for the routes that must answer 404.
+     *
+     * The DEFAULT user agent ("node") is deliberate: it is not an HTML-limited
+     * bot, so Next keeps `supportsDynamicResponse: true` and STREAMS. That is
+     * the exact path on which a Suspense shell above a page's `notFound()`
+     * flushes a 200 and the status can never be corrected — which is what the
+     * three deleted `loading.tsx` files did (commits a4432e6, aef85d4).
+     * `html()` cannot express this: it asserts `response.ok`.
+     *
+     * The body is drained so the fixture `requests` log is settled before the
+     * caller inspects it.
+     */
+    async function status(path, headers) {
+      const response = await fetch(
+        base + path,
+        headers ? { headers } : undefined,
+      );
+      await response.text();
+      return response.status;
+    }
     function visible(body) {
       return body.replace(/<script\b[\s\S]*?<\/script>/gi, "");
     }
@@ -338,6 +359,42 @@ async function runScenario(partial) {
         (await fetch(base + "/cars/shared-city")).status === 404,
         "Ambiguous city never picks a country silently",
       );
+      // /cars/[city] is the main organic landing page: a URL that names no
+      // real city has to answer 404, never "200 and empty". Streaming path.
+      check(
+        (await status("/cars/no-such-city")) === 404,
+        "Unknown city slug is 404, not a 200 skeleton",
+      );
+      check(
+        (await status("/cars/all?country=ZZ")) === 404,
+        "Unknown country code is 404",
+      );
+      check(
+        (await status("/cars/all?country=DO&region=no-such-region")) === 404,
+        "Unknown region slug is 404",
+      );
+      check(
+        (await status("/cars/fixture-city?region=fixture-region")) === 404,
+        "Region without a country is 404",
+      );
+      // An HTML-limited bot takes a different render path (Next awaits
+      // renderStream.allReady instead of streaming), so assert it separately.
+      check(
+        (await status("/cars/no-such-city", { "User-Agent": "Twitterbot" })) ===
+          404,
+        "Unknown city slug is 404 for HTML-limited bots too",
+      );
+      // Shape gate (src/shared/seo/route-params.ts): a param that cannot name
+      // a record 404s without costing the API a request.
+      const beforeMalformedCity = requests.length;
+      check(
+        (await status("/cars/Not_A_City")) === 404,
+        "Malformed city slug is 404",
+      );
+      check(
+        requests.length === beforeMalformedCity,
+        "Malformed city slug never reaches the API",
+      );
       const directory = await html("/agencies");
       check(
         text(directory).includes(agency.name),
@@ -346,6 +403,10 @@ async function runScenario(partial) {
       const profile = await html("/agencies/fixture-agency");
       check(
         visible(profile).includes('href="#agency-reviews"') &&
+          // Both indexes must EXIST: indexOf returns -1 for a missing needle,
+          // so a bare `a < b` passes when the fleet disappeared entirely.
+          visible(profile).indexOf("Toyota") >= 0 &&
+          visible(profile).indexOf('id="agency-reviews"') >= 0 &&
           visible(profile).indexOf("Toyota") <
             visible(profile).indexOf('id="agency-reviews"'),
         "Agency review anchor follows fleet, with rating link in header",
@@ -477,6 +538,32 @@ async function runScenario(partial) {
         )
           .map((item) => item["@type"])
           .join(",")})`,
+      );
+      // Same guard for the other two routes that gate on notFound(). Placed
+      // after the cumulative `/cars/${id}` fetch count above, so these probes
+      // cannot disturb it.
+      check(
+        (await status("/agencies/no-such-agency")) === 404,
+        "Unknown agency slug is 404, not a 200 skeleton",
+      );
+      check(
+        (await status(
+          "/agencies/fixture-agency/cars/66666666-6666-4666-8666-666666666666",
+        )) === 404,
+        "Unknown car id is 404, not a 200 skeleton",
+      );
+      const beforeMalformedParams = requests.length;
+      check(
+        (await status("/agencies/Not_An_Agency")) === 404,
+        "Malformed agency slug is 404",
+      );
+      check(
+        (await status("/agencies/fixture-agency/cars/not-a-uuid")) === 404,
+        "Malformed car id is 404",
+      );
+      check(
+        requests.length === beforeMalformedParams,
+        "Malformed agency and car params never reach the API",
       );
       logs.push(
         `FIXTURE HTML: ${visible(detail).match(/<h1\b[^>]*>[\s\S]*?<\/h1>/)?.[0]}`,
