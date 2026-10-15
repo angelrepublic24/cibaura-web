@@ -21,20 +21,27 @@ import { z } from "zod";
  */
 
 /**
- * Lowercase kebab-case, which is exactly what the backend emits: `slugify()`
- * strips diacritics and collapses every non `[a-z0-9]` run into a single
- * hyphen, and the collision suffix it appends is base36. So no legitimate
- * city, region or agency slug can fail this — see backend
- * `src/modules/catalog/data/makes-models.seed.ts`.
+ * Kebab-case. That is exactly what the backend emits: `slugify()` strips
+ * diacritics and collapses every non `[a-z0-9]` run into a single hyphen,
+ * and the collision suffix it appends is base36 (backend
+ * `src/modules/catalog/data/makes-models.seed.ts`). So no legitimate city,
+ * region or agency slug can fail this.
  *
- * 80 characters is well past the longest slug in production and short enough
- * that a padded path is rejected before it reaches the API.
+ * Two deliberate loosenings, each one a URL that worked before this gate:
+ *  - case-INSENSITIVE, because the agency lookup already lowercases
+ *    (`agencies.service.ts` → `where: { slug: slug.toLowerCase() }`):
+ *    `/agencies/Cibao-Rentals` rendered the storefront with a canonical
+ *    pointing at the lowercase URL, which is the correct SEO handling; a
+ *    lowercase-only gate would have turned that into a dead end.
+ *  - 160 characters, matching the `varchar(160)` the slug columns actually
+ *    are — not a guess at the longest slug in today's data. A long agency
+ *    name plus the 9-character collision suffix gets close.
  */
 const slugSchema = z
   .string()
   .min(1)
-  .max(80)
-  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "expected a lowercase kebab-case slug");
+  .max(160)
+  .regex(/^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/, "expected a kebab-case slug");
 
 /**
  * City segment. `all` is the nationwide/region-wide pseudo-city and already
@@ -52,7 +59,9 @@ export const regionSlugSchema = slugSchema;
  * ISO-3166-1 alpha-2 country filter (`?country=`). `parseCarFilters` upper-cases
  * it before it gets here.
  */
-export const countryCodeSchema = z.string().regex(/^[A-Z]{2}$/, "expected a 2-letter country code");
+export const countryCodeSchema = z
+  .string()
+  .regex(/^[A-Za-z]{2}$/, "expected a 2-letter country code");
 
 /**
  * Car id. `z.guid()` rather than `z.uuid()`: it accepts any 8-4-4-4-12 hex

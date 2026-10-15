@@ -42,10 +42,13 @@ export function HostCtaBand() {
           <h2 className="mt-3 font-display text-2xl text-navy-foreground md:text-3xl">
             Earn from a car that sits idle
           </h2>
+          {/* Payout wording tracks /legal/terms: earnings are credited to the
+              wallet when a booking settles, and withdrawn to the registered
+              bank account on request — not paid out automatically per rental. */}
           <p className="mt-3 text-sm leading-relaxed text-cream/80 md:text-base">
-            Set your own daily rate, accept only the requests you like, and get
-            paid to your bank after every rental. Listing is free — you pay a
-            commission only when you get a booking.
+            Set your own daily rate, accept only the requests you like, and
+            withdraw your earnings to your bank account. Listing is free — you
+            pay a commission only when you get a booking.
           </p>
         </div>
 
@@ -56,7 +59,9 @@ export function HostCtaBand() {
           >
             {HOST_SIGNUP_LABEL}
           </Link>
-          <p className="text-xs text-cream/70">
+          {/* Capped: the column is `shrink-0`, so an uncapped 49-character
+              caption would hand the footnote more width than the message. */}
+          <p className="text-xs text-cream/70 md:max-w-[15rem] md:text-right">
             Running a rent-a-car business?{" "}
             <Link
               href={AGENCY_SIGNUP_PATH}

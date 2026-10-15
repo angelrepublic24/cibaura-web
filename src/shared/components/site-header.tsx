@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { KeyRound } from "lucide-react";
 import { useMe } from "@/features/auth/hooks";
 import { useAuthStore } from "@/shared/auth/store";
 import { UserMenu } from "@/shared/components/user-menu";
@@ -23,6 +24,14 @@ import {
  * demand, and the host funnel used to live in the footer alone. It now sits
  * here on EVERY page, in the muted `linkCls` treatment so it stays clearly
  * secondary to the search (the real primary action) and to the Sign up button.
+ *
+ * Below `sm` it collapses to its icon. Measured at 360px: the wordmark is
+ * ~130px and the guest actions ~140px, which leaves no room for a third
+ * label. The alternatives were dropping the Sign up button on phones — a
+ * demand CTA this change has no business removing — or leaving the funnel in
+ * the footer on mobile, which is the problem being fixed. The link keeps its
+ * accessible name, and the full invitation is two scrolls away in the footer
+ * and on the homepage band.
  */
 export function SiteHeader() {
   useMe(); // hydrate session on every page
@@ -59,9 +68,12 @@ export function SiteHeader() {
           {showHostLink ? (
             <Link
               href={HOST_SIGNUP_PATH}
-              className={`${linkCls} whitespace-nowrap px-2 sm:px-3`}
+              className={`${linkCls} inline-flex items-center gap-1.5 whitespace-nowrap px-2 sm:px-3`}
             >
-              {HOST_SIGNUP_LABEL}
+              <KeyRound className="h-4 w-4 sm:hidden" />
+              <span className="sr-only sm:not-sr-only">
+                {HOST_SIGNUP_LABEL}
+              </span>
             </Link>
           ) : null}
           {status === "authenticated" && user ? (
@@ -77,12 +89,9 @@ export function SiteHeader() {
               >
                 Log in
               </Link>
-              {/* Hidden on the narrowest screens: three actions plus the
-                  wordmark overflow a 360px header, and the login page links
-                  straight to "Create an account" — so nothing is unreachable. */}
               <Link
                 href="/auth/register"
-                className="ml-1 hidden h-9 items-center rounded-[var(--radius-sm)] bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary-hover sm:inline-flex"
+                className="ml-1 inline-flex h-9 items-center rounded-[var(--radius-sm)] bg-primary px-3 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary-hover sm:px-4"
               >
                 Sign up
               </Link>
