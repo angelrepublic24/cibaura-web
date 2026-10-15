@@ -859,15 +859,14 @@ export interface PayoutAccountAdminDto extends PayoutAccountDto {
 /** Account lifecycle (backend `UserStatus`). */
 export type UserStatus = "active" | "suspended" | "deleted";
 
-/** Normalized editable settings from GET /admin/config.
- * Only settings with existing write routes are exposed.
+/*
+ * The admin platform configuration (`GET`/`PATCH /admin/config`) is NOT
+ * declared here. It is a zod contract in
+ * `src/features/admin/platform-config-contract.ts`, alongside the
+ * server-owned ranges the console form enforces — one source, so the shape
+ * and the bounds cannot drift apart. `CancellationPolicyDto` further down
+ * stays: it is the PUBLIC policy published through `GET /legal/current`.
  */
-export interface PlatformConfigDto {
-  commissionPct: number;
-  cancellationPolicy: CancellationPolicyDto;
-  /** Read-only if supplied; not exposed by the currently deployed GET. */
-  checkinAdvancePct?: number;
-}
 
 // ── Contracts & e-sign (ADR-0010) ──────────────────────────────────────────
 

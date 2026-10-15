@@ -5,7 +5,7 @@ import { usePlatformConfig } from "@/features/admin/hooks";
 import { getErrorMessage } from "@/shared/api/errors";
 import { ErrorState, LoadingState } from "@/shared/components/states";
 
-/** Editable settings use the deployed commission and cancellation-policy routes. */
+/** Every platform setting, saved in one PATCH /admin/config. */
 export default function AdminSettingsPage() {
   const config = usePlatformConfig();
 
@@ -14,8 +14,9 @@ export default function AdminSettingsPage() {
       <div>
         <h1 className="text-2xl font-bold">Settings</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Manage commission and cancellation policy. Additional settings are
-          unavailable until saving them is supported.
+          Commission, tax, cancellation policy, claim deadlines, deposits,
+          inspections and payouts. Saved together; the server validates every
+          field before it writes any of them.
         </p>
       </div>
 
