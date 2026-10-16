@@ -691,6 +691,24 @@ export interface CustomerVerificationWithDocuments {
 }
 
 /** Admin review view of one customer's verification (never the file bytes). */
+/**
+ * One row of the admin KYC queue (`GET /verification/customers`). No licence
+ * number and no date of birth: the queue triages, the detail reviews — and the
+ * detail read is written to the server's identity access log, so it is fetched
+ * one customer at a time, when a reviewer actually opens them.
+ */
+export interface CustomerVerificationQueueRow {
+  userId: string;
+  name: string;
+  email: string;
+  status: CustomerVerificationStatus;
+  licenseExpired: boolean;
+  rejectionReason: string | null;
+  reviewedAt: string | null;
+  documentCount: number;
+  createdAt: string;
+}
+
 export interface CustomerVerificationAdmin {
   userId: string;
   name: string;

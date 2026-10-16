@@ -4,6 +4,7 @@ import type {
   CustomerDocumentType,
   CustomerVerification,
   CustomerVerificationAdmin,
+  CustomerVerificationQueueRow,
   CustomerVerificationStatus,
   CustomerVerificationWithDocuments,
 } from "@/shared/types/domain";
@@ -26,7 +27,8 @@ import type {
  *        add the field the age gate needs without re-submitting.)
  *   - POST /verification/documents  (multipart: file + type) -> CustomerDocument
  *  Admin (platform_admin):
- *   - GET   /verification/customers?status=              -> CustomerVerificationAdmin[]
+ *   - GET   /verification/customers?status=              -> CustomerVerificationQueueRow[]
+ *       (triage only — no licence number, no date of birth)
  *   - GET   /verification/customers/:userId              -> CustomerVerificationAdmin
  *   - GET   /verification/customers/:userId/documents/:docId -> file bytes (blob)
  *   - PATCH /verification/customers/:userId/verify       -> CustomerVerificationAdmin
@@ -84,7 +86,7 @@ export const VerificationApi = {
   // ── Admin ──
   async listCustomers(
     status?: CustomerVerificationStatus,
-  ): Promise<CustomerVerificationAdmin[]> {
+  ): Promise<CustomerVerificationQueueRow[]> {
     const res = await Api.get("/verification/customers", {
       params: { status },
     });
