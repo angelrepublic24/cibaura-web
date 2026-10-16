@@ -9,6 +9,7 @@ import { AgreementCard } from "@/features/bookings/components/agreement-card";
 import { ChatPanel } from "@/features/bookings/components/chat-panel";
 import { CancelBookingDialog } from "@/features/bookings/components/cancel-booking-dialog";
 import { ClaimResponseCard } from "@/features/bookings/components/claim-response-card";
+import { ReportProblemNotice } from "@/features/bookings/components/report-problem-notice";
 import { DepositBanner } from "@/features/bookings/components/deposit-banner";
 import { InspectionsSection } from "@/features/bookings/components/inspections-section";
 import { SettlementCard } from "@/features/bookings/components/settlement-card";
@@ -17,6 +18,7 @@ import {
   StateTimeline,
 } from "@/features/bookings/components/booking-summary";
 import { useRequestPayment } from "@/features/bookings/use-request-payment";
+import { isAwaitingHandover } from "@/features/bookings/support-report";
 import { AgenciesApi, agencyProfileKeys } from "@/features/agencies/api";
 import { useLegalCurrent } from "@/features/legal/hooks";
 import { formatDays } from "@/features/legal/components/cancellation-policy";
@@ -521,6 +523,12 @@ function ReviewSection({ booking }: { booking: Booking }) {
  *  - a `closed` tier → no self-service cancel (the host is on site).
  *  - `active` → no self-service cancel; explain early return (recorded by
  *    the agency) with the policy figures from the API.
+ *
+ * Once the pickup day arrives on an `accepted` booking, the cancel row is
+ * preceded by `<ReportProblemNotice/>`: from here on, pressing Cancel is the
+ * customer paying the late-cancellation retention for an agency that may
+ * simply not have turned up, and support is the only route to the full
+ * refund the Terms already promise them.
  */
 function CancelSection({ booking }: { booking: BookingDetailData }) {
   const [open, setOpen] = useState(false);
@@ -571,24 +579,29 @@ function CancelSection({ booking }: { booking: BookingDetailData }) {
           : "";
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-4">
-      <p className="text-sm text-muted-foreground">
-        Need to cancel? You will see the exact refund before confirming.
-        {hint}
-      </p>
-      <Button
-        type="button"
-        variant="destructive"
-        size="sm"
-        onClick={() => setOpen(true)}
-      >
-        Cancel booking
-      </Button>
-      <CancelBookingDialog
-        booking={booking}
-        open={open}
-        onClose={() => setOpen(false)}
-      />
+    <div className="space-y-3">
+      {isAwaitingHandover(booking) ? (
+        <ReportProblemNotice booking={booking} retentionPct={retentionPct} />
+      ) : null}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-4">
+        <p className="text-sm text-muted-foreground">
+          Need to cancel? You will see the exact refund before confirming.
+          {hint}
+        </p>
+        <Button
+          type="button"
+          variant="destructive"
+          size="sm"
+          onClick={() => setOpen(true)}
+        >
+          Cancel booking
+        </Button>
+        <CancelBookingDialog
+          booking={booking}
+          open={open}
+          onClose={() => setOpen(false)}
+        />
+      </div>
     </div>
   );
 }
