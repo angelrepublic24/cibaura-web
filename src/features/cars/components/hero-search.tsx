@@ -102,7 +102,11 @@ export function HeroSearch() {
             setCity("");
           }}
         />
-        <div className="min-w-0 space-y-1.5">
+        {/* `relative`: the calendar is anchored to THIS field instead of being
+            appended to the form. In the flow it pushed the action button and
+            the category chips down the page every time it opened — off-screen
+            on a phone. */}
+        <div className="relative min-w-0 space-y-1.5">
           <Label id="hero-dates-label">
             Dates{" "}
             <span className="normal-case tracking-normal">(optional)</span>
@@ -141,6 +145,76 @@ export function HeroSearch() {
               );
             })}
           </div>
+          {editing ? (
+            <>
+              {/* A transparent catcher on desktop, a dimmed one on phones: one
+                  click anywhere outside closes the picker, without a document
+                  listener to register and tear down. */}
+              <div
+                className="fixed inset-0 z-40 bg-foreground/20 sm:bg-transparent"
+                onClick={closeDates}
+                aria-hidden
+              />
+              <div
+                id="hero-calendar"
+                className={cn(
+                  "z-50 border border-border bg-surface p-4 shadow-lg",
+                  // Phone: a sheet from the bottom. An anchored popover does not
+                  // fit a narrow screen and would cover the field being edited.
+                  "fixed inset-x-0 bottom-0 rounded-t-[var(--radius-lg)]",
+                  // From `sm` up: anchored under the field, out of the flow, so
+                  // nothing below it moves.
+                  "sm:absolute sm:inset-x-auto sm:bottom-auto sm:left-0 sm:top-full sm:mt-2 sm:w-[21rem] sm:rounded-[var(--radius)]",
+                )}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") closeDates();
+                }}
+              >
+                <DateRangePicker
+                  key={editing}
+                  editing={editing}
+                  value={{ from, to }}
+                  minDate={todayIso()}
+                  locale="en-GB"
+                  showAvailabilityLegend={false}
+                  isDayBlocked={() => false}
+                  onChange={(range) => {
+                    setNotice(
+                      to && !range.to
+                        ? "Pickup updated. Choose a new return date after pickup."
+                        : "",
+                    );
+                    setFrom(range.from);
+                    setTo(range.to);
+                    closeDates();
+                  }}
+                />
+                <div className="mt-2 flex justify-between gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setNotice("");
+                      setFrom("");
+                      setTo("");
+                      closeDates();
+                    }}
+                  >
+                    Any dates
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={closeDates}
+                  >
+                    Close
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : null}
         </div>
         <Button
           type="submit"
@@ -167,58 +241,6 @@ export function HeroSearch() {
       >
         {notice}
       </p>
-      {editing ? (
-        <div
-          id="hero-calendar"
-          className="mt-4 max-w-sm"
-          onKeyDown={(event) => {
-            if (event.key === "Escape") closeDates();
-          }}
-        >
-          <DateRangePicker
-            key={editing}
-            editing={editing}
-            value={{ from, to }}
-            minDate={todayIso()}
-            locale="en-GB"
-            showAvailabilityLegend={false}
-            isDayBlocked={() => false}
-            onChange={(range) => {
-              setNotice(
-                to && !range.to
-                  ? "Pickup updated. Choose a new return date after pickup."
-                  : "",
-              );
-              setFrom(range.from);
-              setTo(range.to);
-              closeDates();
-            }}
-          />
-          <div className="mt-2 flex justify-between gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setNotice("");
-                setFrom("");
-                setTo("");
-                closeDates();
-              }}
-            >
-              Any dates
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={closeDates}
-            >
-              Close
-            </Button>
-          </div>
-        </div>
-      ) : null}
 
       {/* Quick facets: preselect a category before searching. */}
       <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-border pt-4">
