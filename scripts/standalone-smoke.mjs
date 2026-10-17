@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { cp, readdir } from "node:fs/promises";
 import { createServer } from "node:net";
 import path from "node:path";
@@ -31,6 +32,20 @@ server.stdout.on("data", (chunk) => {
 server.stderr.on("data", (chunk) => {
   logs += chunk;
 });
+/**
+ * The share image lives in ONE place (`src/shared/seo/metadata.ts`) because
+ * changing the art means changing the FILENAME — social platforms cache a
+ * preview against its URL, so overwriting bytes behind a stable path never
+ * reaches them. Parsed rather than imported: this is plain .mjs and the
+ * constant is TypeScript.
+ */
+const OG_IMAGE = (() => {
+  const src = readFileSync("src/shared/seo/metadata.ts", "utf8");
+  const found = /export const OG_IMAGE = "([^"]+)"/.exec(src);
+  assert.ok(found, "OG_IMAGE not found in src/shared/seo/metadata.ts");
+  return found[1];
+})();
+
 const origin = `http://127.0.0.1:${port}`;
 async function get(route) {
   const response = await fetch(origin + route, {
@@ -66,8 +81,13 @@ try {
     corsMatched: false,
   });
   console.log(`CI artifact health: ${JSON.stringify(health)}`);
-  await get("/brand/og.png");
-  const optimized = await get("/_next/image?url=%2Fbrand%2Fog.png&w=640&q=75");
+  // Read the path instead of repeating it: this smoke test hardcoded
+  // `/brand/og.png` and went red the moment the art was versioned, which is
+  // exactly the rename the social caches require. One source, no drift.
+  await get(OG_IMAGE);
+  const optimized = await get(
+    `/_next/image?url=${encodeURIComponent(OG_IMAGE)}&w=640&q=75`,
+  );
   assert.match(optimized.headers.get("content-type"), /^image\//);
   assert.match(
     await (await get("/robots.txt")).text(),
