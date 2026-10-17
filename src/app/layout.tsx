@@ -6,7 +6,7 @@ import QueryProvider from "@/shared/providers/query-provider";
 import { SiteHeader } from "@/shared/components/site-header";
 import { SiteFooterNav } from "@/shared/components/site-footer-nav";
 import { Logo } from "@/shared/components/logo";
-import { SITE_URL } from "@/shared/seo/metadata";
+import { OG_IMAGE, SITE_URL } from "@/shared/seo/metadata";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     description:
       "Search by city and dates, compare local agencies, book in minutes.",
     siteName: "Cibaura",
-    images: [{ url: "/brand/og.png", width: 1200, height: 630, alt: "Cibaura" }],
+    images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: "Cibaura" }],
     type: "website",
   },
   twitter: {
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
     title: "Cibaura — mobility, reservations, rental marketplace",
     description:
       "Search by city and dates, compare local agencies, book in minutes.",
-    images: ["/brand/og.png"],
+    images: [OG_IMAGE],
   },
 };
 
