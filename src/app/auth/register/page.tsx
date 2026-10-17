@@ -4,7 +4,7 @@ import { Logo } from "@/shared/components/logo";
 import { pageMetadata } from "@/shared/seo/metadata";
 
 export function generateMetadata() {
-  return pageMetadata({ title: "Create account", description: "Create your Cibaura account to request car rentals in the Dominican Republic.", path: "/auth/register", noIndex: true });
+  return pageMetadata({ title: "Create account", description: "Create your Cibaura account to request car rentals in the Dominican Republic and the United States.", path: "/auth/register", noIndex: true });
 }
 
 export default function RegisterPage() {

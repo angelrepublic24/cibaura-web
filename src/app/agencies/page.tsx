@@ -20,7 +20,7 @@ export function generateMetadata(): Metadata {
   return pageMetadata({
     title: "Agencies",
     description:
-      "Browse verified rental agencies and private hosts in the Dominican Republic. Explore their cars and rental conditions.",
+      "Browse verified rental agencies and private hosts in the Dominican Republic and the United States. Explore their cars and rental conditions.",
     path: "/agencies",
   });
 }
