@@ -35,7 +35,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: `${agency.name} — car rentals`,
     description:
       agency.description ||
-      `Explore rental cars from ${agency.name} in the Dominican Republic. View vehicles and rental conditions on Cibaura.`,
+      // The agency's OWN cities, not a hardcoded country: `AgencyPublicProfile`
+      // carries `cities` but no country code, and naming the city is both
+      // truthful in every market and better for search than a country.
+      `Explore rental cars from ${agency.name}${
+        agency.cities.length
+          ? ` in ${agency.cities
+              .slice(0, 3)
+              .map((city) => city.name)
+              .join(", ")}`
+          : ""
+      }. View vehicles and rental conditions on Cibaura.`,
     path: `/agencies/${encodeURIComponent(agency.slug)}`,
   });
 }

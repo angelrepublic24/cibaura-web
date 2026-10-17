@@ -6,7 +6,7 @@ import { OrganizationJsonLd } from "@/shared/seo/structured-data";
 
 export function generateMetadata() {
   return pageMetadata({
-    title: "Car rental in the Dominican Republic",
+    title: "Car rental in the Dominican Republic and the US",
     description: SITE_DESCRIPTION,
     path: "/",
   });

@@ -164,6 +164,24 @@ export function carTitle(car: Pick<Car, "year" | "make" | "model">): string {
   return `${car.year} ${car.make.name} ${car.model.name}`;
 }
 
+/**
+ * ISO 3166-1 alpha-2 -> the country's English name. `Intl.DisplayNames` ships
+ * with Node and the browser, so a new market needs no table here: the car
+ * already carries `location.countryCode`, and this renders it.
+ *
+ * This used to be the literal string "Dominican Republic", which was fine
+ * while that was the only market and becomes a FALSE STATEMENT on the indexed
+ * description of every US car the day one is listed.
+ */
+const countryNames = new Intl.DisplayNames(["en"], { type: "region" });
+
+function countryName(code: string): string {
+  // `of` returns the input back for a code it does not know; that is a better
+  // description than a thrown error on a page Google is crawling.
+  return countryNames.of(code.toUpperCase()) ?? code;
+}
+
 export function carDescription(car: CarDetail): string {
-  return `Rent the ${carTitle(car)} from ${car.agency.name} in ${car.branch.city.name}, Dominican Republic. Base rate ${formatMoneyCents(car.pricePerDayCents)} per day; fees calculated at booking. View photos and rental conditions.`;
+  const place = `${car.branch.city.name}, ${countryName(car.location.countryCode)}`;
+  return `Rent the ${carTitle(car)} from ${car.agency.name} in ${place}. Base rate ${formatMoneyCents(car.pricePerDayCents)} per day; fees calculated at booking. View photos and rental conditions.`;
 }

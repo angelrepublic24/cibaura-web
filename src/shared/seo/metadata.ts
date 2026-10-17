@@ -5,7 +5,7 @@ export { SITE_URL };
 
 export const SITE_TITLE = "Cibaura — rent a car near you";
 export const SITE_DESCRIPTION =
-  "Find rental cars from local agencies and private hosts in the Dominican Republic. Compare cars and request your booking on Cibaura.";
+  "Find rental cars from local agencies and private hosts in the Dominican Republic and the United States. Compare cars and request your booking on Cibaura.";
 
 export function absoluteUrl(path: string): string {
   return new URL(path, SITE_URL).href;
