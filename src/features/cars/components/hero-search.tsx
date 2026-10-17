@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
  * Submitting navigates to /cars/[city]?from&to[&category] — the results
  * page derives its query key from those URL params.
  */
-export function HeroSearch({ layout = "B" }: { layout?: "A" | "B" } = {}) {
+export function HeroSearch() {
   const router = useRouter();
   const [editing, setEditing] = useState<"from" | "to" | null>(null);
   const [city, setCity] = useState("");
@@ -81,15 +81,12 @@ export function HeroSearch({ layout = "B" }: { layout?: "A" | "B" } = {}) {
       onSubmit={submit}
       className="rounded-[var(--radius-lg)] border border-border bg-surface p-5 shadow-lg md:p-6"
     >
-      {/* Both previews stack on phones; desktop A keeps a compact action inline. */}
-      <div
-        className={cn(
-          "grid grid-cols-1 items-end gap-4 sm:grid-cols-2",
-          layout === "A"
-            ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_auto]"
-            : "lg:grid-cols-4",
-        )}
-      >
+      {/* One row on desktop: country, region, city, dates, action. The dates
+          sit immediately after the city because that is the order a renter
+          thinks in — where, then when — and keeping the action INLINE stops
+          the form ending in a full-width bar, which read as a second section
+          rather than as the end of the search. Phones stack; `sm` pairs them. */}
+      <div className="grid grid-cols-1 items-end gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_auto]">
         <DestinationFields
           country={selectedCountry?.code ?? ""}
           region={region}
@@ -156,9 +153,7 @@ export function HeroSearch({ layout = "B" }: { layout?: "A" | "B" } = {}) {
             // the brand through it. Overridden here, not globally: other
             // disabled buttons in the app are not brand-coloured.
             "disabled:opacity-100 disabled:bg-muted disabled:text-muted-foreground disabled:border disabled:border-border",
-            layout === "B"
-              ? "col-span-full"
-              : "sm:col-span-2 lg:col-span-1 lg:px-3",
+            "sm:col-span-2 lg:col-span-1 lg:px-3",
           )}
           aria-label={actionLabel}
         >
