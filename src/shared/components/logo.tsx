@@ -56,7 +56,12 @@ export function Logo({
 
   return (
     <Image
-      src={onDark ? "/brand/wordmark.png" : "/brand/wordmark-dark.png"}
+      // `wordmark.png` is NOT usable: 87% of its canvas is semi-opaque (its
+      // alpha floor is 22, never 0), so on the footer's navy it composited as
+      // a washed rectangle around the mark. `wordmark-light.png` is derived
+      // from the cleanly-cut `wordmark-dark.png` — same artwork, only the
+      // WORDMARK recoloured to `--cream`, the isotype left in brand blue.
+      src={onDark ? "/brand/wordmark-light.png" : "/brand/wordmark-dark.png"}
       alt="Cibaura"
       width={LOCKUP_W}
       height={LOCKUP_H}
