@@ -167,8 +167,15 @@ export function DestinationFields({
           ))}
         </Select>
       </div>
+      {/* `order-last` on every one of these notices, and it is load-bearing.
+          They are direct children of the search GRID and sit between the city
+          field and the dates field in DOM order, so a `col-span-full` notice
+          opens a full row right there and shoves the dates and the action
+          button onto the row below — the layout jumps the moment any query
+          blips. Visual order moves; DOM order stays, which is where a screen
+          reader wants the alert: next to the fields it is about. */}
       {regionsQuery.isError ? (
-        <p role="alert" className="col-span-full text-sm">
+        <p role="alert" className="order-last col-span-full text-sm">
           Regions could not be loaded. You can still browse the country.{" "}
           <button
             type="button"
@@ -180,7 +187,7 @@ export function DestinationFields({
         </p>
       ) : null}
       {failed ? (
-        <p role="alert" className="col-span-full text-sm">
+        <p role="alert" className="order-last col-span-full text-sm">
           Destinations could not be loaded.{" "}
           <button
             type="button"
@@ -195,13 +202,15 @@ export function DestinationFields({
         </p>
       ) : null}
       {!countriesQuery.isPending && !failed && countries.length === 0 ? (
-        <p className="col-span-full text-sm">No destinations are listed yet.</p>
+        <p className="order-last col-span-full text-sm">
+          No destinations are listed yet.
+        </p>
       ) : null}
       {selectedCountry &&
       !citiesQuery.isPending &&
       !failed &&
       countryCities.length === 0 ? (
-        <p className="col-span-full text-sm">
+        <p className="order-last col-span-full text-sm">
           No cities are listed for this selection. You can still browse without
           choosing a city.
         </p>
