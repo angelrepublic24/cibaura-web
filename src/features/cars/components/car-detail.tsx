@@ -210,7 +210,7 @@ export function CarDetail({
       </div>
 
       <div className="space-y-4">
-        <RentalConditions agency={car.agency} depositCents={car.depositCents} />
+        <RentalConditions agency={car.agency} />
         {car.status === "paused" ? (
           <p className="text-sm text-muted-foreground" role="status">
             This car is temporarily unavailable for booking.
@@ -293,17 +293,16 @@ function PhotoGallery({ photos, alt }: { photos: string[]; alt: string }) {
 /**
  * "Rental conditions by {agency}" — the agency's own terms the customer
  * accepts at request time (frozen into the booking's agreement snapshot):
- * free-text conditions, minimum driver age, the security deposit (server
- * figure: car override or platform default) and the deposit note. Rendered
- * ABOVE the booking widget so nobody requests without seeing them.
+ * the free-text conditions and the deposit note. Rendered ABOVE the booking
+ * widget so nobody requests without seeing them.
+ *
+ * NO DEPOSIT FIGURE HERE. The same page already states it twice, and better:
+ * <RentalPolicyCard/> gives the amount with what actually happens to it (held
+ * at check-in, not charged, released at check-out, and the claim path), and
+ * the booking panel repeats it next to the card field. A bare number in a
+ * third tile only invited the reader to wonder which one governs.
  */
-function RentalConditions({
-  agency,
-  depositCents,
-}: {
-  agency: CarDetailAgencyDto;
-  depositCents: number;
-}) {
+function RentalConditions({ agency }: { agency: CarDetailAgencyDto }) {
   const [expanded, setExpanded] = useState(false);
   const conditions = agency.rentalConditions?.trim() ?? "";
   const long = conditions.length > 420;
@@ -317,25 +316,6 @@ function RentalConditions({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
-        <dl className="grid grid-cols-2 gap-3">
-          <div className="rounded-[var(--radius-sm)] bg-muted/60 p-3">
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-              Minimum driver age
-            </dt>
-            <dd className="mt-0.5 font-semibold text-foreground">
-              {agency.minDriverAge} years
-            </dd>
-          </div>
-          <div className="rounded-[var(--radius-sm)] bg-muted/60 p-3">
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-              Estimated security deposit
-            </dt>
-            <dd className="mt-0.5 font-semibold text-foreground">
-              {depositCents > 0 ? formatMoneyCents(depositCents) : "None"}
-            </dd>
-          </div>
-        </dl>
-
         {agency.depositNote ? (
           <p className="text-muted-foreground">
             <span className="font-medium text-foreground">Deposit: </span>
