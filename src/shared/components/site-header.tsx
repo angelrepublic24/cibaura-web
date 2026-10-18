@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useMe } from "@/features/auth/hooks";
 import { useAuthStore } from "@/shared/auth/store";
 import { UserMenu } from "@/shared/components/user-menu";
@@ -25,12 +26,25 @@ import { Logo } from "@/shared/components/logo";
  * the footer on mobile, which is the problem being fixed. The link keeps its
  * accessible name, and the full invitation is two scrolls away in the footer
  * and on the homepage band.
+ *
+ * NOT ON `/auth`. Those four screens already centre their own <Logo> linking
+ * home, so the header only ever duplicated the brand — and its guest actions
+ * offered "Log in" on the log-in page and "Sign up" on the sign-up page.
+ * Nothing becomes unreachable: every auth form carries its own cross-link
+ * (log in ⇄ sign up ⇄ forgot password), and the page logo is still the way
+ * back to the storefront.
  */
 export function SiteHeader() {
   useMe(); // hydrate session on every page
+  const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
   const status = useAuthStore((s) => s.status);
   const hasRole = useAuthStore((s) => s.hasRole);
+
+  // After every hook, never before — bailing earlier would change the hook
+  // order between routes. Matched exactly so a future `/authors` keeps its
+  // header.
+  if (pathname === "/auth" || pathname.startsWith("/auth/")) return null;
 
   const linkCls =
     "rounded-[var(--radius-sm)] px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground";
