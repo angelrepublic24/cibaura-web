@@ -46,6 +46,13 @@ export interface Country {
   id: string;
   name: string;
   code: string; // ISO-3166 alpha-2, e.g. "DO"
+  /**
+   * The country's own tax rate, or `null` when it has none of its own — which
+   * means the PLATFORM rate applies, NOT that the market is tax-free. The
+   * rate that reaches a booking is resolved from the CAR's country
+   * (branch -> city -> country), never from where the renter is.
+   */
+  taxRatePct: number | null;
 }
 
 export interface Region {
@@ -159,6 +166,12 @@ export interface AgencySettings {
   rentalConditions: string | null;
   minDriverAge: number;
   depositNote: string | null;
+  /**
+   * The deposit cars inherit when they set none of their own, integer cents.
+   * `null` = this agency has no default (such a car then asks for nothing),
+   * `0` = the agency deliberately charges none, `> 0` = the amount.
+   */
+  defaultDepositCents: number | null;
   payoutBankDetails: PayoutBankDetails | null;
 }
 
@@ -187,6 +200,11 @@ export interface Branch {
   deliveryMaxKm: number | null;
 }
 
+/**
+ * A branch delivery zone as the AGENCY sees it — `feeCents` is the host's own
+ * figure. The renter's copy lives on `CarDetail.deliveryZones` and carries
+ * `renterFeeCents` (the same fee with the platform commission folded in).
+ */
 export interface DeliveryZone {
   id: string;
   branchId: string;
@@ -295,6 +313,13 @@ export interface CarDocumentAdminDto extends CarDocumentDto {
  * Relations arrive as embedded `NamedRef`s (`agency`/`make`/`model`), not
  * as ids + optional expansions. `primaryPhoto` is the first photo URL (or
  * `null`); the full gallery lives on `CarDetail.photos`.
+ *
+ * MONEY NAMING (contract-wide): every amount is `host*` or `renter*`.
+ * `host*` is the agency's own figure and belongs on host and admin screens
+ * ONLY; `renter*` is the same figure with the platform commission already
+ * folded in, and is the only money a renter may be shown. There is no
+ * commission line in a renter's breakdown — the markup lives inside the
+ * rate. Both are server-computed: never derive one from the other here.
  */
 export interface Car {
   location: {
@@ -314,8 +339,10 @@ export interface Car {
   fuel: FuelType;
   seats: number;
   category: CarCategory;
-  /** Per-day rate, integer cents — set by the agency, displayed as-is. */
-  pricePerDayCents: number;
+  /** The host's own per-day rate, integer cents. HOST/ADMIN screens only. */
+  hostDailyRateCents: number;
+  /** The per-day rate a renter is shown, integer cents (commission included). */
+  renterDailyRateCents: number;
   /** First photo URL, or null when the car has none. */
   primaryPhoto: string | null;
   /**
@@ -351,14 +378,19 @@ export interface CarDetail extends Car {
      *  Delivery fee is computed server-side; the client only learns whether
      *  delivery is offered + the fee parameters (for display). */
     deliveryEnabled: boolean;
-    deliveryBaseFeeCents: number;
-    deliveryPerKmCents: number;
+    renterDeliveryBaseFeeCents: number;
+    renterDeliveryPerKmCents: number;
     deliveryMaxKm: number | null;
   };
-  /** Active delivery zones of the car's branch (id/name/fee only). */
-  deliveryZones: { id: string; name: string; feeCents: number }[];
-  /** Security deposit held at check-in (car override or platform default), cents. */
+  /** Active delivery zones of the car's branch (id/name/renter fee only). */
+  deliveryZones: { id: string; name: string; renterFeeCents: number }[];
+  /** Security deposit held at check-in (car -> agency -> platform), cents. */
   depositCents: number;
+  /**
+   * `depositCents > 0`, decided server-side. A deposit is a hold that is
+   * returned — it is NEVER part of any total.
+   */
+  depositRequired: boolean;
 }
 
 /**
@@ -370,8 +402,16 @@ export interface AgencyCar extends Car {
   plate?: string;
   makeId?: string;
   modelId?: string;
-  /** Per-car deposit override in cents; `null` = the platform default applies. */
-  depositCents: number | null;
+  /**
+   * The RAW stored deposit of this car, integer cents — three distinct
+   * states: `null` = inherit the agency's value, `0` = no deposit even if
+   * the agency asks for one, `> 0` = this car's own figure.
+   */
+  depositOverrideCents: number | null;
+  /** What the car -> agency -> platform chain yields today, integer cents. */
+  resolvedDepositCents: number;
+  /** `resolvedDepositCents > 0`; `false` means damage cannot be claimed. */
+  depositRequired: boolean;
   /** The car's registration document, or null when none was uploaded yet. */
   registration: CarDocumentDto | null;
 }
@@ -449,24 +489,42 @@ export interface BookingCustomerDto {
 }
 
 /**
- * Frozen pricing snapshot — computed SERVER-SIDE (days x rate + delivery
- * fee + platform commission) and never recomputed by any client. All
- * cents. Shared by `Booking.pricing` and the `Quote` preview.
+ * Frozen pricing snapshot — computed SERVER-SIDE and never recomputed by
+ * any client. All cents. Shared by `Booking.pricing` and the `Quote`
+ * preview. `host*` / `renter*` follow the naming rule on {@link Car}.
+ *
+ * A RENTER breakdown is exactly three lines: `renterDailyRateCents` ×
+ * `days` for `renterSubtotalCents`, `+ taxCents`, `= totalCents`. The
+ * subtotal must be READ from `renterSubtotalCents` and never multiplied
+ * out here: bookings taken before the markup moved inside the daily rate
+ * carry a commission of `round(subtotal × pct)` and can differ from
+ * `rate × days` by a cent or two.
  */
 export interface Pricing {
   days: number;
-  ratePerDayCents: number;
-  deliveryFeeCents: number;
-  /** days×rate + deliveryFee (what the agency earns). */
-  subtotalCents: number;
+  /** The host's own per-day rate. HOST/ADMIN only. */
+  hostDailyRateCents: number;
+  /** The per-day rate the renter is charged (commission included). */
+  renterDailyRateCents: number;
+  /** The host's own delivery fee. HOST/ADMIN only. */
+  hostDeliveryFeeCents: number;
+  /** The delivery fee the renter is charged (commission included). */
+  renterDeliveryFeeCents: number;
+  /** EXACTLY hostRate×days + hostDeliveryFee — what the agency is credited. */
+  hostSubtotalCents: number;
+  /** renterRate×days + renterDeliveryFee — what the renter's subtotal reads. */
+  renterSubtotalCents: number;
   /** Snapshot % on a Booking; current % on a Quote. */
   commissionPct: number;
-  /** round(subtotal × pct / 100), half-up. */
+  /**
+   * renterSubtotal − hostSubtotal, so the rounding remainder lands on the
+   * platform and the host is credited to the cent. HOST/ADMIN only.
+   */
   commissionCents: number;
-  /** Server-computed tax amount and the rate used; frozen on a booking. */
+  /** Server-computed tax amount and the rate used (the CAR's country). */
   taxCents: number;
   taxRatePct: number;
-  /** subtotal + commission + tax (server total; never recompute). */
+  /** renterSubtotal + tax (server total; never recompute). */
   totalCents: number;
   currency: string; // 'USD'
 }
@@ -477,6 +535,12 @@ export type PricingSnapshot = Pricing;
 /** Server-computed price preview — NO booking is created. */
 export interface Quote {
   pricing: Pricing;
+  /** The deposit this booking would hold, resolved car -> agency -> platform. */
+  depositCents: number;
+  /** `depositCents > 0`. A hold that is returned — never part of the total. */
+  depositRequired: boolean;
+  expiresAt: string;
+  token: string;
 }
 
 /**
@@ -520,6 +584,8 @@ export interface Booking {
   customer?: BookingCustomerDto;
   /** Frozen booking deposit from the backend, cents; never use current car/config values. */
   depositCents: number;
+  /** `depositCents > 0`; the hold is returned and is not part of the total. */
+  depositRequired: boolean;
   /** Check-in / check-out inspections (ADR-0011), lightweight refs. */
   inspections: { type: InspectionType; status: InspectionStatus; id: string }[];
 }

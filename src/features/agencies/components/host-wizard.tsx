@@ -74,6 +74,13 @@ import { formatMoneyCents } from "@/shared/utils/money";
  * status and the fleet, so a refresh (or a return visit days later) resumes
  * exactly where the host left off. Cars stay `draft` until an admin verifies
  * the host and the car's registration.
+ *
+ * Step 5 sits on the far side of verification: steps 1–4 are the application
+ * itself and stay open to a pending host, but creating a car is a dashboard
+ * write and a pending agency writes nothing (403
+ * AGENCY_APPLICATION_UNDER_REVIEW). The wizard therefore closes at "we're
+ * reviewing your application" and reopens at the car once the host is
+ * verified.
  */
 
 type WizardStep = HostLocalStep | "documents" | "agreement" | "car" | "done";
@@ -103,13 +110,21 @@ function stepIndex(step: WizardStep): number {
   return step === "done" ? STEPS.length : STEPS.findIndex((s) => s.key === step);
 }
 
-function StepIndicator({ current }: { current: WizardStep }) {
+function StepIndicator({
+  current,
+  /** Step that cannot be reached yet — never drawn as done, whatever the
+   *  current step is (the host is parked past it, waiting on verification). */
+  locked,
+}: {
+  current: WizardStep;
+  locked?: WizardStep;
+}) {
   const currentIndex = stepIndex(current);
   return (
     <ol className="flex flex-wrap items-center gap-3 text-sm">
       {STEPS.map((s, i) => {
         const active = s.key === current;
-        const done = i < currentIndex;
+        const done = i < currentIndex && s.key !== locked;
         return (
           <li key={s.key} className="flex items-center gap-3">
             <span className="flex items-center gap-2">
@@ -608,19 +623,29 @@ function MemberSteps() {
   const signed = agreement.signed !== null && !agreement.resignRequired;
   const car: AgencyCar | null = fleetQuery.data.items[0] ?? null;
   const registrationDone = !!car && (!!car.registration || registrationUploaded);
+  const verified = sessionQuery.data.agency.verificationStatus === "verified";
 
+  // The first-car step WRITES (`POST /agency/fleet` + the registration
+  // document) and a pending applicant writes nothing — the backend answers
+  // 403 AGENCY_APPLICATION_UNDER_REVIEW until an admin verifies them. So the
+  // wizard parks at "waiting for review" after the signature and resumes at
+  // the car once the host is verified, instead of offering a form that cannot
+  // submit. The two steps still open to an applicant (ID documents, the
+  // agreement) come first, so nothing earlier is blocked.
   const derived: WizardStep = !docsComplete
     ? "documents"
     : !signed
       ? "agreement"
-      : !car || !registrationDone
-        ? "car"
-        : "done";
+      : !verified
+        ? "done"
+        : !car || !registrationDone
+          ? "car"
+          : "done";
   const step: WizardStep = visiting ?? derived;
 
   return (
     <div className="space-y-6">
-      <StepIndicator current={step} />
+      <StepIndicator current={step} locked={verified ? undefined : "car"} />
 
       {step === "documents" ? (
         <Card>
@@ -675,7 +700,7 @@ function MemberSteps() {
       ) : (
         <DoneStep
           car={car}
-          verified={sessionQuery.data.agency.verificationStatus === "verified"}
+          verified={verified}
           onReviewDocuments={() => setVisiting("documents")}
         />
       )}
@@ -725,7 +750,7 @@ function FirstCarStep({
                   {car.make.name} {car.model.name} {car.year}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  {formatMoneyCents(car.pricePerDayCents)}/day · saved as a draft
+                  {formatMoneyCents(car.hostDailyRateCents)}/day · saved as a draft
                 </p>
               </div>
             </div>
@@ -791,6 +816,12 @@ function FirstCarStep({
   );
 }
 
+/**
+ * End of the wizard. Two different endings: a VERIFIED host owns the
+ * dashboard and their car; a PENDING one has finished everything they are
+ * allowed to do and is waiting on the review — their car comes after it, so
+ * this must not promise a draft they cannot create.
+ */
 function DoneStep({
   car,
   verified,
@@ -814,14 +845,14 @@ function DoneStep({
           <p className="mt-1 text-sm text-muted-foreground">
             {verified
               ? "Publish your car from the dashboard whenever you are ready."
-              : "Our team checks your ID and the car's registration document, usually within a few business days. Your car stays a draft until then — you can keep polishing photos and prices meanwhile."}
+              : "Our team checks your ID and your details, usually within a few business days. We'll email you the decision — you add your first car as soon as you are verified."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/agency" className={buttonVariants({ variant: "default" })}>
-            Go to your dashboard
+            {verified ? "Go to your dashboard" : "See your application status"}
           </Link>
-          {car ? (
+          {verified && car ? (
             <Link
               href={`/agency/fleet/${car.id}`}
               className={buttonVariants({ variant: "outline" })}

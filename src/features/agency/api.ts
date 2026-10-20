@@ -185,6 +185,12 @@ export interface UpdateAgencySettingsInput {
   rentalConditions?: string;
   minDriverAge?: number;
   depositNote?: string;
+  /**
+   * The deposit cars inherit when they set none of their own, 0..500000
+   * cents. `null` CLEARS the default (such a car then asks for nothing);
+   * omitting the field leaves it alone.
+   */
+  defaultDepositCents?: number | null;
   payoutBankDetails?: PayoutBankDetails | null;
 }
 
@@ -217,10 +223,14 @@ export interface CreateCarInput {
   seats: number;
   category: CarCategory;
   plate: string; // private — agency-only
-  pricePerDayCents: number; // integer cents
+  /** The HOST's own per-day rate, integer cents; the renter-facing one is
+   *  derived server-side and comes back as `renterDailyRateCents`. */
+  pricePerDayCents: number;
   /**
-   * Security deposit override, integer cents (spec §3 `Car.depositCents`).
-   * Omitted / `null` = the platform default deposit applies.
+   * The car's stored deposit decision, integer cents — the request field
+   * `AgencyCarDto` reads back as `depositOverrideCents`. Omitted / `null` =
+   * inherit (agency default, then the platform's), `0` = no deposit even if
+   * the agency asks for one, `> 0` = this car's own figure.
    */
   depositCents?: number | null;
   photos?: string[];

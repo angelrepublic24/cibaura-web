@@ -183,5 +183,5 @@ function countryName(code: string): string {
 
 export function carDescription(car: CarDetail): string {
   const place = `${car.branch.city.name}, ${countryName(car.location.countryCode)}`;
-  return `Rent the ${carTitle(car)} from ${car.agency.name} in ${place}. Base rate ${formatMoneyCents(car.pricePerDayCents)} per day; fees calculated at booking. View photos and rental conditions.`;
+  return `Rent the ${carTitle(car)} from ${car.agency.name} in ${place}. ${formatMoneyCents(car.renterDailyRateCents)} per day; tax calculated at booking. View photos and rental conditions.`;
 }

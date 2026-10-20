@@ -23,18 +23,24 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
 
 /**
  * "Deposit and cancellation policy" on the car page: the security deposit
- * currently resolved for this car (`CarDetailDto.depositCents` — car override or the
- * platform default, decided server-side), the three policy tiers from
+ * currently resolved for this car (`CarDetailDto.depositCents` — car, then
+ * agency, then platform, decided server-side), the three policy tiers from
  * `GET /legal/current`, and the published rental agreement
  * (`GET /legal/contracts/rental_agreement`, generic placeholders) so the
  * customer can read what they will sign BEFORE choosing dates.
+ *
+ * `depositRequired` is the server's answer, not `depositCents > 0` read
+ * again here: "no deposit" is a host's deliberate choice and is stated as
+ * one, never as a missing amount.
  */
 export function RentalPolicyCard({
   depositCents,
+  depositRequired,
   agencyName,
   className,
 }: {
   depositCents: number;
+  depositRequired: boolean;
   agencyName: string;
   className?: string;
 }) {
@@ -55,28 +61,29 @@ export function RentalPolicyCard({
       <CardContent className="space-y-4 text-sm">
         <div className="rounded-[var(--radius-sm)] bg-muted/60 p-3">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">
-            Estimated security deposit
+            Security deposit
           </p>
-          {depositCents > 0 ? (
+          {depositRequired ? (
             <>
               <p className="mt-0.5 text-lg font-semibold text-foreground">
-                {formatMoneyCents(depositCents)}
+                {formatMoneyCents(depositCents)} — held and returned
               </p>
               <p className="mt-1 text-muted-foreground">
                 Held on your card when {agencyName} starts the check-in — not
-                charged — and released after check-out. If the host reports
-                damage, you can accept or reject the claim before anything is
-                captured; an admin decides when you disagree.
+                charged, and not part of your total — and released after
+                check-out. If the host reports damage, you can accept or
+                reject the claim before anything is captured; an admin decides
+                when you disagree.
+              </p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                The deposit is confirmed when the booking is created.
               </p>
             </>
           ) : (
             <p className="mt-0.5 font-semibold text-foreground">
-              No deposit for this car
+              No deposit required
             </p>
           )}
-          <p className="mt-2 text-xs text-muted-foreground">
-            The deposit is confirmed when the booking is created.
-          </p>
         </div>
 
         <div>

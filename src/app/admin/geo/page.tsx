@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminApi, adminKeys } from "@/features/admin/api";
+import { taxRatePctFieldSchema } from "@/features/admin/platform-config-contract";
+import { getErrorMessage } from "@/shared/api/errors";
 import {
   EmptyState,
   ErrorState,
@@ -13,11 +15,19 @@ import { Card, CardContent } from "@/shared/components/ui/card";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
+import type { Country } from "@/shared/types/domain";
+import { formatPct } from "@/shared/utils/money";
 
 /**
  * /admin/geo — the country → city hierarchy that scopes search. Countries are
  * seeded; admins can ADD cities here (e.g. Mao, La Vega). The slug is derived
  * from the name server-side and is what the public search routes use.
+ *
+ * Countries also carry the TAX RATE their market charges. It is resolved
+ * from the car (branch → city → country), not from the renter, so a
+ * Dominican renting in Miami pays Florida's rate; a country without one of
+ * its own falls back to the platform rate. Bookings snapshot the rate they
+ * were quoted at, so editing here never re-prices an existing one.
  */
 export default function AdminGeoPage() {
   const qc = useQueryClient();
@@ -29,6 +39,11 @@ export default function AdminGeoPage() {
   const citiesQuery = useQuery({
     queryKey: adminKeys.cities(),
     queryFn: AdminApi.listCities,
+  });
+  // Only to name the fallback a country with no rate of its own inherits.
+  const configQuery = useQuery({
+    queryKey: adminKeys.config(),
+    queryFn: AdminApi.getConfig,
   });
 
   const [countryId, setCountryId] = useState("");
@@ -73,15 +88,11 @@ export default function AdminGeoPage() {
               ) : (
                 <ul className="divide-y divide-border rounded-lg border border-border">
                   {countries.map((c) => (
-                    <li
+                    <CountryTaxRow
                       key={c.id}
-                      className="flex items-center justify-between px-3 py-2 text-sm"
-                    >
-                      <span>{c.name}</span>
-                      <span className="text-xs uppercase text-muted-foreground">
-                        {c.code}
-                      </span>
-                    </li>
+                      country={c}
+                      platformRatePct={configQuery.data?.taxRatePct}
+                    />
                   ))}
                 </ul>
               )}
@@ -172,5 +183,112 @@ export default function AdminGeoPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+/**
+ * One country row: its code, and the tax rate this market charges. An empty
+ * box means the country has NO rate of its own — which is not "tax-free",
+ * it is "use the platform rate", so the hint names that figure rather than
+ * leaving the admin to guess. The bound is the backend's own
+ * (`PLATFORM_CONFIG_LIMITS.taxRatePct`), validated here only so a typo is
+ * answered before the round trip.
+ */
+function CountryTaxRow({
+  country,
+  platformRatePct,
+}: {
+  country: Country;
+  platformRatePct: number | undefined;
+}) {
+  const qc = useQueryClient();
+  const stored = country.taxRatePct === null ? "" : String(country.taxRatePct);
+  // The box is the admin's DRAFT, seeded once and re-seeded only from a save
+  // — a background refetch must not overwrite a rate being typed.
+  const [rate, setRate] = useState(stored);
+  const [invalid, setInvalid] = useState<string | null>(null);
+
+  const save = useMutation({
+    mutationFn: (taxRatePct: number | null) =>
+      AdminApi.updateCountryTaxRate(country.id, taxRatePct),
+    onSuccess: (saved) => {
+      // The server decides what got stored; re-seed the box from its answer.
+      qc.setQueryData<Country[]>(adminKeys.countries(), (prev) =>
+        prev?.map((c) => (c.id === saved.id ? saved : c)),
+      );
+      setRate(saved.taxRatePct === null ? "" : String(saved.taxRatePct));
+      setInvalid(null);
+    },
+  });
+
+  function submit() {
+    if (rate.trim() === "") {
+      setInvalid(null);
+      save.mutate(null);
+      return;
+    }
+    const parsed = taxRatePctFieldSchema.safeParse(rate);
+    if (!parsed.success) {
+      // A failed parse always carries an issue; the fallback is for the
+      // compiler, which cannot know that.
+      setInvalid(
+        parsed.error.issues[0]?.message ?? "Enter a percentage, e.g. 18 or 18.5",
+      );
+      return;
+    }
+    setInvalid(null);
+    save.mutate(Number(parsed.data));
+  }
+
+  const dirty = rate.trim() !== stored;
+  const fallback =
+    platformRatePct === undefined ? "" : ` (${formatPct(platformRatePct)})`;
+
+  return (
+    <li className="space-y-1.5 px-3 py-2 text-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="mr-auto">{country.name}</span>
+        <span className="text-xs uppercase text-muted-foreground">
+          {country.code}
+        </span>
+        <div className="flex items-center gap-1.5">
+          <Label htmlFor={`tax-${country.id}`} className="sr-only">
+            {country.name} tax rate
+          </Label>
+          <Input
+            id={`tax-${country.id}`}
+            className="h-8 w-24"
+            inputMode="decimal"
+            placeholder="Platform"
+            aria-invalid={!!invalid}
+            value={rate}
+            onChange={(e) => setRate(e.target.value)}
+          />
+          <span className="text-xs text-muted-foreground">%</span>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={!dirty || save.isPending}
+            onClick={submit}
+          >
+            {save.isPending ? "Saving…" : "Save"}
+          </Button>
+        </div>
+      </div>
+      {invalid ? (
+        <p className="text-xs text-destructive">{invalid}</p>
+      ) : save.isError ? (
+        <p className="text-xs text-destructive" role="alert">
+          {getErrorMessage(save.error, "Could not save the tax rate.")}
+        </p>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          {country.taxRatePct === null
+            ? `No rate of its own — charging the platform rate${fallback}.`
+            : `Clear the box to go back to the platform rate${fallback}.`}
+        </p>
+      )}
+    </li>
   );
 }

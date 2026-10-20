@@ -106,7 +106,7 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
 
         <PickupCard booking={booking} />
 
-        <PricingCard booking={booking} />
+        <PricingCard booking={booking} viewer="renter" />
 
         <AgreementCard booking={booking} />
 

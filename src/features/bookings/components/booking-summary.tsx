@@ -1,6 +1,9 @@
 "use client";
 
-import { PriceBreakdown } from "@/shared/components/price-breakdown";
+import {
+  PriceBreakdown,
+  type PriceBreakdownViewer,
+} from "@/shared/components/price-breakdown";
 
 import { Check } from "lucide-react";
 import {
@@ -80,8 +83,19 @@ export function StateTimeline({ booking }: { booking: Booking }) {
   );
 }
 
-/** Frozen server-side pricing snapshot, rendered verbatim. */
-export function PricingCard({ booking }: { booking: Booking }) {
+/**
+ * Frozen server-side pricing snapshot, rendered verbatim. `viewer` decides
+ * which half of it is legible: the customer detail passes `renter` (no
+ * commission line, markup already inside the daily rate), the agency detail
+ * passes `host` (their own base rate plus what the platform takes).
+ */
+export function PricingCard({
+  booking,
+  viewer,
+}: {
+  booking: Booking;
+  viewer: PriceBreakdownViewer;
+}) {
   const p = booking.pricing;
   return (
     <Card>
@@ -89,7 +103,14 @@ export function PricingCard({ booking }: { booking: Booking }) {
         <CardTitle className="text-base">Price breakdown</CardTitle>
       </CardHeader>
       <CardContent>
-        <PriceBreakdown pricing={p} depositCents={booking.depositCents} />
+        <PriceBreakdown
+          pricing={p}
+          viewer={viewer}
+          deposit={{
+            cents: booking.depositCents,
+            required: booking.depositRequired,
+          }}
+        />
         <p className="mt-2 text-xs text-muted-foreground">
           Snapshot frozen at request time — computed by the server.
         </p>

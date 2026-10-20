@@ -154,12 +154,14 @@ export function VehicleJsonLd({
             ? { availability: "https://schema.org/OutOfStock" }
             : {}),
           // USD matches the backend pricing contract and the visible daily-rate UI.
-          // This is a base daily rate, not a date-specific quote or availability claim.
+          // The RENTER's rate, which is the one the page shows and the one a
+          // shopper is quoted — a rich result must not undercut the storefront.
+          // Still a daily rate, not a date-specific quote or availability claim.
           priceSpecification: {
             "@type": "UnitPriceSpecification",
-            price: (car.pricePerDayCents / 100).toFixed(2),
+            price: (car.renterDailyRateCents / 100).toFixed(2),
             priceCurrency: "USD",
-            name: "Base daily rental rate; fees calculated at booking",
+            name: "Daily rental rate; tax calculated at booking",
             referenceQuantity: {
               "@type": "QuantitativeValue",
               value: 1,

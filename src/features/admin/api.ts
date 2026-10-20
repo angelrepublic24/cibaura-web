@@ -256,7 +256,10 @@ export interface AdminRevenueQuery {
  *
  * Read views reuse the PUBLIC catalog/geo endpoints (same data the search
  * facets use): GET /catalog/makes, /catalog/makes/:id/models, /geo/countries,
- * /geo/cities.
+ * /geo/cities. Writing a country's tax rate is admin-gated:
+ *  - PATCH /geo/countries/:countryId { taxRatePct } -> Country
+ *      (0..50 with two decimals; `null` clears the country's own rate and
+ *       hands it back to the platform `taxRatePct`)
  *
  * Ops routes (all platform_admin):
  *  - GET   /admin/payouts?status&page&pageSize     -> Paginated<AdminPayout>
@@ -590,6 +593,20 @@ export const AdminApi = {
     slug?: string;
   }): Promise<City> {
     const res = await Api.post("/geo/cities", input);
+    return res.data;
+  },
+
+  /**
+   * Set (or clear, with `null`) the country's own tax rate. The rate that
+   * reaches a booking is resolved from the CAR's country, so this is what
+   * makes a Miami rental charge Florida's rate and a Santiago one ITBIS.
+   * Existing bookings snapshot their rate and never move.
+   */
+  async updateCountryTaxRate(
+    countryId: string,
+    taxRatePct: number | null,
+  ): Promise<Country> {
+    const res = await Api.patch(`/geo/countries/${countryId}`, { taxRatePct });
     return res.data;
   },
 

@@ -150,7 +150,7 @@ function FleetList() {
                           </Link>
                         ) : null}
                         <span className="font-semibold">
-                          {formatMoneyCents(car.pricePerDayCents)}/day
+                          {formatMoneyCents(car.hostDailyRateCents)}/day
                         </span>
                         <Badge variant={STATUS_VARIANT[car.status]}>
                           {car.status}

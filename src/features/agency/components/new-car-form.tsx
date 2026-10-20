@@ -26,13 +26,26 @@ import {
   type AgencyCar,
 } from "@/shared/types/domain";
 import { getErrorMessage } from "@/shared/api/errors";
-import { centsToWholeUnitsInput, wholeUnitsToCents } from "@/shared/utils/money";
+import {
+  centsToWholeUnitsInput,
+  formatMoneyCents,
+  wholeUnitsToCents,
+} from "@/shared/utils/money";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
 
 const AMOUNT_REGEX = /^\d+(\.\d{1,2})?$/;
+
+/**
+ * The three states a car's deposit can hold, which the wire stores in one
+ * nullable column: `inherit` -> `null` (use the agency's value), `none` ->
+ * `0` (charge nothing EVEN IF the agency asks for something), `custom` ->
+ * the amount. A single optional amount field cannot express them: an empty
+ * box would have to mean both "inherit" and "none".
+ */
+const DEPOSIT_MODES = ["inherit", "none", "custom"] as const;
 
 /**
  * Numeric fields are kept as validated strings in the form and converted
@@ -56,11 +69,26 @@ const carSchema = z.object({
   pricePerDay: z
     .string()
     .regex(AMOUNT_REGEX, "Enter the per-day price, e.g. 45 or 45.50"),
-  /** Empty = the platform default deposit applies (`depositCents: null`). */
-  deposit: z.union([
-    z.literal(""),
-    z.string().regex(AMOUNT_REGEX, "Enter the deposit, e.g. 200 or 200.00"),
-  ]),
+  depositMode: z.enum(DEPOSIT_MODES),
+  /** Read only when `depositMode` is "custom" — see the refinement below. */
+  depositAmount: z.string(),
+});
+
+/**
+ * The amount is required — and must be more than zero — only in `custom`
+ * mode; "zero" is what `none` is for, and leaving it typed in the box while
+ * switching back to `inherit` must not block the save.
+ */
+const carFormSchema = carSchema.superRefine((values, ctx) => {
+  if (values.depositMode !== "custom") return;
+  const typed = values.depositAmount;
+  if (!AMOUNT_REGEX.test(typed) || Number(typed) <= 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["depositAmount"],
+      message: 'Enter the deposit, e.g. 200 or 200.00 — or choose "No deposit"',
+    });
+  }
 });
 type CarFormValues = z.infer<typeof carSchema>;
 
@@ -79,12 +107,30 @@ function defaultsFor(
     seats: car ? String(car.seats) : "5",
     category: car?.category ?? "sedan",
     plate: car?.plate ?? "",
-    pricePerDay: car ? centsToWholeUnitsInput(car.pricePerDayCents) : "",
-    deposit:
-      car && car.depositCents !== null
-        ? centsToWholeUnitsInput(car.depositCents)
+    pricePerDay: car ? centsToWholeUnitsInput(car.hostDailyRateCents) : "",
+    depositMode: depositModeOf(car),
+    depositAmount:
+      car && car.depositOverrideCents !== null && car.depositOverrideCents > 0
+        ? centsToWholeUnitsInput(car.depositOverrideCents)
         : "",
   };
+}
+
+/** Which of the three states the stored override represents. */
+function depositModeOf(car: AgencyCar | undefined): CarFormValues["depositMode"] {
+  if (!car || car.depositOverrideCents === null) return "inherit";
+  return car.depositOverrideCents === 0 ? "none" : "custom";
+}
+
+/**
+ * Form state -> the value the wire stores for `depositOverrideCents`.
+ * `null` is a real choice here, not an absent field: it is what hands the
+ * decision back to the agency default.
+ */
+function depositOverrideCents(values: CarFormValues): number | null {
+  if (values.depositMode === "inherit") return null;
+  if (values.depositMode === "none") return 0;
+  return wholeUnitsToCents(Number(values.depositAmount));
 }
 
 /** Form → wire fields shared by create and edit (branch/photos handled apart). */
@@ -101,7 +147,8 @@ function toCarFields(
     seats: Number(values.seats),
     category: values.category,
     plate: values.plate,
-    // Unit conversion at the input boundary (agency-entered price).
+    // Unit conversion at the input boundary (agency-entered price). This is
+    // the HOST's own rate; what a renter is quoted is the server's business.
     pricePerDayCents: wholeUnitsToCents(Number(values.pricePerDay)),
   };
 }
@@ -136,7 +183,7 @@ export function CarForm(props: CarFormProps) {
   const fixedBranchId = !editing ? props.fixedBranchId : undefined;
 
   const form = useForm<CarFormValues>({
-    resolver: zodResolver(carSchema),
+    resolver: zodResolver(carFormSchema),
     defaultValues: defaultsFor(car, fixedBranchId),
   });
 
@@ -193,12 +240,13 @@ export function CarForm(props: CarFormProps) {
 
   const create = useMutation({
     mutationFn: async (values: CarFormValues) => {
+      const override = depositOverrideCents(values);
       const created = await AgencyApi.createCar({
         branchId: values.branchId,
         ...toCarFields(values),
-        ...(values.deposit !== ""
-          ? { depositCents: wholeUnitsToCents(Number(values.deposit)) }
-          : {}),
+        // Inheriting is the create DTO's default, so it is expressed by
+        // omission; `0` is a decision and has to travel.
+        ...(override === null ? {} : { depositCents: override }),
       });
 
       // The car exists — now upload its photos one by one (per-file errors
@@ -237,11 +285,9 @@ export function CarForm(props: CarFormProps) {
     mutationFn: ({ carId, values }: { carId: string; values: CarFormValues }) =>
       AgencyApi.updateCar(carId, {
         ...toCarFields(values),
-        // An emptied deposit CLEARS the override (`null` = platform default).
-        depositCents:
-          values.deposit === ""
-            ? null
-            : wholeUnitsToCents(Number(values.deposit)),
+        // `null` CLEARS the override and hands the decision back to the
+        // agency default; `0` pins this car to no deposit regardless of it.
+        depositCents: depositOverrideCents(values),
       }),
     onSuccess: (saved) => {
       qc.invalidateQueries({ queryKey: agencyKeys.fleetAll() });
@@ -253,6 +299,14 @@ export function CarForm(props: CarFormProps) {
   const mutation = editing ? update : create;
   const errors = form.formState.errors;
   const showBranch = !editing && !fixedBranchId;
+
+  // Warn whenever this car ends up with NO hold to claim damage against:
+  // either the host picked "none", or it inherits and the chain currently
+  // resolves to zero (which only the server can tell us, via the saved car).
+  const depositMode = form.watch("depositMode");
+  const noDeposit =
+    depositMode === "none" ||
+    (depositMode === "inherit" && !!car && !car.depositRequired);
 
   return (
     <form
@@ -401,7 +455,7 @@ export function CarForm(props: CarFormProps) {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="car-plate">Plate (private)</Label>
           <Input id="car-plate" placeholder="A123456" {...form.register("plate")} />
@@ -414,7 +468,7 @@ export function CarForm(props: CarFormProps) {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="car-price">Price per day</Label>
+          <Label htmlFor="car-price">Your price per day</Label>
           <Input
             id="car-price"
             inputMode="decimal"
@@ -423,28 +477,67 @@ export function CarForm(props: CarFormProps) {
           />
           {errors.pricePerDay ? (
             <p className="text-sm text-destructive">{errors.pricePerDay.message}</p>
-          ) : null}
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="car-deposit">Security deposit (optional)</Label>
-          <Input
-            id="car-deposit"
-            inputMode="decimal"
-            placeholder="Platform default"
-            aria-invalid={!!errors.deposit}
-            {...form.register("deposit")}
-          />
-          {errors.deposit ? (
-            <p className="text-sm text-destructive">{errors.deposit.message}</p>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Held on the renter&apos;s card at check-in and released after the
-              return. Leave empty to use the platform default.
+              What you are paid per day. Customers see this plus the Cibaura
+              service fee as a single daily rate.
             </p>
           )}
         </div>
       </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="car-deposit-mode">Security deposit</Label>
+          <Select id="car-deposit-mode" {...form.register("depositMode")}>
+            <option value="inherit">Use my agency default</option>
+            <option value="none">No deposit for this car</option>
+            <option value="custom">Set an amount for this car</option>
+          </Select>
+          {depositMode === "inherit" ? (
+            <p className="text-xs text-muted-foreground">
+              {car
+                ? car.depositRequired
+                  ? `Currently ${formatMoneyCents(car.resolvedDepositCents)} — change it in agency settings.`
+                  : "Your agency asks for no deposit today."
+                : "Change it in agency settings to apply it to every car that inherits."}
+            </p>
+          ) : null}
+        </div>
+
+        {depositMode === "custom" ? (
+          <div className="space-y-1.5">
+            <Label htmlFor="car-deposit">Deposit amount</Label>
+            <Input
+              id="car-deposit"
+              inputMode="decimal"
+              placeholder="200.00"
+              aria-invalid={!!errors.depositAmount}
+              {...form.register("depositAmount")}
+            />
+            {errors.depositAmount ? (
+              <p className="text-sm text-destructive">
+                {errors.depositAmount.message}
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Held on the renter&apos;s card at check-in — never charged —
+                and released after the return.
+              </p>
+            )}
+          </div>
+        ) : null}
+      </div>
+
+      {noDeposit ? (
+        <p
+          className="rounded-[var(--radius-sm)] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
+          role="status"
+        >
+          Without a deposit you will not be able to charge for damage through
+          Cibaura. You will have to settle it directly with the customer.
+        </p>
+      ) : null}
 
       {!editing ? (
         /* Photos — picked here, uploaded right after the car is created. */

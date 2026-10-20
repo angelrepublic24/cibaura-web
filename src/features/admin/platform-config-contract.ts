@@ -129,6 +129,14 @@ function decimalField(field: "commissionPct" | "taxRatePct") {
 }
 
 /**
+ * A tax percentage as a form string, exported because /admin/geo edits the
+ * same quantity per country: the backend's `UpdateCountryDto` validates
+ * 0..50 with two decimals, which is `PLATFORM_CONFIG_LIMITS.taxRatePct`.
+ * One owner for the bound, two screens that honour it.
+ */
+export const taxRatePctFieldSchema = decimalField("taxRatePct");
+
+/**
  * The deposit is stored in integer cents but typed in whole currency units,
  * the same boundary conversion `new-car-form` uses for a daily rate. Two
  * decimals max keeps `wholeUnitsToCents` exact — "50.004" would silently
