@@ -219,6 +219,7 @@ export default function BecomeAgencyPage() {
         // document upload/list too, so the old "re-submit" flow is gone.
         return (
           <AgencyAccessRevoked
+            status={verificationStatus}
             reason={sessionQuery.data?.agency.verificationReason}
           />
         );

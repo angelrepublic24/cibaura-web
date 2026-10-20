@@ -67,25 +67,40 @@ export function useAgencyAccessRevokedWatcher(): void {
 /**
  * Full-surface state for a rejected/suspended agency — replaces the entire
  * dashboard chrome (nav + pages), which would otherwise just fire 403s.
- * Rejection is terminal: no re-submit path, only the reason + support
- * guidance.
+ * Rejection is terminal: no re-submit path, only the verdict, its reason and
+ * who to talk to.
+ *
+ * The rejection email links straight here, so this screen is the WHOLE answer
+ * the person gets. It therefore also carries the exits: the account that was
+ * refused as a supplier is still a customer, and leaving them on a dead end
+ * with a single "back to home" would quietly end that relationship too.
+ *
+ * `status` picks the wording: a suspension is an interruption of a verified
+ * agency, not a refused application, and saying "your application was
+ * rejected" to a suspended partner is simply wrong. It defaults to the
+ * rejected copy for callers that have no status at hand.
  */
 export function AgencyAccessRevoked({
+  status = "rejected",
   reason,
 }: {
+  status?: AgencyVerificationStatus;
   reason?: string | null;
 }) {
+  const suspended = status === "suspended";
+
   return (
     <div className="mx-auto flex max-w-lg flex-col items-center gap-4 px-4 py-20 text-center">
       <span className="flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10">
         <ShieldOff className="h-7 w-7 text-destructive" />
       </span>
       <h1 className="font-display text-xl text-foreground">
-        Agency access revoked
+        {suspended ? "Your agency is suspended" : "Application not approved"}
       </h1>
       <p className="text-sm text-muted-foreground">
-        Your agency application was rejected, so this account no longer has
-        access to the agency platform.
+        {suspended
+          ? "Your agency has been suspended, so the agency dashboard is closed and your cars are not shown to renters."
+          : "Your agency application was not approved, so this account does not have access to the agency dashboard."}
       </p>
       {reason ? (
         <div className="w-full rounded-[var(--radius)] border border-destructive/30 bg-destructive/10 p-4 text-left">
@@ -95,13 +110,29 @@ export function AgencyAccessRevoked({
           <p className="mt-1 text-sm text-foreground">{reason}</p>
         </div>
       ) : null}
+      <div className="w-full rounded-[var(--radius)] border border-border bg-surface p-4 text-left">
+        <p className="text-sm font-medium text-foreground">What to do next</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {suspended
+            ? "Contact Cibaura support to sort out what led to the suspension — once it is resolved an admin can reactivate your agency and your listings come back."
+            : "This decision is final for this application. If you believe it is a mistake, or the reason above is something you can fix, contact Cibaura support before applying again."}
+        </p>
+      </div>
       <p className="text-sm text-muted-foreground">
-        If you believe this is a mistake or want to appeal the decision,
-        contact Cibaura support.
+        Your customer account is untouched — you can keep renting cars on
+        Cibaura.
       </p>
-      <Link href="/" className={buttonVariants({ variant: "outline" })}>
-        Back to home
-      </Link>
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        <Link href="/" className={buttonVariants({ variant: "default" })}>
+          Browse cars
+        </Link>
+        <Link
+          href="/account"
+          className={buttonVariants({ variant: "outline" })}
+        >
+          My rentals
+        </Link>
+      </div>
     </div>
   );
 }
