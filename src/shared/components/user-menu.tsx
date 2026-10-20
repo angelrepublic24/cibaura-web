@@ -8,6 +8,7 @@ import {
   CalendarRange,
   LogOut,
   Settings,
+  SlidersHorizontal,
   ShieldCheck,
   Store,
   type LucideIcon,
@@ -110,6 +111,26 @@ export function UserMenu() {
             </div>
           ) : null}
 
+          {/*
+            PLATFORM SETTINGS LIVE HERE, not in the console sidebar.
+
+            They are not a destination you work in — you go there to change a
+            commission or a policy and leave. Sitting in the rail they took a
+            permanent slot next to the queues an admin actually works through,
+            and "Settings" next to "Profile" in two different places invited
+            the wrong one every time.
+
+            Only for admins, and only outside the console's own settings
+            screens, so it never points at where you already are.
+          */}
+          {isAdmin ? (
+            <div className="border-b border-border py-1">
+              <MenuLink href="/admin/settings" icon={SlidersHorizontal}>
+                Platform settings
+              </MenuLink>
+            </div>
+          ) : null}
+
           {/* Lean account section. Documents, payment methods and favorites are
               not listed here — they live behind "Account settings", which opens
               the /account hub with its own settings sidebar. */}
@@ -117,7 +138,17 @@ export function UserMenu() {
             <MenuLink href="/account" icon={CalendarRange}>
               My rentals
             </MenuLink>
-            <MenuLink href="/account/profile" icon={Settings}>
+            {/*
+              Inside the console this points at the console's own account page
+              rather than the storefront one. They are different screens — the
+              admin page carries the change-password card — and sending an
+              admin out to the marketplace to change their own password is the
+              same eviction the logo used to perform.
+            */}
+            <MenuLink
+              href={inAdmin ? "/admin/profile" : "/account/profile"}
+              icon={Settings}
+            >
               Account settings
             </MenuLink>
           </div>

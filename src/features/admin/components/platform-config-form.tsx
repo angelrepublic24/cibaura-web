@@ -278,7 +278,17 @@ export function PlatformConfigForm({ config }: { config: PlatformConfig }) {
           </FieldGrid>
         </Section>
 
-        <div className="flex flex-wrap items-center gap-3">
+        {/*
+          STICKY, because this form is long enough that Save sat below the fold
+          and the console now scrolls inside its own pane — so there is no
+          window scrollbar hinting that anything follows. An action you have to
+          go looking for is one people assume is missing.
+
+          `-mx-6 px-6` lets the bar bleed to the edges of the content padding
+          so it reads as a bar rather than a floating card, and the backdrop
+          blur keeps the fields legible as they pass underneath.
+        */}
+        <div className="sticky bottom-0 -mx-6 flex flex-wrap items-center gap-3 border-t border-border bg-background/85 px-6 py-3 backdrop-blur-md">
           <Button type="submit" disabled={!dirty || mutation.isPending}>
             {mutation.isPending ? "Saving..." : "Save settings"}
           </Button>
