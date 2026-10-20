@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
   Building2,
+  Banknote,
   ClipboardCheck,
   ClipboardList,
   UserCheck,
@@ -116,10 +117,59 @@ function OverviewBody({ data }: { data: AdminOverview }) {
     );
   }
 
-  const pendingTotal = pending.applications + pending.verifications;
+  const pendingTotal =
+    pending.applications + pending.verifications + pending.payouts;
 
   return (
     <div className="mt-6 space-y-6">
+      {/*
+        WHAT IS WAITING ON YOU, FIRST.
+
+        These used to sit in a card below the fold with the same visual weight
+        as "Agencies: 12" — but a count of agencies does not ask anything of
+        the admin and an unreviewed application does: the agency that applied
+        is waiting, and a payout left in `processing` is a host waiting on
+        money.
+
+        It renders only when something is actually queued, so it is never
+        decoration: if the strip is on screen, there is work on it.
+      */}
+      {pendingTotal > 0 ? (
+        <Card className="border-warning/40 bg-warning-soft">
+          <CardContent className="p-5">
+            <h2 className="text-xs font-bold uppercase tracking-wide text-warning">
+              Waiting on you
+            </h2>
+            <ul className="mt-3 space-y-2">
+              {pending.applications > 0 ? (
+                <QueueRow
+                  href="/admin/agency-applications"
+                  icon={ClipboardCheck}
+                  label="Agency applications"
+                  count={pending.applications}
+                />
+              ) : null}
+              {pending.verifications > 0 ? (
+                <QueueRow
+                  href="/admin/verification"
+                  icon={UserCheck}
+                  label="Customer KYC"
+                  count={pending.verifications}
+                />
+              ) : null}
+              {pending.payouts > 0 ? (
+                <QueueRow
+                  href="/admin/payouts"
+                  icon={Banknote}
+                  label="Payouts to send"
+                  count={pending.payouts}
+                />
+              ) : null}
+            </ul>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {/* ── Metric cards ─────────────────────────────────────────────── */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {/* Agencies */}
@@ -195,8 +245,8 @@ function OverviewBody({ data }: { data: AdminOverview }) {
         </MetricCard>
       </div>
 
-      {/* ── Orders by state + review queues ──────────────────────────── */}
-      <div className="grid gap-6 lg:grid-cols-[1fr_minmax(0,340px)]">
+      {/* ── Orders by state ──────────────────────────────────────────── */}
+      <div className="grid gap-6">
         <Card>
           <CardContent className="p-5">
             <div className="flex items-center justify-between gap-3">
@@ -224,27 +274,6 @@ function OverviewBody({ data }: { data: AdminOverview }) {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-5">
-            <h2 className="text-sm font-semibold text-foreground">
-              Review queues
-            </h2>
-            <ul className="mt-4 space-y-2">
-              <QueueRow
-                href="/admin/agency-applications"
-                icon={ClipboardCheck}
-                label="Agency applications"
-                count={pending.applications}
-              />
-              <QueueRow
-                href="/admin/verification"
-                icon={UserCheck}
-                label="Customer KYC"
-                count={pending.verifications}
-              />
-            </ul>
-          </CardContent>
-        </Card>
       </div>
 
       {/* ── Quick links ──────────────────────────────────────────────── */}

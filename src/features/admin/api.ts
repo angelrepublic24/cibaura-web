@@ -163,6 +163,8 @@ export interface AdminOverview {
   pending: {
     applications: number;
     verifications: number;
+    /** Payouts a host is waiting on: `requested` plus `processing`. */
+    payouts: number;
   };
 }
 
