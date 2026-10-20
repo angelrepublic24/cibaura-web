@@ -16,6 +16,7 @@ import {
   Library,
   MapPin,
   ScrollText,
+  UserCircle,
   ShieldCheck,
   ArrowLeft,
   SlidersHorizontal,
@@ -111,6 +112,11 @@ const SETTINGS_NAV: NavGroup[] = [
         label: "Integrations",
         icon: Plug,
       },
+      // Your own account, including the change-password card. Once you are in
+      // Settings you expect everything you can change to be here — hunting for
+      // your password back in the account menu is a dead end you only find by
+      // leaving.
+      { href: "/admin/profile", label: "Your account", icon: UserCircle },
     ],
   },
 ];
@@ -135,7 +141,15 @@ export default function AdminLayout({
   }
 
   // In the Settings section the sidebar SWAPS to the settings sub-nav.
-  const inSettings = pathname.startsWith("/admin/settings");
+  //
+  // `/admin/profile` counts as part of it even though it does not live under
+  // that path: it is listed in the sub-nav, and without this the sidebar would
+  // swap back to the main one the moment you clicked it — the navigation
+  // changing under your hand as a result of using it.
+  const inSettings =
+    pathname.startsWith("/admin/settings") ||
+    pathname === "/admin/profile" ||
+    pathname.startsWith("/admin/profile/");
   const groups = inSettings ? SETTINGS_NAV : NAV;
   const flat = inSettings ? SETTINGS_ITEMS : ALL_ITEMS;
 
