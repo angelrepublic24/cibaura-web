@@ -72,7 +72,19 @@ export function SiteHeader() {
           inConsole ? "w-full px-6" : "mx-auto max-w-6xl",
         )}
       >
-        <Link href="/" aria-label="Cibaura — home" className="flex items-center">
+        {/*
+          IN THE CONSOLE THE LOGO IS THE CONSOLE'S HOME. Everywhere else it
+          goes to the storefront, which is what stops an agency owner — who is
+          also a customer — from being trapped in their workspace. But the
+          console is a shell with its own chrome, and dropping an admin into
+          the customer marketplace from it reads as being thrown out. The way
+          back to the storefront is the account menu's "Switch to customer".
+        */}
+        <Link
+          href={inConsole ? "/admin" : "/"}
+          aria-label={inConsole ? "Cibaura — console" : "Cibaura — home"}
+          className="flex items-center"
+        >
           <Logo priority />
         </Link>
 

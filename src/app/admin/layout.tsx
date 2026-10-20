@@ -17,8 +17,6 @@ import {
   MapPin,
   ScrollText,
   ShieldCheck,
-  Settings,
-  UserCircle,
   ArrowLeft,
   SlidersHorizontal,
   Plug,
@@ -84,11 +82,13 @@ const NAV: NavGroup[] = [
     ],
   },
   {
+    // Settings and Profile are deliberately ABSENT: both live in the account
+    // menu now. Neither is a place you work — you go, change one thing and
+    // leave — so a permanent slot in the rail next to the queues an admin
+    // actually works through was weight they had not earned.
     label: "System",
     items: [
       { href: "/admin/contracts", label: "Contracts", icon: ScrollText },
-      { href: "/admin/settings", label: "Settings", icon: Settings },
-      { href: "/admin/profile", label: "Profile", icon: UserCircle },
     ],
   },
 ];
