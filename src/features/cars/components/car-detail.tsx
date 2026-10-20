@@ -205,6 +205,7 @@ export function CarDetail({
         <RentalPolicyCard
           className="mt-6"
           depositCents={car.depositCents}
+          depositRequired={car.depositRequired}
           agencyName={car.agency.name}
         />
       </div>
@@ -522,7 +523,8 @@ function describeRequestError(error: unknown): {
  * "Review and sign the rental agreement" step (ADR-0010): the request is
  * only sent from the sign dialog, with the click-to-sign `signature`.
  * The client never multiplies days x rate — it renders the returned Pricing
- * verbatim.
+ * verbatim, and only its `renter*` half: the platform commission is already
+ * inside the quoted daily rate and is never itemised for a renter.
  *
  * Delivery zones come embedded in `CarDetail` — no extra request.
  */
@@ -738,7 +740,7 @@ function BookingPanel({
       <CardHeader className="border-b border-border">
         <CardTitle className="flex items-baseline gap-1.5">
           <span className="text-2xl font-bold">
-            {formatMoneyCents(car.pricePerDayCents)}
+            {formatMoneyCents(car.renterDailyRateCents)}
           </span>
           <span className="text-sm font-normal text-muted-foreground">
             / day
@@ -845,8 +847,9 @@ function BookingPanel({
                   onClear={() => setDeliveryAddr(null)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Fee from {formatMoneyCents(car.branch.deliveryBaseFeeCents)} +{" "}
-                  {formatMoneyCents(car.branch.deliveryPerKmCents)}/km
+                  Fee from{" "}
+                  {formatMoneyCents(car.branch.renterDeliveryBaseFeeCents)} +{" "}
+                  {formatMoneyCents(car.branch.renterDeliveryPerKmCents)}/km
                   {car.branch.deliveryMaxKm
                     ? ` · within ${car.branch.deliveryMaxKm} km`
                     : ""}
@@ -875,7 +878,7 @@ function BookingPanel({
                 <option value="">Select a zone</option>
                 {zones.map((z) => (
                   <option key={z.id} value={z.id}>
-                    {z.name} (+{formatMoneyCents(z.feeCents)})
+                    {z.name} (+{formatMoneyCents(z.renterFeeCents)})
                   </option>
                 ))}
               </Select>
@@ -897,13 +900,19 @@ function BookingPanel({
           ) : quote ? (
             <div className="rounded-[var(--radius-sm)] border border-border bg-muted/60 p-4">
               <PriceBreakdown
-                pricing={quote}
-                depositCents={car.depositCents}
-                depositEstimate
+                pricing={quote.pricing}
+                viewer="renter"
+                deposit={{
+                  cents: quote.depositCents,
+                  required: quote.depositRequired,
+                  estimate: true,
+                }}
               />
-              <p className="mt-2 text-xs text-muted-foreground">
-                The deposit is confirmed when the booking is created.
-              </p>
+              {quote.depositRequired ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  The deposit is confirmed when the booking is created.
+                </p>
+              ) : null}
             </div>
           ) : null
         ) : (
@@ -937,7 +946,7 @@ function BookingPanel({
             <p className="text-xs text-muted-foreground">
               The hold is placed on this card and only captured when the agency
               accepts.
-              {car.depositCents > 0
+              {car.depositRequired
                 ? " The security deposit is held on the same card at check-in."
                 : ""}
             </p>

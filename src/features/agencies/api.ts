@@ -182,6 +182,8 @@ export interface ApplyIndividualHostInput {
 
 export const applyKeys = {
   myDocuments: () => ["agency-apply", "my-documents"] as const,
+  application: (agencyId: string) =>
+    ["agency-apply", "application", agencyId] as const,
 };
 
 export const AgenciesApi = {
@@ -232,6 +234,18 @@ export const AgenciesApi = {
 
   async myDocuments(): Promise<AgencyDocument[]> {
     const res = await Api.get("/agencies/my-documents");
+    return res.data;
+  },
+
+  /**
+   * The caller's OWN application file (`GET /agencies/applications/:agencyId`,
+   * shared with the admin review screen). Authorized by ownership server-side:
+   * `agency_staff` and anyone else's file answer 403, and the route sits
+   * OUTSIDE the agency access gate on purpose — a `pending` applicant and a
+   * `rejected` ex-applicant are precisely who must be able to read it.
+   */
+  async application(agencyId: string): Promise<AgencyApplication> {
+    const res = await Api.get(`/agencies/applications/${agencyId}`);
     return res.data;
   },
 

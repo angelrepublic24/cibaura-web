@@ -6,7 +6,6 @@ import {
   Building2,
   CalendarDays,
   CarFront,
-  Clock,
   FilePenLine,
   Inbox,
   LayoutDashboard,
@@ -17,16 +16,14 @@ import {
   Wallet,
 } from "lucide-react";
 import { RoleGuard } from "@/shared/auth/guard";
-import {
-  AGENCY_SIGNUP_PATH,
-  HOST_SIGNUP_PATH,
-} from "@/shared/config/supply";
+import { LoadingState } from "@/shared/components/states";
 import {
   AgencyAccessRevoked,
   isAgencyAccessRevokedError,
   isRevokedStatus,
   useAgencyAccessRevokedWatcher,
 } from "@/features/agency/access-revoked";
+import { AgencyApplicationReview } from "@/features/agency/application-review";
 import { useAgencySession } from "@/features/agency/hooks";
 import { usePermission } from "@/features/agency/use-permission";
 import type { AgencyPermission } from "@/features/agency/rbac";
@@ -52,52 +49,6 @@ const NAV: NavItem[] = [
   { href: "/agency/staff", label: "Staff", icon: Users, permission: "staff:manage" },
   { href: "/agency/settings", label: "Settings", icon: Settings, permission: "agency:settings" },
 ];
-
-/**
- * Verification notice shown above the dashboard content while the caller's
- * agency is still PENDING. Reads the same `GET /agency/session` cache entry
- * the nav already loads (identical key + staleTime → one request, not two).
- *
- * This is a secondary, informational read: while it loads or if it errors we
- * render nothing rather than blocking or alarming — the dashboard's own queries
- * surface real failures. Verified agencies see no banner. Rejected/suspended
- * never reach it: the layout swaps the WHOLE surface for
- * {@link AgencyAccessRevoked} before rendering any chrome.
- */
-function VerificationBanner() {
-  const { data } = useAgencySession();
-
-  const agency = data?.agency;
-  if (!agency || agency.verificationStatus !== "pending") return null;
-  const individual = agency.kind === "individual";
-
-  return (
-    <div
-      role="status"
-      className="mb-6 flex items-start gap-3 rounded-[var(--radius)] border border-warning/30 bg-warning-soft p-4"
-    >
-      <Clock className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
-      <div className="space-y-1 text-sm">
-        <p className="font-medium text-warning">
-          {individual
-            ? "Your host profile is pending verification"
-            : "Your agency is pending verification"}
-        </p>
-        <p className="text-muted-foreground">
-          Your cars won&apos;t appear in public search yet. Upload your
-          documents from the{" "}
-          <Link
-            href={individual ? HOST_SIGNUP_PATH : AGENCY_SIGNUP_PATH}
-            className="font-medium text-warning underline underline-offset-2 hover:no-underline"
-          >
-            application page
-          </Link>
-          .
-        </p>
-      </div>
-    </div>
-  );
-}
 
 /**
  * Host-agreement nudges (ADR-0010): never signed → cars cannot be published
@@ -155,13 +106,21 @@ function HostAgreementBanner() {
 /**
  * /agency route group — agency owners and staff only, nav gated by permission.
  *
- * REVOKED-ACCESS gate (owner rule): when `GET /agency/session` — the one read
- * the backend keeps answering for a rejected/suspended agency — says the
- * agency is rejected, the ENTIRE dashboard chrome is replaced by the
- * access-revoked state (gated ONCE here, not per page: every child query
- * would just 403 with AGENCY_ACCESS_REVOKED anyway). The watcher covers the
- * mid-session case: any child 403 with that code refetches the session so
- * this layout flips over instead of panels erroring one by one.
+ * STATUS GATE (owner rule), applied ONCE here rather than per page, because
+ * every child query/mutation would otherwise just 403 on its own. `GET
+ * /agency/session` is the read the backend keeps answering in every state, so
+ * it decides which of three surfaces the route group renders:
+ *
+ *  - rejected / suspended → {@link AgencyAccessRevoked} (403
+ *    AGENCY_ACCESS_REVOKED everywhere else). The watcher covers the
+ *    mid-session case: any child 403 with that code refetches the session so
+ *    this layout flips over instead of panels erroring one by one.
+ *  - pending → {@link AgencyApplicationReview}: an applicant may ENTER the
+ *    space but writes nothing (403 AGENCY_APPLICATION_UNDER_REVIEW), so the
+ *    dashboard would be a wall of failing buttons. They get their application
+ *    file instead. No watcher is needed in this direction — an agency only
+ *    ever leaves `pending`, never returns to it.
+ *  - verified → the dashboard.
  */
 export default function AgencyLayout({
   children,
@@ -172,7 +131,7 @@ export default function AgencyLayout({
   const { can } = usePermission();
   useAgencyAccessRevokedWatcher();
 
-  // Same cache entry as usePermission/VerificationBanner — one request total.
+  // Same cache entry as usePermission/HostAgreementBanner — one request total.
   const sessionQuery = useAgencySession();
   const agency = sessionQuery.data?.agency;
   const revoked =
@@ -191,10 +150,38 @@ export default function AgencyLayout({
       !(individual && item.href === "/agency/staff"),
   );
 
+  // The status decides WHICH surface this route group IS, so none of them can
+  // be drawn before it is known. Falling through to the dashboard meanwhile
+  // flashed a panel at an applicant a moment before replacing it with their
+  // application file — the very "wall of buttons that 403" the rule exists to
+  // prevent, and clickable while it lasts. The cost is that the dashboard's
+  // own queries start after the session read instead of beside it, on the
+  // FIRST entry only: `staleTime` serves every later navigation from cache.
+  // An errored session is not a loading one — it still falls through, so a
+  // transient failure degrades to the panel exactly as it did before.
+  if (sessionQuery.isLoading) {
+    return (
+      <RoleGuard allow={["agency_owner", "agency_staff"]}>
+        <LoadingState label="Loading your agency…" />
+      </RoleGuard>
+    );
+  }
+
   if (revoked) {
     return (
       <RoleGuard allow={["agency_owner", "agency_staff"]}>
-        <AgencyAccessRevoked reason={agency?.verificationReason} />
+        <AgencyAccessRevoked
+          status={agency?.verificationStatus}
+          reason={agency?.verificationReason}
+        />
+      </RoleGuard>
+    );
+  }
+
+  if (agency?.verificationStatus === "pending") {
+    return (
+      <RoleGuard allow={["agency_owner", "agency_staff"]}>
+        <AgencyApplicationReview agency={agency} />
       </RoleGuard>
     );
   }
@@ -229,7 +216,6 @@ export default function AgencyLayout({
           </nav>
         </aside>
         <div>
-          <VerificationBanner />
           <HostAgreementBanner />
           {children}
         </div>

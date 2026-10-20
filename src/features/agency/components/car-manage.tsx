@@ -40,6 +40,23 @@ const STATUS_VARIANT: Record<CarStatus, "secondary" | "success" | "warning"> = {
 };
 
 /**
+ * The car's deposit as one line of host copy. `depositOverrideCents` is the
+ * stored decision (null = inherit, 0 = none, > 0 = own amount) and
+ * `resolvedDepositCents` is what the car -> agency -> platform chain yields
+ * from it today — an inheriting car has no figure of its own to print.
+ */
+function depositSummary(car: AgencyCar): string {
+  if (car.depositOverrideCents === null) {
+    return car.depositRequired
+      ? `inherited deposit ${formatMoneyCents(car.resolvedDepositCents)}`
+      : "no deposit inherited";
+  }
+  return car.depositRequired
+    ? `deposit ${formatMoneyCents(car.depositOverrideCents)}`
+    : "no deposit";
+}
+
+/**
  * /agency/fleet/[carId] — one car: publish/pause, edit the listing, the
  * registration document and a shortcut to the gallery. The agency has no
  * single-car read, so the car comes from the fleet walk (`useAllFleet`);
@@ -113,10 +130,8 @@ function CarManageBody({ carId }: { carId: string }) {
             </h1>
             <p className="text-sm text-muted-foreground">
               {car.plate ? `${car.plate} · ` : ""}
-              {formatMoneyCents(car.pricePerDayCents)}/day
-              {car.depositCents !== null
-                ? ` · deposit ${formatMoneyCents(car.depositCents)}`
-                : " · platform default deposit"}
+              {formatMoneyCents(car.hostDailyRateCents)}/day ·{" "}
+              {depositSummary(car)}
             </p>
           </div>
         </div>

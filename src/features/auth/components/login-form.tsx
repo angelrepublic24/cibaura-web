@@ -42,6 +42,16 @@ export function LoginForm({ next }: { next?: string }) {
       // An explicit ?next wins; otherwise land people in THEIR ecosystem —
       // agency owners/staff go straight to the agency workspace, admins to
       // the admin console, everyone else to their customer account.
+      //
+      // KEPT for a PENDING applicant on purpose: `/agency` is no longer "the
+      // dashboard", it is whichever of the three states the account is in, so
+      // an applicant lands exactly on their application status — which is what
+      // they log in to check. A rejected owner lands on the verdict + its
+      // reason, which now carries its own way back to the storefront.
+      // Branching on verification status here is the alternative, and it is
+      // worse: the login response carries roles only, so it would mean hanging
+      // an agency read (and its failure modes) off the auth path to choose
+      // between two screens that both explain themselves.
       const home =
         user.roles.includes("agency_owner") ||
         user.roles.includes("agency_staff")

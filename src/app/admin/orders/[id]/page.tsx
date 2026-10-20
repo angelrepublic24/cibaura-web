@@ -206,7 +206,14 @@ function OrderDetail({ booking }: { booking: AdminBookingDetail }) {
             <CardTitle className="text-base">Price breakdown</CardTitle>
           </CardHeader>
           <CardContent>
-            <PriceBreakdown pricing={p} depositCents={booking.depositCents} />
+            <PriceBreakdown
+              pricing={p}
+              viewer="host"
+              deposit={{
+                cents: booking.depositCents,
+                required: booking.depositRequired,
+              }}
+            />
           </CardContent>
         </Card>
 

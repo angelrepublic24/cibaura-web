@@ -112,7 +112,7 @@ export function CarCard({
 
         <div className="mt-4 flex items-end justify-between border-t border-border pt-3">
           <p className="text-lg font-bold text-foreground">
-            {formatMoneyCents(car.pricePerDayCents)}
+            {formatMoneyCents(car.renterDailyRateCents)}
             <span className="text-sm font-normal text-muted-foreground">
               {" "}
               / day

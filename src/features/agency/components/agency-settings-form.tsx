@@ -13,6 +13,11 @@ import {
 } from "@/features/agency/api";
 import type { AgencySettings } from "@/shared/types/domain";
 import { getErrorMessage } from "@/shared/api/errors";
+import {
+  centsToWholeUnitsInput,
+  formatMoneyCents,
+  wholeUnitsToCents,
+} from "@/shared/utils/money";
 import { Button } from "@/shared/components/ui/button";
 import {
   Card,
@@ -35,6 +40,8 @@ const CONDITIONS_MAX = 4000;
 const DEPOSIT_NOTE_MAX = 1000;
 const MIN_DRIVER_AGE_MIN = 18;
 const MIN_DRIVER_AGE_MAX = 30;
+const DEFAULT_DEPOSIT_MAX_CENTS = 500_000;
+const AMOUNT_REGEX = /^\d+(\.\d{1,2})?$/;
 
 const profileSchema = z.object({
   name: z
@@ -66,6 +73,18 @@ const profileSchema = z.object({
     .string()
     .trim()
     .max(DEPOSIT_NOTE_MAX, `At most ${DEPOSIT_NOTE_MAX} characters`),
+  /** Empty = no agency default; a car that inherits then asks for nothing. */
+  defaultDeposit: z.union([
+    z.literal(""),
+    z
+      .string()
+      .trim()
+      .regex(AMOUNT_REGEX, "Enter an amount, e.g. 200 or 200.50")
+      .refine(
+        (value) => wholeUnitsToCents(Number(value)) <= DEFAULT_DEPOSIT_MAX_CENTS,
+        `At most ${formatMoneyCents(DEFAULT_DEPOSIT_MAX_CENTS)}`,
+      ),
+  ]),
 });
 type ProfileFormValues = z.infer<typeof profileSchema>;
 
@@ -77,6 +96,10 @@ function profileDefaults(settings: AgencySettings): ProfileFormValues {
     rentalConditions: settings.rentalConditions ?? "",
     minDriverAge: String(settings.minDriverAge),
     depositNote: settings.depositNote ?? "",
+    defaultDeposit:
+      settings.defaultDepositCents === null
+        ? ""
+        : centsToWholeUnitsInput(settings.defaultDepositCents),
   };
 }
 
@@ -120,6 +143,12 @@ export function AgencyProfileForm({ settings }: { settings: AgencySettings }) {
         rentalConditions: values.rentalConditions,
         minDriverAge: Number(values.minDriverAge),
         depositNote: values.depositNote,
+        // An emptied box CLEARS the default (`null` on the wire); a typed
+        // "0" is the different, deliberate "my agency charges none".
+        defaultDepositCents:
+          values.defaultDeposit === ""
+            ? null
+            : wholeUnitsToCents(Number(values.defaultDeposit)),
       },
       { onSuccess: (next) => form.reset(profileDefaults(next)) },
     );
@@ -247,20 +276,43 @@ export function AgencyProfileForm({ settings }: { settings: AgencySettings }) {
               )}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="st-deposit">Deposit note</Label>
-              <Textarea
-                id="st-deposit"
-                placeholder="e.g. A refundable $200 deposit is held on the customer's card at pickup."
-                maxLength={DEPOSIT_NOTE_MAX}
-                aria-invalid={!!errors.depositNote}
-                {...form.register("depositNote")}
+              <Label htmlFor="st-default-deposit">Default security deposit</Label>
+              <Input
+                id="st-default-deposit"
+                inputMode="decimal"
+                placeholder="No default"
+                aria-invalid={!!errors.defaultDeposit}
+                {...form.register("defaultDeposit")}
               />
-              {errors.depositNote ? (
+              {errors.defaultDeposit ? (
                 <p className="text-sm text-destructive">
-                  {errors.depositNote.message}
+                  {errors.defaultDeposit.message}
                 </p>
-              ) : null}
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Applies to every car that does not set its own. Left empty,
+                  those cars ask for no deposit — and damage on them cannot be
+                  charged through Cibaura; you would settle it with the
+                  customer directly.
+                </p>
+              )}
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="st-deposit">Deposit note</Label>
+            <Textarea
+              id="st-deposit"
+              placeholder="e.g. A refundable $200 deposit is held on the customer's card at pickup."
+              maxLength={DEPOSIT_NOTE_MAX}
+              aria-invalid={!!errors.depositNote}
+              {...form.register("depositNote")}
+            />
+            {errors.depositNote ? (
+              <p className="text-sm text-destructive">
+                {errors.depositNote.message}
+              </p>
+            ) : null}
           </div>
         </CardContent>
       </Card>

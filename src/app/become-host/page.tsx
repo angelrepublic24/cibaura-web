@@ -200,7 +200,12 @@ export default function BecomeHostPage() {
         );
       }
       if (isRevokedStatus(agency?.verificationStatus)) {
-        return <AgencyAccessRevoked reason={agency?.verificationReason} />;
+        return (
+          <AgencyAccessRevoked
+            status={agency?.verificationStatus}
+            reason={agency?.verificationReason}
+          />
+        );
       }
       // Pending or verified individual host → the wizard resumes / confirms.
       return <HostWizard userId={user.id} isMember />;

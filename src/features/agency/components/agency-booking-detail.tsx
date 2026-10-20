@@ -146,7 +146,7 @@ export function AgencyBookingDetail({ bookingId }: { bookingId: string }) {
 
           <AgreementCard agreement={booking.agreement} />
 
-          <PricingCard booking={booking} />
+          <PricingCard booking={booking} viewer="host" />
         </div>
 
         <ChatPanel booking={booking} />

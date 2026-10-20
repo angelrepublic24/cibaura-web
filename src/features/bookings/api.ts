@@ -12,7 +12,6 @@ import type {
   Message,
   MessageThreadWithMessages,
   PickupType,
-  Pricing,
   Quote,
   SignedUrlDto,
 } from "@/shared/types/domain";
@@ -24,7 +23,9 @@ import type {
  *
  * Backend contract (docs/DOMAIN.md, all under /api):
  *  - POST /bookings/quote  { carId, start, end, pickupType?, deliveryZoneId? }
- *      -> { pricing: Pricing }   (SERVER-side price preview; NO booking created)
+ *      -> Quote { pricing, depositCents, depositRequired, expiresAt, token }
+ *         (SERVER-side price preview; NO booking created). The deposit is
+ *         resolved car -> agency -> platform and is NOT part of the total.
  *      400 RENTAL_TOO_LONG when `days > MAX_RENTAL_DAYS`
  *  - POST /bookings/agreement-preview  (same body as the quote)
  *      -> ContractTemplatePublicDto { kind, version, title, html } — the
@@ -156,10 +157,15 @@ export const BookingsApi = {
   /**
    * Server-computed price preview shown BEFORE the booking is created.
    * Clients render the returned cents verbatim — never multiply days×rate.
+   *
+   * The WHOLE quote is returned, not just `pricing`: the deposit it carries
+   * is the one this booking would actually hold (car -> agency -> platform),
+   * which the car's own resolved figure cannot answer once a host sets an
+   * agency default.
    */
-  async quote(input: QuoteInput): Promise<Pricing> {
+  async quote(input: QuoteInput): Promise<Quote> {
     const res = await Api.post<Quote>("/bookings/quote", input);
-    return res.data.pricing;
+    return res.data;
   },
 
   /**

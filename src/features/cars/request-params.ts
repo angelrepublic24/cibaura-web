@@ -3,6 +3,10 @@ import type { AgencyCarsFilters } from "@/features/agencies/api";
 import { wholeUnitsToCents } from "@/shared/utils/money";
 
 // Shared by browser Axios and server fetch: hydration must use identical filters.
+//
+// `priceMinCents`/`priceMaxCents` are RENTER-facing cents: the backend marks
+// each car's host rate up before comparing, so a bound typed against the
+// price on the card matches the cars the card shows.
 function facets(filters: CarSearchFilters) {
   return {
     make: filters.make,

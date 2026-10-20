@@ -31,7 +31,11 @@ export interface CarSearchFilters {
   color?: string;
   category?: string;
   transmission?: string;
-  /** Per-day price bounds in WHOLE currency units (URL-friendly). */
+  /**
+   * Per-day price bounds in WHOLE currency units (URL-friendly), in the
+   * STOREFRONT's money — the rate shown on the cards, commission included.
+   * The server compares them against the same figure.
+   */
   priceMin?: number;
   priceMax?: number;
   page?: number;

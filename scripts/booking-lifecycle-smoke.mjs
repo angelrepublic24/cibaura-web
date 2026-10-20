@@ -55,6 +55,7 @@ const booking = {
   agency: { id: "host", name: "Fixture Host" },
   pricing: { currency: "USD" },
   depositCents: 25000,
+  depositRequired: true,
   inspections: [{ id: "inspection", type: "checkout", status: "finalized" }],
   deposit,
   claim,
@@ -324,31 +325,93 @@ const { PriceBreakdown } = load(
 const pricing = {
   currency: "USD",
   days: 2,
-  ratePerDayCents: 10000,
-  deliveryFeeCents: 500,
-  subtotalCents: 20500,
+  hostDailyRateCents: 10000,
+  renterDailyRateCents: 11000,
+  hostDeliveryFeeCents: 500,
+  renterDeliveryFeeCents: 550,
+  hostSubtotalCents: 20500,
+  renterSubtotalCents: 22550,
   commissionPct: 10,
   commissionCents: 2050,
   taxRatePct: 18,
   taxCents: 3690,
   totalCents: 99999,
 };
-for (const taxRatePct of [0, 18]) {
-  const result = render(PriceBreakdown, {
-    pricing: { ...pricing, taxRatePct, taxCents: taxRatePct ? 3690 : 0 },
-    depositCents: 35000,
-  });
-  assert(result.includes(`Tax (${money.formatPct(taxRatePct)})`));
-  assert(result.includes(money.formatMoneyCents(taxRatePct ? 3690 : 0, "USD")));
-  assert(result.includes(money.formatMoneyCents(99999, "USD")));
-  assert(result.includes(money.formatMoneyCents(35000, "USD")));
-  assert.match(result, /Delivery \(included in subtotal\)/);
-  assert.match(result, /Booking security deposit/);
-  checks++;
+const heldDeposit = { cents: 35000, required: true };
+for (const viewer of ["renter", "host"]) {
+  for (const taxRatePct of [0, 18]) {
+    const result = render(PriceBreakdown, {
+      pricing: { ...pricing, taxRatePct, taxCents: taxRatePct ? 3690 : 0 },
+      viewer,
+      deposit: heldDeposit,
+    });
+    assert(result.includes(`Tax (${money.formatPct(taxRatePct)})`));
+    assert(result.includes(money.formatMoneyCents(taxRatePct ? 3690 : 0, "USD")));
+    assert(result.includes(money.formatMoneyCents(99999, "USD")));
+    assert(result.includes(money.formatMoneyCents(35000, "USD")));
+    assert.match(result, /Delivery \(included in subtotal\)/);
+    assert.match(result, /Security deposit/);
+    checks++;
+  }
 }
+// The decision this whole surface exists for: a renter is shown the marked-up
+// subtotal and NOTHING of the host's base price or the platform's cut.
+const renterView = render(PriceBreakdown, {
+  pricing,
+  viewer: "renter",
+  deposit: heldDeposit,
+});
+assert(renterView.includes(money.formatMoneyCents(22550, "USD")));
+assert(!renterView.includes(money.formatMoneyCents(20500, "USD")));
+assert(!renterView.includes(money.formatMoneyCents(2050, "USD")));
+assert(!renterView.includes("Platform service fee"));
+checks++;
+const hostView = render(PriceBreakdown, {
+  pricing,
+  viewer: "host",
+  deposit: heldDeposit,
+});
+assert(hostView.includes(money.formatMoneyCents(20500, "USD")));
+assert(hostView.includes("Platform service fee"));
+checks++;
 assert.match(
-  render(PriceBreakdown, { pricing, depositCents: 0, depositEstimate: true }),
+  render(PriceBreakdown, {
+    pricing,
+    viewer: "renter",
+    deposit: { ...heldDeposit, estimate: true },
+  }),
   /Estimated security deposit/,
+);
+checks++;
+// "rate × days" is only CLAIMED when it is exactly true. The displayed
+// amount is the server's subtotal either way.
+const exact = {
+  ...pricing,
+  hostDeliveryFeeCents: 0,
+  renterDeliveryFeeCents: 0,
+  renterSubtotalCents: 22000,
+};
+assert.match(
+  render(PriceBreakdown, { pricing: exact, viewer: "renter" }),
+  /\$110\.00 × 2 days/,
+);
+checks++;
+// A booking priced before the markup moved into the daily rate: a cent off,
+// so the row must not pretend to be a multiplication.
+const legacy = { ...exact, renterSubtotalCents: 21999 };
+const legacyView = render(PriceBreakdown, { pricing: legacy, viewer: "renter" });
+assert.match(legacyView, /Rental subtotal/);
+assert(legacyView.includes(money.formatMoneyCents(21999, "USD")));
+assert(!legacyView.includes(money.formatMoneyCents(22000, "USD")));
+checks++;
+// "No deposit" is a host's decision, stated as one — never a blank amount.
+assert.match(
+  render(PriceBreakdown, {
+    pricing,
+    viewer: "renter",
+    deposit: { cents: 0, required: false },
+  }),
+  /No deposit required/,
 );
 checks++;
 const summary = load(
@@ -364,8 +427,10 @@ assert(
       ...booking,
       pricing,
       depositCents: 35000,
+      depositRequired: true,
       car: { depositCents: 20000 },
     },
+    viewer: "renter",
   }).includes(money.formatMoneyCents(35000, "USD")),
 );
 checks++;
