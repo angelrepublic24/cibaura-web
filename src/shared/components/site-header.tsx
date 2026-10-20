@@ -7,6 +7,7 @@ import { useAuthStore } from "@/shared/auth/store";
 import { UserMenu } from "@/shared/components/user-menu";
 import { NotificationBell } from "@/shared/components/notification-bell";
 import { Logo } from "@/shared/components/logo";
+import { cn } from "@/lib/utils";
 
 /**
  * Global header: brand + session-aware actions. Authenticated users get the
@@ -54,12 +55,23 @@ export function SiteHeader() {
   // header.
   if (pathname === "/auth" || pathname.startsWith("/auth/")) return null;
 
+  // The console is an app shell that fills the viewport, so a header capped at
+  // the storefront's reading width would float in the middle of it with the
+  // content running underneath to both edges. Same header, same height — it
+  // just stops being centred where the page behind it is not.
+  const inConsole = pathname === "/admin" || pathname.startsWith("/admin/");
+
   const linkCls =
     "rounded-[var(--radius-sm)] px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground";
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4">
+      <div
+        className={cn(
+          "flex h-16 items-center justify-between gap-4 px-4",
+          inConsole ? "w-full px-6" : "mx-auto max-w-6xl",
+        )}
+      >
         <Link href="/" aria-label="Cibaura — home" className="flex items-center">
           <Logo priority />
         </Link>
