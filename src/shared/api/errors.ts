@@ -37,6 +37,14 @@ export const API_ERROR_CODES = {
   INSPECTION_EXISTS: "INSPECTION_EXISTS",
   INSPECTION_WRONG_STATE: "INSPECTION_WRONG_STATE",
   INSPECTION_REQUIRED: "INSPECTION_REQUIRED",
+  /** The renter has not given their hand-over code yet. */
+  HANDOVER_NOT_CONFIRMED: "HANDOVER_NOT_CONFIRMED",
+  /** Wrong code. Costs one of five tries. */
+  HANDOVER_CODE_MISMATCH: "HANDOVER_CODE_MISMATCH",
+  /** Too many wrong codes; the message carries the wait. */
+  HANDOVER_CODE_LOCKED: "HANDOVER_CODE_LOCKED",
+  /** This booking never had a code — a walk-in, or one from before the feature. */
+  HANDOVER_CODE_NOT_APPLICABLE: "HANDOVER_CODE_NOT_APPLICABLE",
   INSPECTION_INCOMPLETE: "INSPECTION_INCOMPLETE",
   MEDIA_LIMIT_EXCEEDED: "MEDIA_LIMIT_EXCEEDED",
   MEDIA_TOO_LARGE: "MEDIA_TOO_LARGE",

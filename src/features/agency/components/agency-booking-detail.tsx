@@ -15,6 +15,7 @@ import { BookingLifecycleActions } from "@/features/agency/components/booking-li
 import { AgreementCard } from "@/features/agency/components/booking-parties";
 import { ClaimCard } from "@/features/agency/components/claim-card";
 import { DepositStatusCard } from "@/features/agency/components/deposit-status-card";
+import { HandoverCodeEntry } from "@/features/agency/components/handover-code-entry";
 import { InspectionPanel } from "@/features/agency/components/inspection-panel";
 import { RenterIdentityCard } from "@/features/agency/components/renter-identity-card";
 import { BookingStateBadge } from "@/shared/components/booking-state-badge";
@@ -135,6 +136,10 @@ export function AgencyBookingDetail({ bookingId }: { bookingId: string }) {
           </Card>
 
           <RenterIdentityCard booking={booking} />
+
+          {/* Above the inspection: the host asks for the code first, and
+              without it nothing below can move the booking anyway. */}
+          <HandoverCodeEntry booking={booking} />
 
           <InspectionPanel booking={booking} />
 

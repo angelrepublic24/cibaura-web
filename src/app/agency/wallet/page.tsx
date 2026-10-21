@@ -8,6 +8,7 @@ import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AgencyApi, agencyKeys } from "@/features/agency/api";
 import { PermissionGate } from "@/features/agency/components/permission-gate";
+import { EarningsPanel } from "@/features/agency/components/earnings-panel";
 import { StripePayoutsCard } from "@/features/agency/components/stripe-payouts-card";
 import { usePermission } from "@/features/agency/use-permission";
 import type {
@@ -93,10 +94,19 @@ function WalletBody() {
       <div>
         <h1 className="font-display text-2xl text-foreground">Wallet</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Earnings from settled bookings, payouts to your bank, and every
-          movement in between.
+          What you have made, what is on its way, and every movement in
+          between. Available earnings are paid to your bank automatically
+          each week.
         </p>
       </div>
+
+      {/*
+        Earnings first: what you can take, what is waiting and why, and the
+        history. The raw balance tiles below answer a narrower question —
+        how much of the balance a payout request may still ask for — and
+        belong next to the request form rather than at the top of the page.
+      */}
+      <EarningsPanel />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Tile label="Balance" value={formatMoneyCents(wallet.account.balanceCents, currency)} />
@@ -108,7 +118,7 @@ function WalletBody() {
         <Tile
           label="Available"
           value={formatMoneyCents(wallet.availableCents, currency)}
-          hint="Balance minus pending payouts"
+          hint="Balance minus pending payouts and anything on hold"
           emphasis
         />
       </div>

@@ -1,6 +1,7 @@
 import { Api } from "@/shared/api/client";
 import type {
   AgencyCar,
+  AgencyEarnings,
   AgencySettings,
   AgencyWallet,
   Booking,
@@ -56,6 +57,8 @@ import type {
  *      (server: state change + occupancy insert + payment capture in ONE
  *       transaction; may fail with reason "no_longer_available")
  *  - PATCH  /agency/requests/:bookingId/reject { reason 2..160 } -> Booking
+ *  - PATCH  /agency/requests/:bookingId/handover-code { code } -> Booking
+ *      (`bookings:handle`; 409 HANDOVER_CODE_MISMATCH / _LOCKED / _NOT_APPLICABLE)
  *  - PATCH  /agency/requests/:bookingId/pickup      -> Booking (accepted→active)
  *  - PATCH  /agency/requests/:bookingId/return      -> Booking (active→returned)
  *  - PATCH  /agency/requests/:bookingId/settle      -> Booking (returned→settled;
@@ -73,6 +76,7 @@ import type {
  *  - GET    /agency/settings                        -> AgencySettings (`agency:settings`)
  *  - PATCH  /agency/settings UpdateAgencySettingsInput -> AgencySettings
  *  - GET    /agency/wallet                          -> AgencyWallet (`wallet:view`)
+ *  - GET    /agency/wallet/earnings                 -> AgencyEarnings (`wallet:view`)
  *  - GET    /agency/wallet/payouts                  -> Payout[] (`wallet:view`)
  *  - POST   /agency/wallet/payouts { amountCents }  -> Payout (`wallet:withdraw`;
  *       409 INSUFFICIENT_BALANCE / PAYOUT_BANK_DETAILS_MISSING)
@@ -164,6 +168,7 @@ export const agencyKeys = {
   branches: () => ["agency", "branches"] as const,
   zones: (branchId: string) => ["agency", "zones", branchId] as const,
   wallet: () => ["agency", "wallet"] as const,
+  earnings: () => ["agency", "wallet", "earnings"] as const,
   payouts: () => ["agency", "wallet", "payouts"] as const,
   payoutAccount: () => ["agency", "payout-account"] as const,
   settings: () => ["agency", "settings"] as const,
@@ -483,6 +488,19 @@ export const AgencyApi = {
 
   // ── Lifecycle after accept (pickup → return → settle) ──
 
+  /**
+   * The renter reads out their six digits and the host types them here.
+   * A separate step from the pick-up because two different actions move a
+   * booking into `active`, and both read the stamp this writes.
+   */
+  async confirmHandover(bookingId: string, code: string): Promise<Booking> {
+    const res = await Api.patch(
+      `/agency/requests/${bookingId}/handover-code`,
+      { code },
+    );
+    return res.data;
+  },
+
   /** Customer collected the car: accepted → active (stamps pickedUpAt). */
   async pickupRequest(bookingId: string): Promise<Booking> {
     const res = await Api.patch(`/agency/requests/${bookingId}/pickup`, {});
@@ -715,6 +733,11 @@ export const AgencyApi = {
 
   async wallet(): Promise<AgencyWallet> {
     const res = await Api.get("/agency/wallet");
+    return res.data;
+  },
+
+  async earnings(): Promise<AgencyEarnings> {
+    const res = await Api.get("/agency/wallet/earnings");
     return res.data;
   },
 
