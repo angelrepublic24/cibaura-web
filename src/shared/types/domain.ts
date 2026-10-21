@@ -588,6 +588,25 @@ export interface Booking {
   depositRequired: boolean;
   /** Check-in / check-out inspections (ADR-0011), lightweight refs. */
   inspections: { type: InspectionType; status: InspectionStatus; id: string }[];
+  /** The hand-over code step. Always present. */
+  handover: BookingHandover;
+}
+
+/**
+ * The six digits the renter gives the agency when the car changes hands.
+ *
+ * One shape for every viewer, with the secret blanked out for those who may
+ * not see it — `code` is non-null ONLY in the renter's own payload. The
+ * agency sees `codeRequired` and `confirmedAt` and nothing else, which is
+ * what makes the code worth asking for.
+ */
+export interface BookingHandover {
+  /** The digits — the renter only. Null for the agency, admin, and walk-ins. */
+  code: string | null;
+  /** Whether this booking needs the code before pick-up can be recorded. */
+  codeRequired: boolean;
+  /** ISO instant the agency entered the right code; null until then. */
+  confirmedAt: string | null;
 }
 
 /** Renter block of the frozen rental agreement (license masked to last 4). */
@@ -839,6 +858,48 @@ export interface LedgerEntry {
   /** Set on `payout` debits — the payout the money left with. */
   payoutId?: string;
   createdAt: string;
+}
+
+/**
+ * `GET /agency/wallet/earnings` (wire `AgencyEarningsDto`).
+ *
+ * Three figures that are deliberately not one, because the difference is
+ * what a host needs: what they can take now, what is coming and when, and
+ * what is still being earned by rentals under way. Every number is integer
+ * cents, decided by the server's ledger — this app only formats them.
+ */
+export interface AgencyEarnings {
+  currency: string;
+  /** Withdrawable now; leaves automatically on `nextPayoutAt`. */
+  availableCents: number;
+  /** Credited and visible, not yet theirs to take. */
+  heldCents: number;
+  /** Each held piece, so the UI can say why it waits and until when. */
+  held: HeldEarning[];
+  /** Earned by rentals under way; arrives when the booking settles. */
+  pendingCents: number;
+  /** ISO instant of the next automatic weekly payout. */
+  nextPayoutAt: string;
+  history: AgencyEarningsHistory;
+}
+
+export interface HeldEarning {
+  bookingId: string | null;
+  amountCents: number;
+  /** ISO instant at which it becomes withdrawable. */
+  availableAt: string;
+}
+
+export interface AgencyEarningsHistory {
+  /** Bucket starts as `YYYY-MM-DD` in the business timezone, newest first. */
+  day: EarningsBucket[];
+  week: EarningsBucket[];
+  month: EarningsBucket[];
+}
+
+export interface EarningsBucket {
+  periodStart: string;
+  earnedCents: number;
 }
 
 /** `GET /agency/wallet` (wire `AgencyWalletDto`). All cents, server-computed. */

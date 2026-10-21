@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clock, MapPin, Phone, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, KeyRound, MapPin, Phone, XCircle } from "lucide-react";
 import { bookingKeys } from "@/features/bookings/api";
 import { useBookingDetail } from "@/features/bookings/hooks";
 import { AgreementCard } from "@/features/bookings/components/agreement-card";
@@ -26,6 +26,7 @@ import {
   BOOKING_TERMINAL_STATES,
   type Booking,
   type BookingDetail as BookingDetailData,
+  type BookingState,
 } from "@/shared/types/domain";
 import { BookingStateBadge } from "@/shared/components/booking-state-badge";
 import { StarPicker, StarRating } from "@/shared/components/star-rating";
@@ -36,6 +37,7 @@ import { Button } from "@/shared/components/ui/button";
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/shared/components/ui/card";
@@ -99,6 +101,8 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
             verification, inspection confirmation, claim response) sits
             above the reference cards. */}
         <DepositBanner booking={booking} />
+
+        <HandoverCodeCard booking={booking} />
 
         <InspectionsSection booking={booking} />
 
@@ -197,6 +201,66 @@ const DAY_LABELS: Record<string, string> = {
   sun: "Sun",
 };
 const DAY_ORDER = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+
+/**
+ * THE HAND-OVER CODE — six digits only this renter can see.
+ *
+ * They read it out when the car changes hands, and the agency types it in.
+ * Until that happens the booking cannot go active, so the code is what
+ * proves the person collecting the car is the person who booked it.
+ *
+ * Shown from the moment the booking exists, not only once it is accepted:
+ * a renter opening the app at the counter should find it immediately, and
+ * a code they have already seen is not a secret worth re-hiding.
+ *
+ * It disappears once confirmed. A code that has done its job and stays on
+ * screen invites someone to read it out a second time, for something else.
+ */
+function HandoverCodeCard({ booking }: { booking: BookingDetailData }) {
+  const { handover } = booking;
+  if (!handover.codeRequired) return null;
+  if (!CODE_RELEVANT_STATES.includes(booking.state)) return null;
+
+  if (handover.confirmedAt) {
+    return (
+      <Card>
+        <CardContent className="flex items-center gap-3 py-4">
+          <CheckCircle2 className="size-5 shrink-0 text-primary" aria-hidden />
+          <p className="text-sm text-muted-foreground">
+            Hand-over confirmed on {formatDateTime(handover.confirmedAt)}.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="border-primary/30 bg-primary/5">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <KeyRound className="size-4 text-primary" aria-hidden />
+          Your hand-over code
+        </CardTitle>
+        <CardDescription>
+          Give these six digits to the agency when you collect the car. Do not
+          share them before you have the keys — they confirm the hand-over.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <p className="font-mono text-4xl font-bold tracking-[0.2em] tabular-nums text-primary">
+          {handover.code ?? "——————"}
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * States where the code still means something: before the car is handed
+ * over. Past `active` it has been used, and on a dead booking it never will
+ * be.
+ */
+const CODE_RELEVANT_STATES: BookingState[] = ["requested", "accepted"];
 
 /**
  * "Your pickup" — where and how the customer gets the car. Branch address,
