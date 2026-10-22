@@ -54,6 +54,7 @@ export function ReasonDialog({
   description,
   field,
   confirmLabel,
+  notice,
   destructive = false,
   onConfirm,
   mapError,
@@ -64,6 +65,12 @@ export function ReasonDialog({
   description?: string;
   field: ReasonFieldSpec;
   confirmLabel: string;
+  /**
+   * Rendered ABOVE the field — what the caller needs the person to read
+   * before they type anything. A cancellation that costs money says so
+   * here; most confirmations pass nothing.
+   */
+  notice?: React.ReactNode;
   destructive?: boolean;
   onConfirm: (value: string | undefined) => Promise<unknown>;
   /** Return copy for a known error, or `undefined` to fall back to the message. */
@@ -132,6 +139,8 @@ export function ReasonDialog({
         noValidate
         onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
       >
+        {notice}
+
         <div className="space-y-1.5">
           <Label htmlFor={inputId}>
             {field.label}

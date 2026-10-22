@@ -4,11 +4,18 @@ import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AgencyApi } from "@/features/agency/api";
-import { invalidateAgencyBooking } from "@/features/agency/hooks";
+import {
+  invalidateAgencyBooking,
+  useCancellationCover,
+} from "@/features/agency/hooks";
 import { usePermission } from "@/features/agency/use-permission";
 import type { Booking } from "@/shared/types/domain";
 import { API_ERROR_CODES, isApiErrorCode } from "@/shared/api/errors";
 import { ReasonDialog } from "@/shared/components/reason-dialog";
+import {
+  CancellationCoverNotice,
+  cancelButtonLabel,
+} from "@/features/agency/components/cancellation-cover-notice";
 import { Button, buttonVariants } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
@@ -47,6 +54,24 @@ export function BookingLifecycleActions({
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
   const [cancelOpen, setCancelOpen] = useState(false);
+
+  /*
+   * ONLY FOR A BOOKING THAT WAS ACCEPTED, and only while the dialog is open.
+   *
+   * A cover is charged for walking away from a booking the agency had
+   * already taken. A mid-rental cancellation is not charged one — part of
+   * the rental was delivered, and that refund is a different calculation
+   * that does not exist yet — so quoting there would show a figure nobody
+   * is ever billed.
+   *
+   * Asked here rather than inside the panel because the confirm button
+   * needs the same number.
+   */
+  const coverQuery = useCancellationCover(
+    booking.id,
+    cancelOpen && booking.state === "accepted",
+  );
+  const cover = booking.state === "accepted" ? coverQuery.data : undefined;
 
   const mutation = useMutation({
     mutationFn: (action: LifecycleAction) =>
@@ -177,6 +202,15 @@ export function BookingLifecycleActions({
             : "Cancel this booking?"
         }
         description="The customer will be refunded in full. This cannot be undone."
+        notice={
+          booking.state === "accepted" ? (
+            <CancellationCoverNotice
+              cover={cover}
+              isLoading={coverQuery.isLoading}
+              isError={coverQuery.isError}
+            />
+          ) : undefined
+        }
         field={{
           label: "Reason",
           placeholder:
@@ -187,7 +221,7 @@ export function BookingLifecycleActions({
           minLength: REASON_MIN,
           maxLength: REASON_MAX,
         }}
-        confirmLabel="Cancel booking"
+        confirmLabel={cancelButtonLabel(cover)}
         destructive
         onConfirm={async (value) => {
           const text = value ?? "";
