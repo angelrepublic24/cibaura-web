@@ -108,6 +108,17 @@ const render = (component, props) =>
 
 // ── /agency route group: one surface per verification status ────────────────
 
+// THE SHELL IS LOADED FOR REAL, not stubbed like every other import.
+//
+// It draws the console's navigation, so stubbing it would leave this file
+// asserting "a verified agency keeps its nav" against a render that has no
+// nav in it — the assertion would pass or fail on where the markup happens
+// to live rather than on what the agency gets. It is the same reason the
+// layout itself is transpiled instead of mocked.
+mocks.ConsoleShell = load(
+  "src/shared/components/console-shell.tsx",
+).ConsoleShell;
+
 const AgencyLayout = load("src/app/agency/layout.tsx").default;
 const agency = (verificationStatus, extra = {}) => ({
   id: "agency-1",
