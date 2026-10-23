@@ -620,6 +620,7 @@ function BookingPanel({
             deliveryAddress: deliveryAddr.formattedAddress,
             deliveryLat: deliveryAddr.lat,
             deliveryLng: deliveryAddr.lng,
+            deliveryCityName: deliveryAddr.city,
             deliveryReference: deliveryReference.trim() || undefined,
           }
         : { deliveryZoneId: zoneId }

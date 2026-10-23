@@ -14,6 +14,34 @@ export interface PickedAddress {
   formattedAddress: string;
   lat: number;
   lng: number;
+  /**
+   * La ciudad (localidad) del lugar elegido. El backend decide con ella si la
+   * agencia cubre esa dirección (`deliversTo`): sin ciudad, una agencia con
+   * cobertura configurada rechaza la entrega con 400. `undefined` si Google no
+   * la devolvió en los componentes de la dirección.
+   */
+  city?: string;
+}
+
+/**
+ * La ciudad de una dirección de Google. Se prueba, en orden, los tipos de
+ * componente que distintos países usan para "ciudad" (localidad; el 2.º/3.er
+ * nivel administrativo, que es donde suele caer en RD; o postal_town). El
+ * backend hace un match flexible por nombre, así que basta el long_name.
+ */
+function cityFromComponents(
+  components: google.maps.GeocoderAddressComponent[] | undefined,
+): string | undefined {
+  if (!components) return undefined;
+  const byType = (type: string) =>
+    components.find((c) => c.types.includes(type))?.long_name;
+  return (
+    byType("locality") ||
+    byType("administrative_area_level_2") ||
+    byType("administrative_area_level_3") ||
+    byType("postal_town") ||
+    undefined
+  );
 }
 
 function parsePlace(
@@ -25,6 +53,7 @@ function parsePlace(
     formattedAddress: place.formatted_address || place.name || "",
     lat: loc.lat(),
     lng: loc.lng(),
+    city: cityFromComponents(place.address_components),
   };
 }
 
@@ -45,27 +74,47 @@ export function AddressAutocomplete({
   placeholder?: string;
   id?: string;
 }) {
-  const { loaded, error } = useGoogleMaps();
+  const { loaded, error: loadError } = useGoogleMaps();
   const inputRef = useRef<HTMLInputElement>(null);
   const acRef = useRef<google.maps.places.Autocomplete | null>(null);
   const [value, setValue] = useState("");
   const [selected, setSelected] = useState(false);
+  // El constructor legacy de Autocomplete puede lanzar aunque el script cargue
+  // (Google lo deprecó para claves nuevas en 2025). Sin esta guarda, el throw
+  // escalaba al error boundary global y tumbaba la página entera (BUG-007).
+  const [initError, setInitError] = useState<string | null>(null);
+  const error = loadError ?? initError;
 
   useEffect(() => {
     if (!loaded || !inputRef.current || acRef.current) return;
-    const ac = new google.maps.places.Autocomplete(inputRef.current, {
-      types: ["address"],
-      fields: ["formatted_address", "geometry", "name"],
-    });
-    ac.addListener("place_changed", () => {
-      const parsed = parsePlace(ac.getPlace());
-      if (parsed) {
-        setValue(parsed.formattedAddress);
-        setSelected(true);
-        onSelect(parsed);
-      }
-    });
-    acRef.current = ac;
+    if (!window.google?.maps?.places?.Autocomplete) {
+      setInitError("Address lookup is unavailable right now.");
+      return;
+    }
+    try {
+      const ac = new google.maps.places.Autocomplete(inputRef.current, {
+        types: ["address"],
+        fields: [
+          "formatted_address",
+          "geometry",
+          "name",
+          "address_components",
+        ],
+      });
+      ac.addListener("place_changed", () => {
+        const parsed = parsePlace(ac.getPlace());
+        if (parsed) {
+          setValue(parsed.formattedAddress);
+          setSelected(true);
+          onSelect(parsed);
+        }
+      });
+      acRef.current = ac;
+    } catch {
+      // Un fallo del autocompletado NO debe tumbar el checkout: lo mostramos
+      // como un aviso en el campo. El cliente puede elegir recogida en sucursal.
+      setInitError("Address lookup is unavailable right now.");
+    }
   }, [loaded, onSelect]);
 
   return (

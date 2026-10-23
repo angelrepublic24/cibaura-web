@@ -349,7 +349,14 @@ for (const viewer of ["renter", "host"]) {
     assert(result.includes(money.formatMoneyCents(taxRatePct ? 3690 : 0, "USD")));
     assert(result.includes(money.formatMoneyCents(99999, "USD")));
     assert(result.includes(money.formatMoneyCents(35000, "USD")));
-    assert.match(result, /Delivery \(included in subtotal\)/);
+    // BUG-010: renta y delivery son líneas SEPARADAS, no "(included in subtotal)".
+    assert.match(result, /<dt>Rental<\/dt>/);
+    assert.match(result, /<dt>Delivery<\/dt>/);
+    // La renta es subtotal − delivery (resta exacta de enteros del servidor).
+    const rentalCents = viewer === "renter" ? 22550 - 550 : 20500 - 500;
+    const deliveryCents = viewer === "renter" ? 550 : 500;
+    assert(result.includes(money.formatMoneyCents(rentalCents, "USD")));
+    assert(result.includes(money.formatMoneyCents(deliveryCents, "USD")));
     assert.match(result, /Security deposit/);
     checks++;
   }
@@ -361,8 +368,11 @@ const renterView = render(PriceBreakdown, {
   viewer: "renter",
   deposit: heldDeposit,
 });
-assert(renterView.includes(money.formatMoneyCents(22550, "USD")));
+// Renta marcada (22550 − 550 = 22000) + delivery (550); jamás la base del host.
+assert(renterView.includes(money.formatMoneyCents(22000, "USD")));
+assert(renterView.includes(money.formatMoneyCents(550, "USD")));
 assert(!renterView.includes(money.formatMoneyCents(20500, "USD")));
+assert(!renterView.includes(money.formatMoneyCents(20000, "USD")));
 assert(!renterView.includes(money.formatMoneyCents(2050, "USD")));
 assert(!renterView.includes("Platform service fee"));
 checks++;
@@ -371,7 +381,7 @@ const hostView = render(PriceBreakdown, {
   viewer: "host",
   deposit: heldDeposit,
 });
-assert(hostView.includes(money.formatMoneyCents(20500, "USD")));
+assert(hostView.includes(money.formatMoneyCents(20000, "USD")));
 assert(hostView.includes("Platform service fee"));
 checks++;
 assert.match(
