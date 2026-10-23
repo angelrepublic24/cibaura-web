@@ -28,9 +28,25 @@ function facets(filters: CarSearchFilters) {
   };
 }
 
+/**
+ * `ratingMin` and `sort` are NOT in `facets()` on purpose.
+ *
+ * `facets()` is shared with the agency storefront, whose DTO knows neither
+ * parameter — and the API validates with `forbidNonWhitelisted`, so sending
+ * one there would 400 the whole storefront rather than be ignored. They are
+ * listed here and in `carCatalogParams`, the two surfaces that accept them.
+ */
+function publicBrowsing(filters: CarSearchFilters) {
+  return {
+    ratingMin: filters.ratingMin,
+    sort: filters.sort,
+  };
+}
+
 export function carSearchParams(city: string, filters: CarSearchFilters) {
   return {
     ...facets(filters),
+    ...publicBrowsing(filters),
     country: filters.country,
     region: filters.region,
     city: city && city !== "all" ? city : undefined,
@@ -52,6 +68,7 @@ export function agencyCarsParams(filters: AgencyCarsFilters) {
 export function carCatalogParams(city: string, filters: CarSearchFilters) {
   return {
     ...facets(filters),
+    ...publicBrowsing(filters),
     country: filters.country,
     region: filters.region,
     city: city && city !== "all" ? city : undefined,

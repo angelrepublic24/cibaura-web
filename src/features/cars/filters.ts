@@ -16,6 +16,7 @@
  */
 import { z } from "zod";
 import { isIsoDate } from "@/shared/utils/dates";
+import { CAR_SORT_VALUES, type CarSort } from "@/features/cars/sort";
 
 export interface CarSearchFilters {
   country?: string;
@@ -38,6 +39,16 @@ export interface CarSearchFilters {
    */
   priceMin?: number;
   priceMax?: number;
+  /**
+   * Minimum host rating, 0..5. A host with NO reviews is excluded when this
+   * is set — "at least 4 stars" is not satisfied by "no stars" — which is
+   * also why `undefined` and not `0` means "any": the server reads `0` as no
+   * filter, but sending it would put a meaningless `rating_min=0` in every
+   * shared link.
+   */
+  ratingMin?: number;
+  /** Browsing order; `undefined` is the server's default (cheapest first). */
+  sort?: CarSort;
   page?: number;
 }
 
@@ -104,6 +115,9 @@ export function urlEnum<T extends string>(values: readonly [T, ...T[]]) {
     .catch(undefined);
 }
 
+/** The browsing orders this build can actually serve; anything else is dropped. */
+const carSortParam = urlEnum<CarSort>(CAR_SORT_VALUES);
+
 export function parseCarFilters(sp: RawSearchParams): CarSearchFilters {
   return {
     // Country codes are compared upper-case everywhere downstream, including
@@ -121,6 +135,11 @@ export function parseCarFilters(sp: RawSearchParams): CarSearchFilters {
     transmission: urlText.parse(sp.transmission),
     priceMin: urlNumber.parse(sp.price_min),
     priceMax: urlNumber.parse(sp.price_max),
+    ratingMin: urlNumber.parse(sp.rating_min),
+    // An unrecognized order degrades to `undefined` — the server's default —
+    // rather than reaching the API and 400ing a page that a stale link or a
+    // crawler asked for. `?sort=best` has never been a valid order.
+    sort: carSortParam.parse(sp.sort),
     page: urlNumber.parse(sp.page),
   };
 }
@@ -152,6 +171,8 @@ export function filtersToSearchParams(f: CarSearchFilters): URLSearchParams {
   set("transmission", f.transmission);
   set("price_min", f.priceMin);
   set("price_max", f.priceMax);
+  set("rating_min", f.ratingMin);
+  set("sort", f.sort);
   set("page", f.page);
   return sp;
 }
