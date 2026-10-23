@@ -1,4 +1,5 @@
 import { Api } from "@/shared/api/client";
+import type { IdDocumentType } from "@/features/agencies/identity-document";
 import type {
   AgencyKind,
   AgencyVerificationStatus,
@@ -172,6 +173,16 @@ export interface ApplyAgencyInput {
 export interface ApplyIndividualHostInput {
   firstName: string;
   lastName: string;
+  /** Which of the three accepted documents the host is presenting. */
+  idType: IdDocumentType;
+  /**
+   * WHO issued it: an ISO country code (`DO`) or a subdivision code
+   * (`US-FL`). Always sent, even when the host was never asked — a
+   * Dominican presenting a cédula sees no issuer question, because the
+   * cédula has exactly one issuer, but a number cannot be validated without
+   * knowing the authority behind it.
+   */
+  idIssuer: string;
   idNumber: string;
   dateOfBirth: string;
   phone: string;

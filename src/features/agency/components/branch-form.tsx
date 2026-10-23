@@ -239,7 +239,7 @@ export function BranchForm(props: BranchFormProps) {
 
   const citiesQuery = useQuery({
     queryKey: catalogKeys.cities(),
-    queryFn: CatalogApi.listCities,
+    queryFn: () => CatalogApi.listCities(),
   });
 
   const mutation = useMutation({

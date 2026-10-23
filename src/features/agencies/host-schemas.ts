@@ -5,6 +5,12 @@ import {
   PHONE_REGEX,
 } from "@/features/auth/schemas";
 import { businessTodayIso } from "@/shared/utils/dates";
+import {
+  buildIdIssuer,
+  idNumberProblem,
+  ID_DOCUMENT_TYPE_VALUES,
+  nationalIdNeedsSubdivision,
+} from "@/features/agencies/identity-document";
 
 /**
  * Zod schemas for the individual-host onboarding (ADR-0009). Bounds mirror
@@ -37,6 +43,26 @@ export const cedulaSchema = z
   .trim()
   .regex(CEDULA_REGEX, "Enter your cédula, e.g. 001-1234567-8");
 
+/**
+ * WHICH document the host is presenting, and who issued it.
+ *
+ * Split into a country and an optional subdivision because that is how the
+ * host is asked ("issued by Dominican Republic" / "issued by United States,
+ * Florida"); `buildIdIssuer` joins them into the single `US-FL` the API
+ * takes. Keeping them apart in the form is what lets the state question
+ * appear and disappear without the country answer being lost.
+ */
+const idDocumentShape = {
+  idType: z.enum(ID_DOCUMENT_TYPE_VALUES, {
+    message: "Choose which document you are presenting",
+  }),
+  idIssuerCountry: z
+    .string()
+    .trim()
+    .min(2, "Choose who issued your document"),
+  idIssuerSubdivision: z.string().trim().optional(),
+};
+
 export const hostDateOfBirthSchema = z
   .string()
   .regex(DATE_ONLY, "Enter your date of birth")
@@ -56,11 +82,40 @@ export const hostPersonalSchema = z.object({
     .trim()
     .min(2, "Enter your last name")
     .max(80, "At most 80 characters"),
-  idNumber: cedulaSchema,
+  ...idDocumentShape,
+  // Checked by `superRefine` below, not here: what makes a number valid
+  // depends on the two fields above, and a field schema cannot see them.
+  idNumber: z.string().trim().min(1, "Enter your document number"),
   dateOfBirth: hostDateOfBirthSchema,
   phone: z.string().trim().regex(PHONE_REGEX, PHONE_MESSAGE),
   acceptTerms: acceptTermsSchema,
-});
+})
+  .superRefine((values, ctx) => {
+    // A state id needs to name the state. The United States issues no
+    // federal id card, so "United States" alone does not identify an
+    // authority — and the server says exactly that back.
+    if (
+      values.idType === "national_id" &&
+      nationalIdNeedsSubdivision(values.idIssuerCountry) &&
+      !values.idIssuerSubdivision
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["idIssuerSubdivision"],
+        message: "Choose the state that issued your ID",
+      });
+    }
+
+    const issuer = buildIdIssuer(
+      values.idType,
+      values.idIssuerCountry,
+      values.idIssuerSubdivision,
+    );
+    const problem = idNumberProblem(values.idNumber, values.idType, issuer);
+    if (problem) {
+      ctx.addIssue({ code: "custom", path: ["idNumber"], message: problem });
+    }
+  });
 export type HostPersonalValues = z.infer<typeof hostPersonalSchema>;
 
 /**
