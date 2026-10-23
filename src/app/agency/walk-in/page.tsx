@@ -24,9 +24,15 @@ import { Select } from "@/shared/components/ui/select";
 
 /**
  * /agency/walk-in — counter sale. A salesperson books a car for a customer who
- * is at the branch. The booking is created AS the customer (by email), so their
- * identity + card gates apply exactly as a normal request — the server returns
- * a clear error if the customer isn't verified or has no card on file.
+ * is physically at the branch. It is an OFFLINE, already-accepted booking: the
+ * agency takes payment and checks the licence at the counter, so there is NO
+ * online card hold and NO identity gate (unlike a normal online request).
+ *
+ * The email is NOT a login. If it belongs to a REGISTERED account the server
+ * refuses it (409) — that customer books from their own account — so this path
+ * never attaches a counter sale to an account the customer opened themselves.
+ * A prior counter guest with that email is reused; a new email creates a
+ * lightweight guest from the name + phone.
  */
 export default function WalkInBookingPage() {
   return (
@@ -111,8 +117,10 @@ function WalkInForm() {
               onChange={(e) => setCustomerEmail(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              If this email already has an account we&apos;ll use it; otherwise a
-              new customer is created from the name &amp; phone below.
+              Not a login. If this email already belongs to a registered
+              account, that customer books from their own account; a previous
+              counter guest is reused, otherwise a new one is created from the
+              name &amp; phone below.
             </p>
           </div>
 

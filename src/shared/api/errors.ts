@@ -77,6 +77,16 @@ interface CodedErrorBody {
  * Read the backend's stable `code` from a failed request, or `undefined`
  * when the error is not an axios error / carries no code.
  */
+/**
+ * The HTTP status of a failed request, or `undefined` when the error is not an
+ * axios error (e.g. a network failure, which has no response). Lets a screen
+ * tell a real server response (a 409 conflict) from "no se pudo conectar".
+ */
+export function getApiErrorStatus(error: unknown): number | undefined {
+  if (!(error instanceof AxiosError)) return undefined;
+  return error.response?.status;
+}
+
 export function getApiErrorCode(error: unknown): string | undefined {
   if (!(error instanceof AxiosError)) return undefined;
   const body = error.response?.data as CodedErrorBody | undefined;
