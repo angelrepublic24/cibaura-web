@@ -22,6 +22,7 @@ import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent } from "@/shared/components/ui/card";
 import { Label } from "@/shared/components/ui/label";
+import { formatIsoDate } from "@/shared/utils/dates";
 import { Select } from "@/shared/components/ui/select";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { Textarea } from "@/shared/components/ui/textarea";
@@ -236,8 +237,24 @@ export default function AdminAgencyApplicationsPage() {
 
 function ApplicationDetail({ id }: { id: string }) {
   const qc = useQueryClient();
-  const [rejecting, setRejecting] = useState(false);
+  /*
+   * WHICH PANEL IS OPEN, as one value rather than a boolean per panel.
+   *
+   * Review has three moves now — approve, ask, refuse — and a second
+   * `requesting` flag beside `rejecting` would make "both true" a state the
+   * types allow and the screen cannot render.
+   */
+  const [openPanel, setOpenPanel] = useState<"none" | "reject" | "request">(
+    "none",
+  );
   const [reason, setReason] = useState("");
+  const [note, setNote] = useState("");
+
+  const closePanel = () => {
+    setOpenPanel("none");
+    setReason("");
+    setNote("");
+  };
 
   const detailQuery = useQuery({
     queryKey: adminKeys.application(id),
@@ -259,8 +276,15 @@ function ApplicationDetail({ id }: { id: string }) {
     mutationFn: () => AdminApi.rejectApplication(id, reason.trim()),
     onSuccess: () => {
       invalidate();
-      setRejecting(false);
-      setReason("");
+      closePanel();
+    },
+  });
+
+  const requestDocuments = useMutation({
+    mutationFn: () => AdminApi.requestApplicationDocuments(id, note.trim()),
+    onSuccess: () => {
+      invalidate();
+      closePanel();
     },
   });
 
@@ -294,7 +318,8 @@ function ApplicationDetail({ id }: { id: string }) {
   }
 
   const app = detailQuery.data as AgencyApplication;
-  const busy = verify.isPending || reject.isPending;
+  const busy =
+    verify.isPending || reject.isPending || requestDocuments.isPending;
 
   const individual = app.kind === "individual";
   const kycRows: { label: string; value: string | null }[] = [
@@ -416,11 +441,25 @@ function ApplicationDetail({ id }: { id: string }) {
           </div>
         ) : null}
 
+        {/* What we already asked for, and when — so a reviewer picking the
+            application back up knows whether the host has answered yet. */}
+        {app.documentsRequested ? (
+          <div className="rounded-[var(--radius-sm)] border border-amber-200 bg-amber-50 px-3.5 py-3">
+            <p className="text-xs font-medium text-amber-900">
+              Waiting on the applicant since{" "}
+              {formatIsoDate(app.documentsRequested.requestedAt.slice(0, 10))}
+            </p>
+            <p className="mt-0.5 text-sm text-amber-800">
+              {app.documentsRequested.note}
+            </p>
+          </div>
+        ) : null}
+
         {/* Actions */}
         <section className="border-t border-border pt-5">
           {app.verificationStatus === "pending" ? (
             <div className="space-y-3">
-              {!rejecting ? (
+              {openPanel === "none" ? (
                 <div className="flex flex-wrap gap-2">
                   <Button
                     onClick={() => verify.mutate()}
@@ -428,16 +467,75 @@ function ApplicationDetail({ id }: { id: string }) {
                   >
                     {verify.isPending ? "Verifying…" : "Verify agency"}
                   </Button>
+                  {/* The move that was missing. A blurry cédula is not
+                      grounds for rejection, and it was the only answer the
+                      screen offered. */}
                   <Button
                     variant="outline"
                     onClick={() => {
                       verify.reset();
-                      setRejecting(true);
+                      setOpenPanel("request");
+                    }}
+                    disabled={busy}
+                  >
+                    {app.documentsRequested
+                      ? "Ask for something else…"
+                      : "Ask for documents…"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      verify.reset();
+                      setOpenPanel("reject");
                     }}
                     disabled={busy}
                   >
                     Reject…
                   </Button>
+                </div>
+              ) : openPanel === "request" ? (
+                <div className="space-y-2 rounded-[var(--radius-sm)] border border-border bg-muted/40 p-3.5">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="request-note">What do you need?</Label>
+                    <Textarea
+                      id="request-note"
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                      placeholder="The back of the cédula is cut off — send a photo of the whole card…"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Emailed to the applicant and shown in their onboarding,
+                      word for word. Name the document and what is wrong with
+                      it — the application stays open either way.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      disabled={
+                        note.trim().length < 10 || requestDocuments.isPending
+                      }
+                      onClick={() => requestDocuments.mutate()}
+                    >
+                      {requestDocuments.isPending
+                        ? "Sending…"
+                        : "Send the request"}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      disabled={requestDocuments.isPending}
+                      onClick={() => {
+                        closePanel();
+                        requestDocuments.reset();
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                  {requestDocuments.isError ? (
+                    <p className="text-sm text-destructive">
+                      {(requestDocuments.error as Error).message}
+                    </p>
+                  ) : null}
                 </div>
               ) : (
                 <div className="space-y-2 rounded-[var(--radius-sm)] border border-border bg-muted/40 p-3.5">
@@ -465,8 +563,7 @@ function ApplicationDetail({ id }: { id: string }) {
                       variant="ghost"
                       disabled={reject.isPending}
                       onClick={() => {
-                        setRejecting(false);
-                        setReason("");
+                        closePanel();
                         reject.reset();
                       }}
                     >
