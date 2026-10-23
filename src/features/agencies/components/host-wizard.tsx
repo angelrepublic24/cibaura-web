@@ -4,7 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { CarFront, CircleCheck, IdCard } from "lucide-react";
 import {
   AgenciesApi,
@@ -15,7 +20,6 @@ import {
   hostAddressSchema,
   hostPersonalSchema,
   latestHostDateOfBirthIso,
-  normalizeCedula,
   type HostAddressValues,
   type HostPersonalValues,
 } from "@/features/agencies/host-schemas";
@@ -35,6 +39,15 @@ import { CarRegistrationDocumentCard } from "@/features/agency/components/car-re
 import { authKeys } from "@/features/auth/api";
 import { TermsCheckbox } from "@/features/auth/components/terms-checkbox";
 import { CatalogApi, catalogKeys } from "@/features/catalog/api";
+import {
+  buildIdIssuer,
+  idNumberLabel,
+  idNumberPlaceholder,
+  isDominicanCedula,
+  nationalIdNeedsSubdivision,
+  normalizeIdNumber,
+  ID_DOCUMENT_TYPES,
+} from "@/features/agencies/identity-document";
 import { useLegalCurrent } from "@/features/legal/hooks";
 import {
   API_ERROR_CODES,
@@ -214,6 +227,9 @@ function PersonalStep() {
     defaultValues: draft ?? {
       firstName: "",
       lastName: "",
+      idType: "national_id",
+      idIssuerCountry: "",
+      idIssuerSubdivision: "",
       idNumber: "",
       dateOfBirth: "",
       phone: "",
@@ -221,6 +237,43 @@ function PersonalStep() {
     },
   });
   const errors = form.formState.errors;
+
+  // The markets the platform serves. A national id card has to be issued by
+  // the country the host lives and rents in, so this list is also the list
+  // of countries whose national id we can accept at all.
+  const countriesQuery = useQuery({
+    queryKey: catalogKeys.countries(),
+    queryFn: CatalogApi.listCountries,
+  });
+
+  const idType = form.watch("idType");
+  const issuerCountry = form.watch("idIssuerCountry");
+  const needsState =
+    idType === "national_id" && nationalIdNeedsSubdivision(issuerCountry);
+
+  // Only fetched when a state is actually being asked for.
+  const regionsQuery = useQuery({
+    queryKey: catalogKeys.regions(issuerCountry),
+    queryFn: needsState
+      ? () => CatalogApi.listRegions(issuerCountry)
+      : skipToken,
+  });
+
+  // One market, one answer: pre-select it rather than make the host pick
+  // from a list of one. They can still change it when there are more.
+  const onlyCountry =
+    countriesQuery.data?.length === 1 ? countriesQuery.data[0] : undefined;
+  useEffect(() => {
+    if (onlyCountry && !form.getValues("idIssuerCountry")) {
+      form.setValue("idIssuerCountry", onlyCountry.code);
+    }
+  }, [onlyCountry, form]);
+
+  const issuer = buildIdIssuer(
+    idType,
+    issuerCountry,
+    form.watch("idIssuerSubdivision"),
+  );
 
   return (
     <Card>
@@ -264,12 +317,99 @@ function PersonalStep() {
                 <p className="text-sm text-destructive">{errors.lastName.message}</p>
               ) : null}
             </div>
+            {/* WHICH document, then WHO issued it, then the number — in that
+                order, because each answer decides what the next one means.
+                A cédula is 11 digits; a passport number is not. */}
             <div className="space-y-1.5">
-              <Label htmlFor="host-cedula">Cédula</Label>
+              <Label htmlFor="host-id-type">ID document</Label>
+              <Select
+                id="host-id-type"
+                aria-invalid={!!errors.idType}
+                {...form.register("idType")}
+              >
+                {ID_DOCUMENT_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </Select>
+              {errors.idType ? (
+                <p className="text-sm text-destructive">
+                  {errors.idType.message}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="host-id-country">Issued by</Label>
+              <Select
+                id="host-id-country"
+                disabled={countriesQuery.isLoading || countriesQuery.isError}
+                aria-invalid={!!errors.idIssuerCountry}
+                {...form.register("idIssuerCountry")}
+              >
+                <option value="">
+                  {countriesQuery.isError
+                    ? "Countries unavailable"
+                    : "Select the issuing country"}
+                </option>
+                {(countriesQuery.data ?? []).map((c) => (
+                  <option key={c.id} value={c.code}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
+              {errors.idIssuerCountry ? (
+                <p className="text-sm text-destructive">
+                  {errors.idIssuerCountry.message}
+                </p>
+              ) : null}
+            </div>
+
+            {/* Asked only where it is a real question: the United States has
+                no national id card, so "United States" alone names no
+                issuing authority. */}
+            {needsState ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="host-id-state">Issuing state</Label>
+                <Select
+                  id="host-id-state"
+                  disabled={regionsQuery.isLoading || regionsQuery.isError}
+                  aria-invalid={!!errors.idIssuerSubdivision}
+                  {...form.register("idIssuerSubdivision")}
+                >
+                  <option value="">
+                    {regionsQuery.isError
+                      ? "States unavailable"
+                      : "Select the issuing state"}
+                  </option>
+                  {(regionsQuery.data ?? [])
+                    .filter((r) => r.code)
+                    .map((r) => (
+                      <option key={r.id} value={r.code ?? ""}>
+                        {r.name}
+                      </option>
+                    ))}
+                </Select>
+                {errors.idIssuerSubdivision ? (
+                  <p className="text-sm text-destructive">
+                    {errors.idIssuerSubdivision.message}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="space-y-1.5">
+              <Label htmlFor="host-id-number">
+                {idNumberLabel(idType, issuer)}
+              </Label>
               <Input
-                id="host-cedula"
-                inputMode="numeric"
-                placeholder="001-1234567-8"
+                id="host-id-number"
+                inputMode={
+                  isDominicanCedula(idType, issuer) ? "numeric" : "text"
+                }
+                placeholder={idNumberPlaceholder(idType, issuer)}
+                maxLength={40}
                 aria-invalid={!!errors.idNumber}
                 {...form.register("idNumber")}
               />
@@ -277,7 +417,8 @@ function PersonalStep() {
                 <p className="text-sm text-destructive">{errors.idNumber.message}</p>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  Dominican ID number; you will upload a photo of it next.
+                  Exactly as the document prints it; you will upload a photo
+                  of it next.
                 </p>
               )}
             </div>
@@ -383,9 +524,27 @@ function AddressStep({ onApplied }: { onApplied: () => void }) {
   const lat = form.watch("lat");
   const line = form.watch("line");
 
+  /*
+   * A NATIONAL ID CARD IS THE DOCUMENT OF THE COUNTRY YOU LIVE IN.
+   *
+   * The server refuses an application whose national id was issued
+   * somewhere other than the country of the host's own address — that is
+   * the hole that would otherwise let a Dominican host declare "a cédula
+   * issued by Florida" and walk past the strict cédula format with any
+   * string they liked.
+   *
+   * So the rule is enforced by the LIST rather than by a message: once the
+   * host has said their national id is Dominican, only Dominican cities are
+   * offered and a mismatch cannot be entered. A passport or a licence from
+   * another country is ordinary — somebody who moved, or who drives on the
+   * licence from home — so those narrow nothing.
+   */
+  const addressCountry =
+    personal?.idType === "national_id" ? personal.idIssuerCountry : undefined;
+
   const citiesQuery = useQuery({
-    queryKey: catalogKeys.cities(),
-    queryFn: CatalogApi.listCities,
+    queryKey: catalogKeys.cities(addressCountry),
+    queryFn: () => CatalogApi.listCities(addressCountry),
   });
 
   const apply = useMutation({
@@ -421,10 +580,22 @@ function AddressStep({ onApplied }: { onApplied: () => void }) {
     if (!personal || !legal.data || values.lat === null || values.lng === null) {
       return;
     }
+    // The issuer the server will store, rebuilt from the two answers the
+    // form asked separately (`US` + `FL` -> `US-FL`).
+    const idIssuer = buildIdIssuer(
+      personal.idType,
+      personal.idIssuerCountry,
+      personal.idIssuerSubdivision,
+    );
     apply.mutate({
       firstName: personal.firstName,
       lastName: personal.lastName,
-      idNumber: normalizeCedula(personal.idNumber),
+      idType: personal.idType,
+      idIssuer,
+      // Dashes are formatting in a cédula and part of the number anywhere
+      // else — see `normalizeIdNumber`. Stripping them unconditionally, as
+      // this did, would put a different licence number in a signed contract.
+      idNumber: normalizeIdNumber(personal.idNumber, personal.idType, idIssuer),
       dateOfBirth: personal.dateOfBirth,
       phone: personal.phone,
       address: {
