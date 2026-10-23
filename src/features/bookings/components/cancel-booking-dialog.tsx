@@ -12,7 +12,6 @@ import {
   type CancelBookingFormValues,
 } from "@/features/bookings/schemas";
 import { useLegalCurrent } from "@/features/legal/hooks";
-import { formatHours } from "@/features/legal/components/cancellation-policy";
 import {
   API_ERROR_CODES,
   getErrorMessage,
@@ -44,14 +43,14 @@ function tierExplanation(
 
   if (tier === "late") {
     return policy
-      ? `This is a late cancellation (less than ${formatHours(policy.freeCancellationHours)} before pickup): ${policy.lateCancellationRetentionPct}% of the rental subtotal is retained and the rest is refunded.`
+      ? `Your free-cancellation window has closed, so ${policy.lateCancellationRetentionPct}% of what you paid is retained and the rest is refunded.`
       : "This is a late cancellation: part of the rental subtotal is retained and the rest is refunded.";
   }
   if (quote.freeUntil) {
     return `Free cancellation — you are still before ${formatDateTime(quote.freeUntil)}, so the full amount is refunded.`;
   }
   return policy
-    ? `Free cancellation — you are more than ${formatHours(policy.freeCancellationHours)} before pickup, so the full amount is refunded.`
+    ? `Free cancellation — you are still inside your window, so the full amount is refunded.`
     : "Free cancellation — the full amount is refunded.";
 }
 
@@ -80,7 +79,8 @@ export function CancelBookingDialog({
     queryKey: bookingKeys.cancellationQuote(booking.id),
     queryFn: () => BookingsApi.cancellationQuote(booking.id),
     enabled: open,
-    // The quote depends on "now" (hours before pickup) — never serve stale.
+    // The quote depends on "now" (the window closes on a clock) — never
+    // serve stale.
     staleTime: 0,
     gcTime: 0,
   });

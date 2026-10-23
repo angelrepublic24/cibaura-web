@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useMemo, useState } from "react";
+import { Info } from "lucide-react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -20,6 +21,7 @@ import { API_ERROR_CODES, getErrorMessage, isApiErrorCode } from "@/shared/api/e
 import { formatMoneyCents, wholeUnitsToCents } from "@/shared/utils/money";
 import {
   ledgerKindLabel,
+  ledgerReasonLabel,
   payoutKindLabel,
   payoutMethodLabel,
   PayoutRailStatusBadge,
@@ -107,6 +109,31 @@ function WalletBody() {
         belong next to the request form rather than at the top of the page.
       */}
       <EarningsPanel />
+
+      {/*
+        A NEGATIVE BALANCE NEEDS A SENTENCE, not just a minus sign.
+        A cancellation cover can take the balance below zero on purpose — one
+        an agency could dodge with an empty wallet would not be a cover — but
+        a red figure with no explanation reads as a system error, and the
+        agency phones support. The two things they need are that nobody is
+        charging their bank, and that it clears itself.
+      */}
+      {wallet.account.balanceCents < 0 ? (
+        <div
+          role="status"
+          className="flex items-start gap-3 rounded-[var(--radius)] border border-warning/30 bg-warning-soft p-4 text-sm"
+        >
+          <Info className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
+          <p className="text-warning">
+            <span className="font-medium">
+              Nothing is charged to your bank.
+            </span>{" "}
+            This balance is taken out of your next settlement, and goes
+            positive again with your next completed rental. The movements
+            below show where it came from.
+          </p>
+        </div>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Tile label="Balance" value={formatMoneyCents(wallet.account.balanceCents, currency)} />
@@ -482,9 +509,11 @@ function LedgerList({
                   </Link>
                 ) : null}
               </div>
-              <p className="mt-1 truncate font-medium text-foreground">
-                {e.description}
-              </p>
+              {ledgerReasonLabel(e.description) ? (
+                <p className="mt-1 truncate font-medium text-foreground">
+                  {ledgerReasonLabel(e.description)}
+                </p>
+              ) : null}
               <p className="text-xs text-muted-foreground">
                 {fmtDateTime(e.createdAt)}
               </p>

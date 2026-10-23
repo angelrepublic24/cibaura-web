@@ -84,7 +84,7 @@ const POLICY_FIELDS: FieldSpec[] = [
   {
     name: "freeCancellationHours",
     label: "Free cancellation (hours)",
-    hint: `Hours before pickup. ${range("freeCancellationHours")}.`,
+    hint: `Hours from the acceptance. ${range("freeCancellationHours")}.`,
   },
   {
     name: "lateCancellationRetentionPct",

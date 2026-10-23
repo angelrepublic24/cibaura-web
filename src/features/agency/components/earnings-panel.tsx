@@ -73,7 +73,20 @@ function Totals({ earnings }: { earnings: AgencyEarnings }) {
       <Figure
         label="Available now"
         value={formatMoneyCents(earnings.availableCents, currency)}
-        hint={`Paid out automatically on ${formatDateTime(earnings.nextPayoutAt)}`}
+        hint={
+          /*
+           * A NEGATIVE balance is not a payout waiting to happen.
+           *
+           * It used to say "Paid out automatically on 25 Oct" underneath a
+           * figure like −$103.50, which reads as a promise to send money
+           * the agency does not have. What is actually true is the
+           * opposite: it comes OUT of the next settlement, and nothing is
+           * charged to their bank.
+           */
+          earnings.availableCents < 0
+            ? "Taken out of your next settlement — nothing is charged to your bank"
+            : `Paid out automatically on ${formatDateTime(earnings.nextPayoutAt)}`
+        }
         emphasis
       />
       <Figure

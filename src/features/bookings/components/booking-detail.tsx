@@ -639,7 +639,7 @@ function CancelSection({ booking }: { booking: BookingDetailData }) {
           ? ` Cancelling now is a late cancellation: ${retentionPct}% of the rental subtotal is retained.`
           : " Cancelling now is a late cancellation: part of the rental subtotal is retained."
         : policy
-          ? ` Free until ${policy.freeCancellationHours} hour${policy.freeCancellationHours === 1 ? "" : "s"} before pickup.`
+          ? ` Free for ${policy.freeCancellationHours} hour${policy.freeCancellationHours === 1 ? "" : "s"} after the agency accepts.`
           : "";
 
   return (
