@@ -1,5 +1,6 @@
 import { Api } from "@/shared/api/client";
 import type {
+  AgencyCancellationCover,
   AgencyCar,
   AgencyEarnings,
   AgencySettings,
@@ -163,6 +164,9 @@ export const agencyKeys = {
   /** Damage claims of one booking (current + history). */
   claims: (bookingId: string) =>
     ["agency", "requests", bookingId, "claims"] as const,
+  /** What cancelling one booking would cost right now. */
+  cancellationCover: (bookingId: string) =>
+    ["agency", "requests", bookingId, "cancellation-cover"] as const,
   carPhotos: (carId: string) => ["agency", "car-photos", carId] as const,
   carDocuments: (carId: string) => ["agency", "car-documents", carId] as const,
   branches: () => ["agency", "branches"] as const,
@@ -497,6 +501,19 @@ export const AgencyApi = {
     const res = await Api.patch(
       `/agency/requests/${bookingId}/handover-code`,
       { code },
+    );
+    return res.data;
+  },
+
+  /**
+   * What cancelling this booking would cost the agency right now.
+   *
+   * A read with no side effects, so the host sees the figure BEFORE they
+   * decide rather than on a wallet statement afterwards.
+   */
+  async cancellationCover(bookingId: string): Promise<AgencyCancellationCover> {
+    const res = await Api.get(
+      `/agency/requests/${bookingId}/cancellation-cover`,
     );
     return res.data;
   },

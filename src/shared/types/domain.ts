@@ -903,6 +903,39 @@ export interface EarningsBucket {
 }
 
 /** `GET /agency/wallet` (wire `AgencyWalletDto`). All cents, server-computed. */
+/**
+ * WHAT CANCELLING WOULD COST THE AGENCY — asked before it cancels.
+ *
+ * `GET /agency/requests/:id/cancellation-cover`. Quoted by the same
+ * server-side function that later charges, which is the point: these
+ * figures are not re-derived here, because a second copy of a money rule
+ * drifts the first time either moves.
+ *
+ * Only `requested` and `accepted` bookings have a cover; anything else
+ * answers 404.
+ */
+export interface AgencyCancellationCover {
+  /**
+   *   nothing_captured — the renter's card is only on hold; cancelling is free
+   *   standard         — charged, and the pick-up is still far off
+   *   late             — charged, and close enough that the trip is at risk
+   */
+  tier: "nothing_captured" | "standard" | "late";
+  /** What the agency covers if it cancels right now. */
+  coverCents: number;
+  /** The slice that reimburses the fee the card processor keeps. */
+  processingFeeCents: number;
+  /** The slice that reaches the renter. */
+  renterCreditCents: number;
+  /** ISO instant the renter's card is charged; null once it has been. */
+  chargeableFrom: string | null;
+  /** ISO instant the cover rises to the late tier; null once it has. */
+  lateFrom: string | null;
+  /** What it will cost from `lateFrom`. */
+  lateCoverCents: number;
+  currency: string;
+}
+
 export interface AgencyWallet {
   account: WalletAccount;
   /** Sum of payouts still `requested` — money already spoken for. */

@@ -132,3 +132,23 @@ export function invalidateAgencyBooking(
   void qc.invalidateQueries({ queryKey: agencyKeys.all });
   void qc.invalidateQueries({ queryKey: bookingKeys.detail(bookingId) });
 }
+
+/**
+ * What cancelling this booking would cost, for the confirmation dialog.
+ *
+ * Fetched only while the dialog is OPEN (`enabled`): it is a question about
+ * this instant — the cover rises on a clock — so asking it when nobody is
+ * looking would cache an answer that quietly goes stale.
+ */
+export function useCancellationCover(bookingId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: agencyKeys.cancellationCover(bookingId),
+    queryFn: () => AgencyApi.cancellationCover(bookingId),
+    enabled,
+    // The tiers turn on a date. A figure served from cache minutes later
+    // can be the wrong one, and this one is a number somebody acts on.
+    staleTime: 0,
+    gcTime: 0,
+    retry: false,
+  });
+}
