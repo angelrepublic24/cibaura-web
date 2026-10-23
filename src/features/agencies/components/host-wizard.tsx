@@ -202,6 +202,45 @@ export function HostWizard({
   return <MemberSteps />;
 }
 
+/**
+ * "We need one more thing before we can approve you."
+ *
+ * Shown while the application is still PENDING — asking is not a decision,
+ * so nothing about the host's access changes and the wizard stays exactly
+ * where it was. The note is the reviewer's own words, printed verbatim: it
+ * names which document and what was wrong with it, and a paraphrase would
+ * leave the host guessing.
+ */
+function DocumentsRequestedNotice({
+  request,
+  onReviewDocuments,
+}: {
+  request: { note: string; requestedAt: string } | null;
+  onReviewDocuments: () => void;
+}) {
+  if (!request) return null;
+  return (
+    <div className="rounded-[var(--radius)] border border-amber-200 bg-amber-50 p-4">
+      <p className="text-sm font-semibold text-amber-900">
+        We need one more thing
+      </p>
+      <p className="mt-1 text-sm text-amber-800">{request.note}</p>
+      <p className="mt-2 text-xs text-amber-700">
+        Your application stays open — upload it and we pick the review back
+        up where we left off.
+      </p>
+      <Button
+        type="button"
+        variant="outline"
+        className="mt-3"
+        onClick={onReviewDocuments}
+      >
+        Upload documents
+      </Button>
+    </div>
+  );
+}
+
 // ── Step 1: personal data ─────────────────────────────────────────────────────
 
 function PersonalStep() {
@@ -646,6 +685,14 @@ function MemberSteps() {
   return (
     <div className="space-y-6">
       <StepIndicator current={step} locked={verified ? undefined : "car"} />
+
+      {/* What the reviewer asked for, above everything — a host parked on
+          "waiting for verification" would never think to look inside a step
+          they already completed. The email is best-effort; this is not. */}
+      <DocumentsRequestedNotice
+        request={sessionQuery.data?.agency.documentsRequested ?? null}
+        onReviewDocuments={() => setVisiting("documents")}
+      />
 
       {step === "documents" ? (
         <Card>

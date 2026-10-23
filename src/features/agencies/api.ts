@@ -136,6 +136,12 @@ export interface AgencyApplication {
   description: string | null;
   verificationStatus: AgencyVerificationStatus;
   verificationReason: string | null;
+  /**
+   * What the reviewer last asked this applicant for. Only ever present
+   * while the application is PENDING: asking is not a decision, so the
+   * status does not move, and a decision clears the request.
+   */
+  documentsRequested: { note: string; requestedAt: string } | null;
   kyc: AgencyKyc;
   documents: AgencyDocument[];
   documentCount: number;

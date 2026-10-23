@@ -134,6 +134,13 @@ export interface Agency {
   verificationStatus: AgencyVerificationStatus;
   /** Set when the application was rejected — shown on the access-revoked screen. */
   verificationReason?: string | null;
+  /**
+   * What a reviewer asked for while the application is still PENDING —
+   * asking is not a decision, so the status does not move and the host's
+   * onboarding stays exactly where it was. `null` once the review
+   * concludes either way.
+   */
+  documentsRequested: { note: string; requestedAt: string } | null;
   /** Free-text rental conditions the customer accepts at request time. */
   rentalConditions: string | null;
   minDriverAge: number;

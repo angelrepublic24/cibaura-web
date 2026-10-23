@@ -629,6 +629,22 @@ export const AdminApi = {
     return res.data;
   },
 
+  /**
+   * Ask a PENDING applicant for something, without deciding. The note is
+   * the whole message they receive, so the server floors it at 10
+   * characters: "upload again" names no document and cannot be acted on.
+   */
+  async requestApplicationDocuments(
+    id: string,
+    note: string,
+  ): Promise<AgencyApplication> {
+    const res = await Api.patch(
+      `/agencies/applications/${id}/request-documents`,
+      { note },
+    );
+    return res.data;
+  },
+
   async rejectApplication(
     id: string,
     reason: string,
