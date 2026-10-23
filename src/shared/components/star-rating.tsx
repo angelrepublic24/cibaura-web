@@ -36,7 +36,9 @@ export function StarRating({
       </span>
       {showValue ? (
         count === 0 ? (
-          <span className="text-xs text-muted-foreground">New</span>
+          // NOT "New". On a car card this sits two lines under the model
+          // year, where "New" reads as "new car" rather than "new host".
+          <span className="text-xs text-muted-foreground">No reviews yet</span>
         ) : (
           <span className="text-xs text-muted-foreground">
             {rating.toFixed(1)}

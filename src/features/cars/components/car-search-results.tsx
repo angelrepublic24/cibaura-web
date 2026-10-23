@@ -20,6 +20,8 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { DestinationFields, type Destination } from "./destination-fields";
 import { Skeleton } from "@/shared/components/ui/skeleton";
+import { Select } from "@/shared/components/ui/select";
+import { CAR_SORTS, type CarSort } from "@/features/cars/sort";
 
 /**
  * Results grid for /cars/[city]. The URL is the single source of truth:
@@ -130,6 +132,29 @@ export function CarSearchResults({
         </aside>
 
         <section>
+          {/* Order — a peer of the filters, not one of them: it lives over
+              the results it reorders, and it applies on change rather than
+              waiting for "Apply filters". */}
+          <div className="mb-4 flex items-center justify-end gap-2">
+            <Label htmlFor="sort" className="text-sm text-muted-foreground">
+              Sort by
+            </Label>
+            <Select
+              id="sort"
+              className="w-auto min-w-[11rem]"
+              value={filters.sort ?? "price_asc"}
+              onChange={(e) =>
+                applyFilters({ ...filters, sort: e.target.value as CarSort })
+              }
+            >
+              {CAR_SORTS.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+
           {query.isLoading ? (
             <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (

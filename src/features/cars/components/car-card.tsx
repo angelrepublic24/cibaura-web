@@ -10,6 +10,7 @@ import { CarPhotoPlaceholder } from "@/features/cars/components/car-photo-placeh
 import { PrivateHostBadge } from "@/features/agencies/components/private-host-badge";
 import { formatMoneyCents } from "@/shared/utils/money";
 import { Badge } from "@/shared/components/ui/badge";
+import { StarRating } from "@/shared/components/star-rating";
 
 /**
  * Photo-forward car card — the primary unit of the marketplace grid.
@@ -88,6 +89,16 @@ export function CarCard({
           </span>
           <PrivateHostBadge kind={car.agency.kind} />
         </p>
+
+        {/* The host's stars — the number "Best rated" sorts by, shown where
+            it belongs: on the host, not on the car. A host with no reviews
+            reads "No reviews yet", never a row of empty stars with a 0. */}
+        <StarRating
+          className="mt-1"
+          rating={car.agency.ratingAvg}
+          count={car.agency.reviewCount}
+          size={13}
+        />
 
         <p className="mt-2 text-sm text-muted-foreground">
           {car.location?.city.name ?? "Location unavailable"}
