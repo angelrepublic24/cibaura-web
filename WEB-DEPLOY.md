@@ -92,6 +92,30 @@ Son dos caminos distintos aunque ambos usan un build Next NODE_ENV=production:
 | VPS de pruebas: Compose con `.env.staging.local`, o dispatch del workflow sobre una rama | pk_test_ con NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY=true | Imagen local; dispatch valida y no publica tags de producción |
 | Release comercial: push de vX.Y.Z o dispatch sobre ese tag | pk_live_ obligatorio y NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY vacío/ausente | GHCR versión + SHA tras los gates |
 
+### La clave tiene que seguir existiendo
+
+`check-release-stripe.mjs` pregunta si la clave tiene la **forma** correcta. No
+puede preguntar si Stripe todavía la reconoce — corre offline, sobre valores
+sintéticos — y el 2026-10-23 esa fue exactamente la diferencia: nadie en
+producción podía guardar una tarjeta porque el build llevaba horneada una
+`pk_live_` bien formada que Stripe ya había dejado de reconocer, de la cuenta
+anterior al cambio a live.
+
+Antes de desplegar, con la clave del entorno que vas a publicar:
+
+```bash
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_… npm run check:stripe-key-live
+```
+
+Lee un token inexistente: no crea nada, no cobra nada y no deja registro. 401 =
+Stripe no conoce la clave y el deploy debe pararse; cualquier otra respuesta =
+la clave autenticó. Necesita red, por eso **no** está en `npm run smoke`, que se
+mantiene hermético.
+
+⚠️ El valor se **hornea en el build**, no se lee en runtime: cambiar la variable
+sin reconstruir no cambia nada. Y al cambiar de cuenta Stripe, la publishable
+key del web tiene que salir de la **misma cuenta** cuyo secret usa el backend.
+
 El gate `scripts/check-release-stripe.mjs` corre antes del build/publicación de
 cualquier tag: rechaza pk_test_, claves ausentes/malformadas y cualquier valor no
 vacío del flag, **incluido false**. Para producción hay que eliminar esa variable
