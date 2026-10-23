@@ -846,7 +846,13 @@ export type LedgerKind =
   | "early_return_refund"
   | "retention"
   | "claim"
-  | "payout_reversal";
+  | "payout_reversal"
+  /** The agency walked away from a booking it had accepted. */
+  | "agency_failure_penalty"
+  /** That cover's slice reimbursing the processing fee (platform account). */
+  | "gateway_cost_recovery"
+  /** And its slice owed to the renter (renter account). */
+  | "renter_credit";
 
 export interface LedgerEntry {
   id: string;
@@ -1340,13 +1346,25 @@ export interface MessageThreadWithMessages {
 /**
  * Tiered cancellation policy — the NUMBERS come from the backend; no client
  * ever hardcodes them in copy.
- *  - free cancellation until `freeCancellationHours` before pickup;
- *  - later, `lateCancellationRetentionPct` of the subtotal is retained
- *    (goes to the agency) and the rest refunded;
- *  - early return refunds unused full days minus `earlyReturnPenaltyDays`.
+ *
+ * The free window is counted FROM THE MOMENT THE AGENCY ACCEPTS, not from
+ * the pick-up day: everyone gets the same promise whatever their rental
+ * date. Two bounds shape it — it never reaches closer to the pick-up than
+ * `freeCancellationCapHoursBeforePickup`, and is never shorter than
+ * `freeCancellationMinHours`.
+ *
+ * Both of those were MISSING here while the server had been sending them,
+ * so every surface described the old pick-up-anchored rule — a promise the
+ * renter reads before paying, and one the server stopped keeping.
  */
 export interface CancellationPolicyDto {
+  /** Hours of free cancellation, counted from the agency's acceptance. */
   freeCancellationHours: number;
+  /** The window never reaches closer than this to the pick-up. */
+  freeCancellationCapHoursBeforePickup: number;
+  /** And is never shorter than this, whatever the cap says. */
+  freeCancellationMinHours: number;
+  /** Retained out of what the renter paid on a late cancellation. */
   lateCancellationRetentionPct: number;
   earlyReturnPenaltyDays: number;
 }

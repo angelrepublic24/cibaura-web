@@ -61,7 +61,7 @@ const VARIABLE_GROUPS: ContractVariableGroup[] = [
       { name: "platform.commissionPct", description: "Commission percentage" },
       {
         name: "platform.freeCancellationHours",
-        description: "Free-cancellation window (hours before pickup)",
+        description: "Free-cancellation window (hours from acceptance)",
       },
       {
         name: "platform.lateCancellationRetentionPct",

@@ -71,16 +71,24 @@ export function CancellationPolicySummary({
   return (
     <ul className={cn("list-disc space-y-2 pl-5", className)}>
       <li>
-        <strong className="text-foreground">Free cancellation</strong> until{" "}
-        {formatHours(policy.freeCancellationHours)} before the pickup date:
-        the card hold is released or the charge is refunded in full.
+        <strong className="text-foreground">Free cancellation</strong> for{" "}
+        {formatHours(policy.freeCancellationHours)} after the agency accepts
+        your booking: your card is only held until then, and cancelling
+        inside the window releases it in full.
       </li>
       <li>
-        <strong className="text-foreground">Late cancellation</strong> (less
-        than {formatHours(policy.freeCancellationHours)} before pickup):{" "}
-        {policy.lateCancellationRetentionPct}% of the rental subtotal is
-        retained and paid to the Agency; the remainder — including the
-        service fee — is refunded.
+        <strong className="text-foreground">Shorter for a booking that
+        starts soon.</strong>{" "}
+        The window never runs closer than{" "}
+        {formatHours(policy.freeCancellationCapHoursBeforePickup)} to the
+        pickup, and is never shorter than{" "}
+        {formatHours(policy.freeCancellationMinHours)} — so a last-minute
+        booking still gets one.
+      </li>
+      <li>
+        <strong className="text-foreground">After the window</strong>:{" "}
+        {policy.lateCancellationRetentionPct}% of what you paid is retained
+        and paid to the Agency; the rest is refunded.
       </li>
       <li>
         <strong className="text-foreground">Early return</strong> (recorded by
@@ -93,10 +101,12 @@ export function CancellationPolicySummary({
 
 function inlineCopy(policy: CancellationPolicyDto): string {
   return (
-    `Free cancellation until ${formatHours(policy.freeCancellationHours)} ` +
-    `before pickup. After that, ${policy.lateCancellationRetentionPct}% of ` +
-    `the rental subtotal is retained by the agency and the rest is refunded. ` +
-    `Early returns refund unused full days minus ` +
-    `${formatDays(policy.earlyReturnPenaltyDays)}.`
+    `Free cancellation for ${formatHours(policy.freeCancellationHours)} ` +
+    `after the agency accepts — never closer than ` +
+    `${formatHours(policy.freeCancellationCapHoursBeforePickup)} to the ` +
+    `pickup and never under ${formatHours(policy.freeCancellationMinHours)}. ` +
+    `After that, ${policy.lateCancellationRetentionPct}% of what you paid is ` +
+    `retained by the agency and the rest is refunded. Early returns refund ` +
+    `unused full days minus ${formatDays(policy.earlyReturnPenaltyDays)}.`
   );
 }
