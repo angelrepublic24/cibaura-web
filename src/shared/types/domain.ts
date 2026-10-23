@@ -99,6 +99,14 @@ export interface CarAgencyRef {
   name: string;
   slug: string;
   kind: AgencyKind;
+  /**
+   * The host's stars, so a card can show the rating the results are sorted
+   * by. READ BOTH: `ratingAvg` is 0 for a host with no reviews, which means
+   * "no reviews yet" and not "zero stars" — `reviewCount` is what tells the
+   * two apart.
+   */
+  ratingAvg: number;
+  reviewCount: number;
 }
 
 /** City reference embedded in `CarDetail.branch`. */

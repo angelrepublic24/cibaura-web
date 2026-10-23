@@ -14,6 +14,7 @@ import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
+import { RATING_MINIMUMS } from "@/features/cars/sort";
 
 /**
  * Faceted filters for the results page — a clean, vertical, Carguros-style
@@ -78,6 +79,7 @@ export function CarFiltersPanel({
       "color",
       "priceMin",
       "priceMax",
+      "ratingMin",
     ];
     return keys.filter((k) => draft[k] !== undefined && draft[k] !== "").length;
   }, [draft]);
@@ -104,7 +106,13 @@ export function CarFiltersPanel({
         {activeCount > 0 ? (
           <button
             type="button"
-            onClick={() => onApply({ from: draft.from, to: draft.to })}
+            // Keeps the trip AND the chosen order: an order is not a
+            // filter, and silently resetting it to cheapest-first after
+            // "Clear all" is how a renter ends up reading a price-sorted
+            // page while the menu still says "Best rated".
+            onClick={() =>
+              onApply({ from: draft.from, to: draft.to, sort: draft.sort })
+            }
             className="text-xs font-medium text-primary underline-offset-2 hover:underline"
           >
             Clear all
@@ -288,6 +296,39 @@ export function CarFiltersPanel({
               />
             </Field>
           </div>
+        </div>
+
+        <div className="h-px bg-border" />
+
+        {/* ── Host ── */}
+        <div className="space-y-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Host
+          </p>
+
+          <Field label="Minimum rating" htmlFor="f-rating-min">
+            <Select
+              id="f-rating-min"
+              value={draft.ratingMin ?? ""}
+              onChange={(e) =>
+                set("ratingMin", e.target.value ? Number(e.target.value) : undefined)
+              }
+            >
+              {RATING_MINIMUMS.map((r) => (
+                <option key={r.label} value={r.value ?? ""}>
+                  {r.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          {/* Said up front, because an empty result is otherwise unexplained:
+              a host with no reviews cannot satisfy "4 stars and up". */}
+          {draft.ratingMin ? (
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Hosts with no reviews yet are not shown while this is set.
+            </p>
+          ) : null}
         </div>
       </div>
 
