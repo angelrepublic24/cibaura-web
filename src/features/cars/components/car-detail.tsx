@@ -64,7 +64,11 @@ import type {
   PickupType,
 } from "@/shared/types/domain";
 import { formatMoneyCents } from "@/shared/utils/money";
-import { formatIsoDate, isoDateParts, todayIso } from "@/shared/utils/dates";
+import {
+  formatIsoDate,
+  isoDateParts,
+  businessTodayIso,
+} from "@/shared/utils/dates";
 import { ErrorState, LoadingState } from "@/shared/components/states";
 import { Button } from "@/shared/components/ui/button";
 import {
@@ -98,7 +102,7 @@ export function CarDetail({
 
   // ONE availability fetch feeds both the blocked-days list and the date
   // picker (same key → TanStack dedupes; the server owns availability).
-  const availabilityFrom = todayIso();
+  const availabilityFrom = businessTodayIso();
   const availabilityTo = addDaysIso(availabilityFrom, AVAILABILITY_DAYS);
   const availabilityQuery = useQuery({
     queryKey: carKeys.availability(carId, availabilityFrom, availabilityTo),

@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import Link from "next/link";
 import { ImagePlus, Settings2 } from "lucide-react";
 import { useAgencySession, useFleetPages } from "@/features/agency/hooks";
@@ -93,16 +95,7 @@ function FleetList() {
                       <div className="flex min-w-0 items-center gap-3">
                         {/* Cover thumb — real photo or the branded placeholder. */}
                         <div className="relative h-14 w-20 shrink-0 overflow-hidden rounded-[var(--radius-sm)] border border-border bg-muted">
-                          {photo ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={photo}
-                              alt=""
-                              className="absolute inset-0 h-full w-full object-cover"
-                            />
-                          ) : (
-                            <CarPhotoPlaceholder />
-                          )}
+                          <CoverThumb photo={photo} />
                         </div>
                         <div className="min-w-0">
                           <Link
@@ -184,5 +177,25 @@ function FleetList() {
         ) : null}
       </div>
     </div>
+  );
+}
+
+/**
+ * Miniatura de portada con fallback. Un `<img>` plano sin `onError` dejaba un
+ * recuadro roto cuando la foto existía pero fallaba al cargar (BUG-002) — solo
+ * caía al placeholder cuando NO había foto. Ahora también cae al placeholder si
+ * la carga falla (404, error de S3, red).
+ */
+function CoverThumb({ photo }: { photo: string | null }) {
+  const [failed, setFailed] = useState(false);
+  if (!photo || failed) return <CarPhotoPlaceholder />;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={photo}
+      alt=""
+      onError={() => setFailed(true)}
+      className="absolute inset-0 h-full w-full object-cover"
+    />
   );
 }

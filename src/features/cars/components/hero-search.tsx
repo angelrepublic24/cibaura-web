@@ -8,7 +8,7 @@ import { CalendarDays, Search } from "lucide-react";
 import { DestinationFields } from "./destination-fields";
 import { filtersToSearchParams } from "@/features/cars/filters";
 import { CAR_CATEGORIES } from "@/shared/types/domain";
-import { todayIso } from "@/shared/utils/dates";
+import { businessTodayIso } from "@/shared/utils/dates";
 import { Button } from "@/shared/components/ui/button";
 import { DateRangePicker } from "@/shared/components/date-range-picker";
 import { Label } from "@/shared/components/ui/label";
@@ -40,7 +40,7 @@ export function HeroSearch() {
     countries.find((item) => item.code === country) ??
     (countries.length === 1 ? countries[0] : undefined);
 
-  const hasDates = !!from && !!to && to > from && from >= todayIso();
+  const hasDates = !!from && !!to && to > from && from >= businessTodayIso();
   const noDates = !from && !to;
   const canSearch = !!selectedCountry && (noDates || hasDates);
 
@@ -174,7 +174,7 @@ export function HeroSearch() {
                   key={editing}
                   editing={editing}
                   value={{ from, to }}
-                  minDate={todayIso()}
+                  minDate={businessTodayIso()}
                   locale="en-GB"
                   showAvailabilityLegend={false}
                   isDayBlocked={() => false}
