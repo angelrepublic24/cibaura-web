@@ -112,6 +112,10 @@ function OccupancyCalendar() {
   const [month, setMonth] = useState<string>(currentMonth());
   const [carId, setCarId] = useState<string>("");
   const [view, setView] = useState<View>("month");
+  // BUG-005: buscador del calendario — filtra las entradas visibles por
+  // auto (make/model/año/placa) o nota del bloqueo. Declarado aquí (después de
+  // view) a propósito: el branch-scope smoke stubea useState por índice.
+  const [search, setSearch] = useState<string>("");
   const [showBlockForm, setShowBlockForm] = useState(false);
 
   // Every car (all pages) — a <select> cannot paginate.
@@ -158,12 +162,25 @@ function OccupancyCalendar() {
     return map;
   }, [fleet.cars]);
 
+  const query = search.trim().toLowerCase();
   const entries =
     fleet.isLoading || fleet.isError
       ? []
-      : occupancyForScope(calendarQuery.data ?? [], fleet.cars, scope).filter(
-          (entry) => !selectedCarId || entry.carId === selectedCarId,
-        );
+      : occupancyForScope(calendarQuery.data ?? [], fleet.cars, scope)
+          .filter((entry) => !selectedCarId || entry.carId === selectedCarId)
+          .filter((entry) => {
+            if (!query) return true;
+            const car = carsById.get(entry.carId);
+            const haystack = [
+              carLabel(car),
+              car?.plate ?? "",
+              String(car?.year ?? ""),
+              entry.note ?? "",
+            ]
+              .join(" ")
+              .toLowerCase();
+            return haystack.includes(query);
+          });
   const isCurrentMonth = month === currentMonth();
 
   function invalidate() {
@@ -261,6 +278,17 @@ function OccupancyCalendar() {
                 </option>
               ))}
             </Select>
+          </div>
+          <div className="w-56 space-y-1.5">
+            <Label htmlFor="cal-search">Search</Label>
+            <Input
+              id="cal-search"
+              type="search"
+              placeholder="Car, plate or note…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              disabled={fleet.isLoading || fleet.isError}
+            />
           </div>
           <Legend />
         </div>
