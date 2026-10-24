@@ -73,6 +73,7 @@ function WalkInForm() {
               deliveryAddress: addr.formattedAddress,
               deliveryLat: addr.lat,
               deliveryLng: addr.lng,
+              deliveryCityName: addr.city,
               deliveryReference: reference.trim() || undefined,
             }
           : {}),

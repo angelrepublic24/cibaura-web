@@ -48,28 +48,41 @@ export function PriceBreakdown({
 
   return (
     <dl className="space-y-1 text-sm">
-      <div className="flex justify-between gap-4">
-        <dt>
-          {exactProduct
-            ? `${money(rateCents)} × ${days}`
-            : deliveryCents > 0
-              ? "Rental and delivery subtotal"
-              : "Rental subtotal"}
-        </dt>
-        <dd>{money(subtotalCents)}</dd>
-      </div>
-      {exactProduct ? null : (
-        <div className="text-xs text-muted-foreground">
-          <dt>Daily rate · {days}</dt>
-          <dd>{money(rateCents)}/day</dd>
-        </div>
-      )}
+      {/* Con delivery, la renta y el envío van en líneas SEPARADAS (BUG-010):
+          el tester veía "Rental and delivery subtotal" como un único total sin
+          desglose. El monto de la renta es subtotal − delivery, una resta de
+          dos enteros DEL SERVIDOR (exacta); nunca `rate × days`, que puede caer
+          un centavo por el redondeo — el mismo invariante que protege el resto
+          del componente. */}
       {deliveryCents > 0 ? (
-        <div className="flex justify-between gap-4 text-muted-foreground">
-          <dt>Delivery (included in subtotal)</dt>
-          <dd>{money(deliveryCents)}</dd>
-        </div>
-      ) : null}
+        <>
+          <div className="flex justify-between gap-4">
+            <dt>Rental</dt>
+            <dd>{money(subtotalCents - deliveryCents)}</dd>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            <dt>Daily rate · {days}</dt>
+            <dd>{money(rateCents)}/day</dd>
+          </div>
+          <div className="flex justify-between gap-4">
+            <dt>Delivery</dt>
+            <dd>{money(deliveryCents)}</dd>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="flex justify-between gap-4">
+            <dt>{exactProduct ? `${money(rateCents)} × ${days}` : "Rental subtotal"}</dt>
+            <dd>{money(subtotalCents)}</dd>
+          </div>
+          {exactProduct ? null : (
+            <div className="text-xs text-muted-foreground">
+              <dt>Daily rate · {days}</dt>
+              <dd>{money(rateCents)}/day</dd>
+            </div>
+          )}
+        </>
+      )}
       {renter ? null : (
         <div className="flex justify-between gap-4 text-muted-foreground">
           <dt>Platform service fee ({formatPct(p.commissionPct)})</dt>

@@ -121,6 +121,8 @@ export interface QuoteInput {
   deliveryAddress?: string;
   deliveryLat?: number;
   deliveryLng?: number;
+  /** La ciudad del lugar elegido; el server decide con ella si hay cobertura. */
+  deliveryCityName?: string;
   deliveryReference?: string;
 }
 
