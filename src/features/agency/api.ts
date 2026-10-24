@@ -191,6 +191,8 @@ export interface UpdateAgencySettingsInput {
   name?: string;
   description?: string;
   logoUrl?: string | null;
+  /** Storefront banner url; `null` clears it (mirrors `logoUrl`). */
+  bannerUrl?: string | null;
   rentalConditions?: string;
   minDriverAge?: number;
   depositNote?: string;
@@ -802,6 +804,29 @@ export const AgencyApi = {
     input: UpdateAgencySettingsInput,
   ): Promise<AgencySettings> {
     const res = await Api.patch("/agency/settings", input);
+    return res.data;
+  },
+
+  /**
+   * Upload the storefront logo or banner (multipart field `file`). The image
+   * is stored server-side and the matching url is pointed at the public
+   * branding stream; returns the updated settings so the form re-seeds with
+   * the new image. Mirrors `uploadCarPhoto`.
+   */
+  async uploadBranding(
+    kind: "logo" | "banner",
+    file: File,
+    onProgress?: (pct: number) => void,
+  ): Promise<AgencySettings> {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await Api.post(`/agency/branding/${kind}`, form, {
+      onUploadProgress: (e) => {
+        if (onProgress && e.total) {
+          onProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      },
+    });
     return res.data;
   },
 

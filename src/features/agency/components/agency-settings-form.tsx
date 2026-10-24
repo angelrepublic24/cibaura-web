@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Landmark } from "lucide-react";
+import { Image as ImageIcon, Landmark, Upload } from "lucide-react";
 import {
   AgencyApi,
   agencyKeys,
@@ -36,6 +36,10 @@ import { Textarea } from "@/shared/components/ui/textarea";
 const NAME_MAX = 160;
 const DESCRIPTION_MAX = 2000;
 const LOGO_URL_MAX = 500;
+const BANNER_URL_MAX = 500;
+/** Client mirror of the backend branding upload allowlist + size cap. */
+const BRANDING_ACCEPT = "image/jpeg,image/png,image/webp";
+const BRANDING_MAX_BYTES = 5 * 1024 * 1024;
 const CONDITIONS_MAX = 4000;
 const DEPOSIT_NOTE_MAX = 1000;
 const MIN_DRIVER_AGE_MIN = 18;
@@ -56,6 +60,10 @@ const profileSchema = z.object({
   logoUrl: z.union([
     z.literal(""),
     z.url("Enter a full URL (https://…)").max(LOGO_URL_MAX, "URL too long"),
+  ]),
+  bannerUrl: z.union([
+    z.literal(""),
+    z.url("Enter a full URL (https://…)").max(BANNER_URL_MAX, "URL too long"),
   ]),
   rentalConditions: z
     .string()
@@ -93,6 +101,7 @@ function profileDefaults(settings: AgencySettings): ProfileFormValues {
     name: settings.name,
     description: settings.description ?? "",
     logoUrl: settings.logoUrl ?? "",
+    bannerUrl: settings.bannerUrl ?? "",
     rentalConditions: settings.rentalConditions ?? "",
     minDriverAge: String(settings.minDriverAge),
     depositNote: settings.depositNote ?? "",
@@ -137,9 +146,10 @@ export function AgencyProfileForm({ settings }: { settings: AgencySettings }) {
       {
         name: values.name,
         description: values.description,
-        // An emptied logo field REMOVES the logo (`null` on the wire — the
+        // An emptied logo/banner field REMOVES it (`null` on the wire — the
         // DTO only validates a URL when a string is present).
         logoUrl: values.logoUrl || null,
+        bannerUrl: values.bannerUrl || null,
         rentalConditions: values.rentalConditions,
         minDriverAge: Number(values.minDriverAge),
         depositNote: values.depositNote,
@@ -154,7 +164,43 @@ export function AgencyProfileForm({ settings }: { settings: AgencySettings }) {
     );
   }
 
+  const qc = useQueryClient();
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const upload = useMutation({
+    mutationFn: ({ kind, file }: { kind: "logo" | "banner"; file: File }) =>
+      AgencyApi.uploadBranding(kind, file),
+    onSuccess: (next) => {
+      qc.setQueryData(agencyKeys.settings(), next);
+      // Logo/banner surface on the session banner and public pages.
+      qc.invalidateQueries({ queryKey: agencyKeys.session() });
+      // Re-seed the url fields so the stored image shows AND a later Save
+      // (empty field = remove) does not wipe what was just uploaded.
+      form.setValue("logoUrl", next.logoUrl ?? "", { shouldDirty: false });
+      form.setValue("bannerUrl", next.bannerUrl ?? "", { shouldDirty: false });
+    },
+  });
+
+  function pickBranding(kind: "logo" | "banner", file: File | undefined) {
+    if (!file) return;
+    setUploadError(null);
+    if (!BRANDING_ACCEPT.split(",").includes(file.type)) {
+      setUploadError("Use a JPEG, PNG or WEBP image.");
+      return;
+    }
+    if (file.size > BRANDING_MAX_BYTES) {
+      setUploadError("Image must be 5 MB or smaller.");
+      return;
+    }
+    upload.mutate({ kind, file });
+  }
+  const uploadingKind = upload.isPending
+    ? (upload.variables?.kind ?? null)
+    : null;
+
   const logoUrl = form.watch("logoUrl");
+  const bannerUrl = form.watch("bannerUrl");
 
   return (
     <form onSubmit={form.handleSubmit(submit)} noValidate className="space-y-6">
@@ -195,36 +241,134 @@ export function AgencyProfileForm({ settings }: { settings: AgencySettings }) {
             ) : null}
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="st-logo">Logo URL</Label>
-            <div className="flex items-center gap-3">
-              {logoUrl && !errors.logoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={logoUrl}
-                  alt=""
-                  className="h-10 w-10 shrink-0 rounded-full border border-border object-cover"
-                />
-              ) : null}
-              <Input
-                id="st-logo"
-                type="url"
-                placeholder="https://…/logo.png"
-                maxLength={LOGO_URL_MAX}
-                aria-invalid={!!errors.logoUrl}
-                {...form.register("logoUrl")}
-              />
+          {/* ---- Branding: logo + storefront banner. Upload a file (stored
+               by Cibaura) or paste an external URL; an empty field removes it. */}
+          <div className="space-y-5">
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept={BRANDING_ACCEPT}
+              className="hidden"
+              onChange={(e) => {
+                pickBranding("logo", e.target.files?.[0]);
+                e.target.value = "";
+              }}
+            />
+            <input
+              ref={bannerInputRef}
+              type="file"
+              accept={BRANDING_ACCEPT}
+              className="hidden"
+              onChange={(e) => {
+                pickBranding("banner", e.target.files?.[0]);
+                e.target.value = "";
+              }}
+            />
+
+            <div className="space-y-1.5">
+              <Label htmlFor="st-logo">Logo</Label>
+              <div className="flex items-center gap-3">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius)] border border-border bg-muted">
+                  {logoUrl && !errors.logoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={logoUrl}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="flex-1 space-y-1.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => logoInputRef.current?.click()}
+                    disabled={upload.isPending}
+                  >
+                    <Upload className="mr-2 h-4 w-4" />
+                    {uploadingKind === "logo" ? "Uploading…" : "Upload logo"}
+                  </Button>
+                  <Input
+                    id="st-logo"
+                    type="url"
+                    placeholder="…or paste a URL: https://…/logo.png"
+                    maxLength={LOGO_URL_MAX}
+                    aria-invalid={!!errors.logoUrl}
+                    {...form.register("logoUrl")}
+                  />
+                </div>
+              </div>
+              {errors.logoUrl ? (
+                <p className="text-sm text-destructive">
+                  {errors.logoUrl.message}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Square works best. Upload an image or paste a link; clear the
+                  field to remove it.
+                </p>
+              )}
             </div>
-            {errors.logoUrl ? (
+
+            <div className="space-y-1.5">
+              <Label htmlFor="st-banner">Banner</Label>
+              <div className="overflow-hidden rounded-[var(--radius)] border border-border">
+                {bannerUrl && !errors.bannerUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={bannerUrl}
+                    alt=""
+                    className="h-28 w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-28 w-full items-center justify-center bg-gradient-to-r from-accent-soft to-muted">
+                    <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => bannerInputRef.current?.click()}
+                  disabled={upload.isPending}
+                >
+                  <Upload className="mr-2 h-4 w-4" />
+                  {uploadingKind === "banner" ? "Uploading…" : "Upload banner"}
+                </Button>
+                <Input
+                  id="st-banner"
+                  type="url"
+                  placeholder="…or paste a URL"
+                  maxLength={BANNER_URL_MAX}
+                  aria-invalid={!!errors.bannerUrl}
+                  {...form.register("bannerUrl")}
+                />
+              </div>
+              {errors.bannerUrl ? (
+                <p className="text-sm text-destructive">
+                  {errors.bannerUrl.message}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  A wide cover image for your storefront (e.g. 1600×400). Clear
+                  the field to remove it.
+                </p>
+              )}
+            </div>
+
+            {uploadError ? (
+              <p className="text-sm text-destructive">{uploadError}</p>
+            ) : null}
+            {upload.isError ? (
               <p className="text-sm text-destructive">
-                {errors.logoUrl.message}
+                {getErrorMessage(upload.error, "Could not upload the image.")}
               </p>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                A public image link (square works best). Clear the field to
-                remove your logo.
-              </p>
-            )}
+            ) : null}
           </div>
         </CardContent>
       </Card>

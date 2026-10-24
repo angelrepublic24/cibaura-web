@@ -37,6 +37,8 @@ export interface AgencyPublicProfile {
   name: string;
   description?: string;
   logoUrl?: string;
+  /** Storefront cover image shown behind the header; null/absent = gradient. */
+  bannerUrl?: string | null;
   verificationStatus: AgencyVerificationStatus;
   cities: { id: string; name: string }[];
   /** Active branches for the storefront location picker (no address/coords). */
