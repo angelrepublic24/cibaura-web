@@ -181,6 +181,18 @@ export function StaffForm(props: StaffFormProps) {
           <p className="text-sm text-muted-foreground">
             {BUNDLE_DESCRIPTIONS[role]}
           </p>
+          {/* Discoverabilidad (BUG-008): el preset Manager/Sales no incluye los
+              permisos de dueño. El owner SÍ puede darlos, pero por persona vía
+              Custom — esto se lo dice, en vez de que choque con un 403. */}
+          {role !== "custom" ? (
+            <p className="rounded-[var(--radius-sm)] border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              Managing staff, withdrawing money and changing agency settings
+              are owner-level by default. To let this person do any of them,
+              choose{" "}
+              <span className="font-medium text-foreground">Custom</span> and
+              check the permission.
+            </p>
+          ) : null}
         </div>
 
         {/* Permissions — read-only preview for bundles, checkboxes for custom. */}
