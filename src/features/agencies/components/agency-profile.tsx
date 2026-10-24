@@ -93,6 +93,7 @@ export function AgencyProfile({
         kind={agency.kind}
         description={agency.description}
         logoUrl={agency.logoUrl}
+        bannerUrl={agency.bannerUrl}
         verificationStatus={agency.verificationStatus}
         cities={agency.cities}
         branchCount={agency.branchCount}
@@ -185,6 +186,7 @@ function AgencyHeader({
   kind,
   description,
   logoUrl,
+  bannerUrl,
   verificationStatus,
   cities,
   branchCount,
@@ -197,6 +199,7 @@ function AgencyHeader({
   kind: AgencyKind;
   description?: string;
   logoUrl?: string;
+  bannerUrl?: string | null;
   verificationStatus: AgencyVerificationStatus;
   cities: { id: string; name: string }[];
   branchCount: number;
@@ -207,8 +210,23 @@ function AgencyHeader({
 }) {
   return (
     <header className="overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface shadow-sm">
-      {/* Warm banner strip. */}
-      <div className="h-24 bg-gradient-to-r from-accent-soft to-muted md:h-28" />
+      {/* Storefront banner: the agency's cover image when set, otherwise the
+          warm gradient strip (unchanged for agencies without one). */}
+      {bannerUrl ? (
+        <div className="relative h-24 md:h-28">
+          <Image
+            src={bannerUrl}
+            unoptimized={!isOptimizableImage(bannerUrl)}
+            alt=""
+            fill
+            sizes="100vw"
+            className="object-cover"
+            priority
+          />
+        </div>
+      ) : (
+        <div className="h-24 bg-gradient-to-r from-accent-soft to-muted md:h-28" />
+      )}
       <div className="px-6 pb-6">
         <div className="-mt-10 flex flex-wrap items-end gap-4">
           <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-[var(--radius)] border border-border bg-surface shadow-sm">

@@ -139,6 +139,8 @@ export interface Agency {
   slug: string;
   description?: string;
   logoUrl?: string;
+  /** Storefront cover image (uploaded via branding or pasted); null = none. */
+  bannerUrl?: string | null;
   verificationStatus: AgencyVerificationStatus;
   /** Set when the application was rejected — shown on the access-revoked screen. */
   verificationReason?: string | null;
@@ -178,6 +180,7 @@ export interface AgencySettings {
   name: string;
   description: string | null;
   logoUrl: string | null;
+  bannerUrl: string | null;
   rentalConditions: string | null;
   minDriverAge: number;
   depositNote: string | null;
