@@ -13,7 +13,7 @@ import { CarCard } from "@/features/cars/components/car-card";
 import { SearchModeToggle } from "@/shared/components/search-mode-toggle";
 import { DestinationsApi, destinationKeys } from "../destinations";
 import type { Car } from "@/shared/types/domain";
-import { formatIsoDate, todayIso } from "@/shared/utils/dates";
+import { formatIsoDate, businessTodayIso } from "@/shared/utils/dates";
 import { EmptyState, ErrorState } from "@/shared/components/states";
 import { Button } from "@/shared/components/ui/button";
 import { Input } from "@/shared/components/ui/input";
@@ -318,7 +318,7 @@ function DateRangeBar({
         <Input
           id="sr-from"
           type="date"
-          min={todayIso()}
+          min={businessTodayIso()}
           value={from}
           onChange={(event) => setFrom(event.target.value)}
         />
@@ -328,7 +328,7 @@ function DateRangeBar({
         <Input
           id="sr-to"
           type="date"
-          min={from || todayIso()}
+          min={from || businessTodayIso()}
           value={to}
           onChange={(event) => setTo(event.target.value)}
         />

@@ -197,7 +197,11 @@ const { HeroSearch } = load("src/features/cars/components/hero-search.tsx", {
     }),
   },
   "@/features/cars/filters": filters,
-  "@/shared/utils/dates": { ...dates, todayIso: () => "2026-09-27" },
+  "@/shared/utils/dates": {
+    ...dates,
+    todayIso: () => "2026-09-27",
+    businessTodayIso: () => "2026-09-27",
+  },
   "@/shared/types/domain": { CAR_CATEGORIES: [] },
   "@/lib/utils": { cn: (...values) => values.join(" ") },
   "@/shared/components/date-range-picker": picker,

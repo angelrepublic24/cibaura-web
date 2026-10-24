@@ -6,7 +6,7 @@ import { useMutation } from "@tanstack/react-query";
 import { AgencyApi } from "@/features/agency/api";
 import { useAllFleet } from "@/features/agency/hooks";
 import { PermissionGate } from "@/features/agency/components/permission-gate";
-import { todayIso } from "@/shared/utils/dates";
+import { businessTodayIso } from "@/shared/utils/dates";
 import {
   AddressAutocomplete,
   type PickedAddress,
@@ -188,7 +188,7 @@ function WalkInForm() {
               <Input
                 id="wi-from"
                 type="date"
-                min={todayIso()}
+                min={businessTodayIso()}
                 value={from}
                 onChange={(e) => setFrom(e.target.value)}
               />
@@ -198,7 +198,7 @@ function WalkInForm() {
               <Input
                 id="wi-to"
                 type="date"
-                min={from || todayIso()}
+                min={from || businessTodayIso()}
                 value={to}
                 onChange={(e) => setTo(e.target.value)}
               />
