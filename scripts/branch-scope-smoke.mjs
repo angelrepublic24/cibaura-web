@@ -236,6 +236,10 @@ const calendar = load(
         },
       }),
     },
+    "@/shared/api/errors": {
+      getApiErrorStatus: () => undefined,
+      getErrorMessage: (_e, fallback) => fallback,
+    },
     "@/features/agency/branch-scope": scopeHelpers,
     "@/features/agency/components/permission-gate": gate,
     "@/shared/utils/dates": dates,

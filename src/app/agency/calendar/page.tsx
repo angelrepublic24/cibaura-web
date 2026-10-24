@@ -13,6 +13,10 @@ import { PermissionGate } from "@/features/agency/components/permission-gate";
 import { useAllFleet } from "@/features/agency/hooks";
 import { useAgencySession } from "@/features/agency/hooks";
 import { occupancyForScope } from "@/features/agency/branch-scope";
+import {
+  getApiErrorStatus,
+  getErrorMessage,
+} from "@/shared/api/errors";
 import type { AgencyCar, OccupancyEntry } from "@/shared/types/domain";
 import {
   currentMonth,
@@ -595,8 +599,14 @@ function ManualBlockForm({
 
         {mutation.isError ? (
           <p className="mt-3 text-sm text-red-600">
-            {mutation.error.message} (overlapping dates are rejected by the
-            database)
+            {/* La pista de solape SOLO en un 409 real del servidor. Antes se
+                concatenaba a CUALQUIER error, así que un fallo de red
+                ("Network Error") se leía como "las fechas se solapan", lo que
+                hacía creer que la validación era global en vez de por auto
+                (BUG-003). */}
+            {getApiErrorStatus(mutation.error) === 409
+              ? "Those dates overlap an existing booking or block for this car. Pick a free range."
+              : getErrorMessage(mutation.error, "Could not save. Try again.")}
           </p>
         ) : null}
 
