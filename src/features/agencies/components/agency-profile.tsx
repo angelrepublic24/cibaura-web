@@ -227,7 +227,7 @@ function AgencyHeader({
       ) : (
         <div className="h-24 bg-gradient-to-r from-accent-soft to-muted md:h-28" />
       )}
-      <div className="px-6 pb-6">
+      <div className="relative z-10 px-6 pb-6">
         <div className="-mt-10 flex flex-wrap items-end gap-4">
           <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-[var(--radius)] border border-border bg-surface shadow-sm">
             {logoUrl ? (

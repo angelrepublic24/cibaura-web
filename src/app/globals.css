@@ -168,3 +168,11 @@ body {
 .bg-navy :focus-visible {
   outline-color: var(--neon);
 }
+
+/* Hide the browser's native password-reveal control (Edge/IE `::-ms-reveal`
+   and `::-ms-clear`). The Input component renders its OWN eye toggle, so the
+   native control would show a SECOND eye icon next to it. */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}

@@ -77,10 +77,14 @@ export default function AgencyDashboardPage() {
     },
   ];
 
-  // Upcoming pickups = accepted-but-not-yet-out bookings, soonest first.
-  const upcoming = [...(acceptedQuery.data?.items ?? [])].sort((a, b) =>
-    a.period.start.localeCompare(b.period.start),
-  );
+  // Upcoming pickups = accepted bookings whose pickup day is still ahead,
+  // soonest first. A booking whose start day already passed is OVERDUE, not
+  // upcoming (the expiry job closes it), so it is filtered out here instead of
+  // rendering as "in -5 days".
+  const today = todayIso();
+  const upcoming = (acceptedQuery.data?.items ?? [])
+    .filter((b) => b.period.start >= today)
+    .sort((a, b) => a.period.start.localeCompare(b.period.start));
 
   return (
     <div className="space-y-8">

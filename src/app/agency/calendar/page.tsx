@@ -563,7 +563,13 @@ function ManualBlockForm({
   const selectedCarId = cars.some((car) => car.id === blockCarId)
     ? blockCarId
     : "";
-  const ready = !carsLoading && !!selectedCarId && !!from && !!to;
+  const ready =
+    !carsLoading &&
+    !!selectedCarId &&
+    !!from &&
+    !!to &&
+    from >= todayIso() &&
+    to > from;
 
   return (
     <Card className="mt-4">
