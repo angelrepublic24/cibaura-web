@@ -19,6 +19,7 @@ import {
 } from "@/shared/api/errors";
 import type { AgencyCar, OccupancyEntry } from "@/shared/types/domain";
 import {
+  businessTodayIso,
   currentMonth,
   isoMonthParts,
   toIsoDate,
@@ -342,6 +343,7 @@ function OccupancyCalendar() {
             singleCar={!!selectedCarId}
             onRemove={(id) => deleteBlock.mutate(id)}
             removing={deleteBlock.isPending}
+            removeError={deleteBlock.isError ? deleteBlock.error : undefined}
           />
         )}
       </div>
@@ -484,15 +486,30 @@ function OccupancyList({
   singleCar,
   onRemove,
   removing,
+  removeError,
 }: {
   entries: OccupancyEntry[];
   carsById: Map<string, AgencyCar>;
   singleCar: boolean;
   onRemove: (id: string) => void;
   removing: boolean;
+  removeError: unknown;
 }) {
   return (
     <div className="space-y-2">
+      {removeError ? (
+        <p className="text-sm text-red-600">
+          {/* Mirrors the ManualBlockForm error line: a real 409 means the
+              occupancy changed under us; anything else (the client-side access
+              guard throw, a network/5xx failure) falls back to its message. */}
+          {getApiErrorStatus(removeError) === 409
+            ? "This block was just changed elsewhere. Refresh the calendar and try again."
+            : getErrorMessage(
+                removeError,
+                "Could not remove this block. Try again.",
+              )}
+        </p>
+      ) : null}
       {entries.map((o) => (
         <div
           key={o.id}
@@ -568,7 +585,7 @@ function ManualBlockForm({
     !!selectedCarId &&
     !!from &&
     !!to &&
-    from >= todayIso() &&
+    from >= businessTodayIso() &&
     to > from;
 
   return (
@@ -605,7 +622,7 @@ function ManualBlockForm({
             <Input
               id="mb-from"
               type="date"
-              min={todayIso()}
+              min={businessTodayIso()}
               value={from}
               onChange={(e) => setFrom(e.target.value)}
             />
@@ -615,7 +632,7 @@ function ManualBlockForm({
             <Input
               id="mb-to"
               type="date"
-              min={from || todayIso()}
+              min={from || businessTodayIso()}
               value={to}
               onChange={(e) => setTo(e.target.value)}
             />
