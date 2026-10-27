@@ -172,7 +172,20 @@ export function CarSearchResults({
               title="No cars match your search"
               description="Try widening the dates or clearing some filters."
               action={
-                <Button variant="outline" onClick={() => applyFilters({})}>
+                <Button
+                  variant="outline"
+                  // Clear the facets but KEEP the trip (dates + order), the
+                  // same way the filter panel's "Clear all" does — otherwise
+                  // this silently drops the dates and flips the page back to
+                  // the catalog.
+                  onClick={() =>
+                    applyFilters({
+                      from: filters.from,
+                      to: filters.to,
+                      sort: filters.sort,
+                    })
+                  }
+                >
                   Clear filters
                 </Button>
               }

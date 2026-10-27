@@ -84,11 +84,25 @@ export function CarFiltersPanel({
     return keys.filter((k) => draft[k] !== undefined && draft[k] !== "").length;
   }, [draft]);
 
+  // Cross-field range guards: an inverted range (min > max) silently returns
+  // zero results and dumps the renter on the generic empty state, so block
+  // "Apply" and say why — the same shape as the admin revenue screen's check.
+  const yearRangeInvalid =
+    draft.yearMin !== undefined &&
+    draft.yearMax !== undefined &&
+    draft.yearMin > draft.yearMax;
+  const priceRangeInvalid =
+    draft.priceMin !== undefined &&
+    draft.priceMax !== undefined &&
+    draft.priceMin > draft.priceMax;
+  const rangeInvalid = yearRangeInvalid || priceRangeInvalid;
+
   return (
     <form
       className="flex flex-col overflow-hidden rounded-[var(--radius)] border border-border bg-surface shadow-sm lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)]"
       onSubmit={(e) => {
         e.preventDefault();
+        if (rangeInvalid) return;
         onApply(draft);
       }}
     >
@@ -174,6 +188,7 @@ export function CarFiltersPanel({
             <div className="grid grid-cols-2 gap-2">
               <Select
                 aria-label="Year from"
+                aria-invalid={yearRangeInvalid}
                 value={draft.yearMin ?? ""}
                 onChange={(e) =>
                   set("yearMin", e.target.value ? Number(e.target.value) : undefined)
@@ -188,6 +203,7 @@ export function CarFiltersPanel({
               </Select>
               <Select
                 aria-label="Year to"
+                aria-invalid={yearRangeInvalid}
                 value={draft.yearMax ?? ""}
                 onChange={(e) =>
                   set("yearMax", e.target.value ? Number(e.target.value) : undefined)
@@ -201,6 +217,11 @@ export function CarFiltersPanel({
                 ))}
               </Select>
             </div>
+            {yearRangeInvalid ? (
+              <p className="text-sm text-destructive">
+                The &ldquo;from&rdquo; year can&apos;t be after the &ldquo;to&rdquo; year.
+              </p>
+            ) : null}
           </Field>
         </div>
 
@@ -276,6 +297,7 @@ export function CarFiltersPanel({
                 inputMode="numeric"
                 min={0}
                 placeholder="$0"
+                aria-invalid={priceRangeInvalid}
                 value={draft.priceMin ?? ""}
                 onChange={(e) =>
                   set("priceMin", e.target.value ? Number(e.target.value) : undefined)
@@ -289,6 +311,7 @@ export function CarFiltersPanel({
                 inputMode="numeric"
                 min={0}
                 placeholder="$200"
+                aria-invalid={priceRangeInvalid}
                 value={draft.priceMax ?? ""}
                 onChange={(e) =>
                   set("priceMax", e.target.value ? Number(e.target.value) : undefined)
@@ -296,6 +319,11 @@ export function CarFiltersPanel({
               />
             </Field>
           </div>
+          {priceRangeInvalid ? (
+            <p className="text-sm text-destructive">
+              The minimum price can&apos;t be above the maximum.
+            </p>
+          ) : null}
         </div>
 
         <div className="h-px bg-border" />
@@ -334,7 +362,7 @@ export function CarFiltersPanel({
 
       {/* Action bar — always visible at the panel's foot, never scrolls away. */}
       <div className="shrink-0 border-t border-border bg-surface p-4">
-        <Button type="submit" className="w-full">
+        <Button type="submit" className="w-full" disabled={rangeInvalid}>
           Apply filters
         </Button>
       </div>
