@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { AgencyApi, agencyKeys, type AgencyRequest } from "@/features/agency/api";
@@ -95,6 +95,15 @@ function RequestsInbox() {
   const total = query.data?.total ?? 0;
   const pageSize = query.data?.pageSize ?? 20;
   const hasNext = page * pageSize < total;
+
+  // Accepting/rejecting the last row on a later page shrinks the result set so
+  // that page refetches empty. The Previous/Next controls live only in the
+  // non-empty branch, so clamp back to page 1 instead of stranding the operator
+  // on an empty screen with no way to reach the still-full earlier pages.
+  const itemCount = query.data?.items.length ?? 0;
+  useEffect(() => {
+    if (query.isSuccess && itemCount === 0 && page > 1) setPage(1);
+  }, [query.isSuccess, itemCount, page]);
 
   return (
     <div>

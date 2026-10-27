@@ -6,7 +6,11 @@ import { ArrowRight, CalendarClock, Inbox } from "lucide-react";
 import { AgencyApi, agencyKeys } from "@/features/agency/api";
 import type { Booking } from "@/shared/types/domain";
 import { formatMoneyCents } from "@/shared/utils/money";
-import { formatIsoDate, isoDateParts, todayIso } from "@/shared/utils/dates";
+import {
+  businessTodayIso,
+  formatIsoDate,
+  isoDateParts,
+} from "@/shared/utils/dates";
 import { Badge } from "@/shared/components/ui/badge";
 import {
   Card,
@@ -81,7 +85,7 @@ export default function AgencyDashboardPage() {
   // soonest first. A booking whose start day already passed is OVERDUE, not
   // upcoming (the expiry job closes it), so it is filtered out here instead of
   // rendering as "in -5 days".
-  const today = todayIso();
+  const today = businessTodayIso();
   const upcoming = (acceptedQuery.data?.items ?? [])
     .filter((b) => b.period.start >= today)
     .sort((a, b) => a.period.start.localeCompare(b.period.start));
@@ -158,7 +162,7 @@ function Stat({ label, value, loading, error, href, emphasis }: StatProps) {
 function daysUntil(iso: string): number {
   const { year, month, day } = isoDateParts(iso);
   const target = new Date(year, month - 1, day).getTime();
-  const t = isoDateParts(todayIso());
+  const t = isoDateParts(businessTodayIso());
   const today = new Date(t.year, t.month - 1, t.day).getTime();
   return Math.round((target - today) / 86_400_000);
 }

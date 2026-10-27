@@ -90,6 +90,14 @@ export function BookingLifecycleActions({
   const busy = mutation.isPending;
   const detailHref = `/agency/requests/${booking.id}`;
 
+  // The reject reason is optional (empty trims to the "declined" default), but
+  // a typed reason must clear the backend's 2..160 rule. Block submit on a
+  // too-short reason client-side — like the cancel ReasonDialog does — instead
+  // of letting a single character come back as a raw 400.
+  const trimmedReason = reason.trim();
+  const reasonValid =
+    trimmedReason.length === 0 || trimmedReason.length >= REASON_MIN;
+
   const cancelButton = (
     <Button
       variant="outline"
@@ -126,7 +134,7 @@ export function BookingLifecycleActions({
             <Button
               variant="destructive"
               size="sm"
-              disabled={busy}
+              disabled={busy || !reasonValid}
               onClick={() => mutation.mutate("reject")}
             >
               {busy ? "Rejecting…" : "Confirm reject"}

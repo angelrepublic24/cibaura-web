@@ -211,6 +211,13 @@ export function AgencyDirectory({
                   <Button variant="outline" onClick={() => apply({})}>
                     Clear filters
                   </Button>
+                ) : page > 1 ? (
+                  // An out-of-range page (a stale/shared ?page=N, or inventory
+                  // that shrank) renders empty with the pager hidden — give a
+                  // way back to the first page instead of a dead end.
+                  <Button variant="outline" onClick={() => apply({})}>
+                    Back to first page
+                  </Button>
                 ) : undefined
               }
             />

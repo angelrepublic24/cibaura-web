@@ -98,10 +98,14 @@ export function ForgotPasswordForm() {
               type="email"
               autoComplete="email"
               autoFocus
+              aria-invalid={!!form.formState.errors.email}
+              aria-describedby={
+                form.formState.errors.email ? "forgot-email-error" : undefined
+              }
               {...form.register("email")}
             />
             {form.formState.errors.email ? (
-              <p className="text-sm text-red-600">
+              <p id="forgot-email-error" className="text-sm text-red-600" role="alert">
                 {form.formState.errors.email.message}
               </p>
             ) : null}

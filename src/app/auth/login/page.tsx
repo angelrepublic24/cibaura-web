@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { LoginForm } from "@/features/auth/components/login-form";
+import { RedirectIfAuthenticated } from "@/features/auth/components/redirect-if-authenticated";
 import { Logo } from "@/shared/components/logo";
 import { pageMetadata } from "@/shared/seo/metadata";
 
@@ -29,7 +30,9 @@ export default async function LoginPage({ searchParams }: Props) {
           Reservations and rentals, all in one place.
         </p>
       </div>
-      <LoginForm next={next} />
+      <RedirectIfAuthenticated>
+        <LoginForm next={next} />
+      </RedirectIfAuthenticated>
     </div>
   );
 }

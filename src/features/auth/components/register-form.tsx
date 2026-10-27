@@ -30,7 +30,7 @@ import {
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 
-export function RegisterForm() {
+export function RegisterForm({ next }: { next?: string }) {
   const router = useRouter();
   const signIn = useAuthStore((s) => s.signIn);
   const legal = useLegalCurrent();
@@ -68,7 +68,13 @@ export function RegisterForm() {
       // The response set the httpOnly session cookies; only the user
       // snapshot is kept client-side.
       signIn(user);
-      router.push("/account");
+      // Honour the destination a guard preserved when the guest switched from
+      // login to register; otherwise land in their account. Only follow a
+      // SAME-ORIGIN internal path — reject protocol-relative ("//evil.com")
+      // and backslash ("/\\evil.com") forms that would open-redirect off-site.
+      // Mirrors the sanitisation in login-form.tsx.
+      const safeNext = next && /^\/(?![/\\])/.test(next) ? next : "/account";
+      router.push(safeNext);
     },
     onError: async (error) => {
       if (isApiErrorCode(error, API_ERROR_CODES.TERMS_OUTDATED)) {
@@ -108,9 +114,17 @@ export function RegisterForm() {
         >
           <div className="space-y-1.5">
             <Label htmlFor="reg-name">Full name</Label>
-            <Input id="reg-name" autoComplete="name" {...form.register("fullName")} />
+            <Input
+              id="reg-name"
+              autoComplete="name"
+              aria-invalid={!!errors.fullName}
+              aria-describedby={errors.fullName ? "reg-name-error" : undefined}
+              {...form.register("fullName")}
+            />
             {errors.fullName ? (
-              <p className="text-sm text-red-600">{errors.fullName.message}</p>
+              <p id="reg-name-error" className="text-sm text-red-600" role="alert">
+                {errors.fullName.message}
+              </p>
             ) : null}
           </div>
 
@@ -120,10 +134,14 @@ export function RegisterForm() {
               id="reg-email"
               type="email"
               autoComplete="email"
+              aria-invalid={!!errors.email}
+              aria-describedby={errors.email ? "reg-email-error" : undefined}
               {...form.register("email")}
             />
             {errors.email ? (
-              <p className="text-sm text-red-600">{errors.email.message}</p>
+              <p id="reg-email-error" className="text-sm text-red-600" role="alert">
+                {errors.email.message}
+              </p>
             ) : null}
           </div>
 
@@ -133,10 +151,14 @@ export function RegisterForm() {
               id="reg-phone"
               type="tel"
               autoComplete="tel"
+              aria-invalid={!!errors.phone}
+              aria-describedby={errors.phone ? "reg-phone-error" : undefined}
               {...form.register("phone")}
             />
             {errors.phone ? (
-              <p className="text-sm text-red-600">{errors.phone.message}</p>
+              <p id="reg-phone-error" className="text-sm text-red-600" role="alert">
+                {errors.phone.message}
+              </p>
             ) : null}
           </div>
 
@@ -146,10 +168,14 @@ export function RegisterForm() {
               id="reg-password"
               type="password"
               autoComplete="new-password"
+              aria-invalid={!!errors.password}
+              aria-describedby={errors.password ? "reg-password-error" : undefined}
               {...form.register("password")}
             />
             {errors.password ? (
-              <p className="text-sm text-red-600">{errors.password.message}</p>
+              <p id="reg-password-error" className="text-sm text-red-600" role="alert">
+                {errors.password.message}
+              </p>
             ) : null}
           </div>
 
@@ -159,10 +185,14 @@ export function RegisterForm() {
               id="reg-confirm"
               type="password"
               autoComplete="new-password"
+              aria-invalid={!!errors.confirmPassword}
+              aria-describedby={
+                errors.confirmPassword ? "reg-confirm-error" : undefined
+              }
               {...form.register("confirmPassword")}
             />
             {errors.confirmPassword ? (
-              <p className="text-sm text-red-600">
+              <p id="reg-confirm-error" className="text-sm text-red-600" role="alert">
                 {errors.confirmPassword.message}
               </p>
             ) : null}
@@ -223,7 +253,12 @@ export function RegisterForm() {
 
         <p className="mt-4 text-center text-sm text-muted-foreground">
           Already registered?{" "}
-          <Link href="/auth/login" className="text-primary underline">
+          <Link
+            href={
+              next ? `/auth/login?next=${encodeURIComponent(next)}` : "/auth/login"
+            }
+            className="text-primary underline"
+          >
             Log in
           </Link>
         </p>

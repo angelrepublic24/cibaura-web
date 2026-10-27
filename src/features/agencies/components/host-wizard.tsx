@@ -106,16 +106,19 @@ const STEPS: { key: Exclude<WizardStep, "done">; label: string }[] = [
   { key: "car", label: "Your first car" },
 ];
 
+// Document-type-neutral: a host picks their ID document on step 1 (national
+// or state ID, driver's license, or passport, from several countries), so
+// the upload slots must not assume a Dominican cédula.
 const HOST_DOCS: RequiredAgencyDocument[] = [
   {
     type: "owner_id",
-    label: "Cédula — front",
-    hint: "A clear, uncropped photo of the front of your cédula.",
+    label: "ID document — front",
+    hint: "A clear, uncropped photo of the front of your ID document.",
   },
   {
     type: "owner_id_back",
-    label: "Cédula — back",
-    hint: "The back of the same cédula.",
+    label: "ID document — back",
+    hint: "The back of the same document.",
   },
 ];
 
@@ -774,7 +777,7 @@ function AddressStep({ onApplied }: { onApplied: () => void }) {
               {apply.isPending ? "Submitting…" : "Submit application"}
             </Button>
             <p className="text-xs text-muted-foreground">
-              Next: upload your cédula.
+              Next: upload your ID.
             </p>
           </div>
         </form>
@@ -873,8 +876,8 @@ function MemberSteps() {
               Your ID
             </CardTitle>
             <CardDescription>
-              Both sides of your cédula, so we can confirm you are the person
-              on the application. Photos or PDFs, clear and uncropped.
+              Both sides of your ID document, so we can confirm you are the
+              person on the application. Photos or PDFs, clear and uncropped.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

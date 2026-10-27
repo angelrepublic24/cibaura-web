@@ -98,9 +98,13 @@ export default function AdminOrdersPage() {
   const [state, setState] = useState<"" | BookingState>("");
   const [page, setPage] = useState(1);
 
+  // Half-open range [from, to): `from` must be strictly before `to`. On an
+  // inverted range we drop the dates and query unfiltered, surfacing a warning
+  // instead of firing a query that can only ever return nothing.
+  const rangeInvalid = from !== "" && to !== "" && from >= to;
   const query = {
-    from: from || undefined,
-    to: to || undefined,
+    from: rangeInvalid ? undefined : from || undefined,
+    to: rangeInvalid ? undefined : to || undefined,
     state: state || undefined,
     page,
     pageSize: PAGE_SIZE,
@@ -118,7 +122,11 @@ export default function AdminOrdersPage() {
   const pageCount = total > 0 ? Math.ceil(total / PAGE_SIZE) : 1;
 
   // Page-level sums (honest: labelled "this page", not a range-wide aggregate,
-  // which the contract does not provide). Currency is uniform on a page.
+  // which the contract does not provide). The platform list spans every
+  // agency/country, so a single page can mix currencies — summing cents across
+  // them is meaningless, so the totals only render when the page is uniform.
+  const pageCurrencies = new Set(rows.map((r) => r.currency));
+  const singleCurrency = pageCurrencies.size === 1;
   const pageCurrency = rows[0]?.currency ?? "USD";
   const pageTotalCents = rows.reduce((sum, r) => sum + r.totalCents, 0);
   const pageCommissionCents = rows.reduce(
@@ -152,6 +160,7 @@ export default function AdminOrdersPage() {
               type="date"
               className="w-[160px]"
               value={from}
+              max={to || undefined}
               onChange={(e) => {
                 setFrom(e.target.value);
                 resetPage();
@@ -167,6 +176,7 @@ export default function AdminOrdersPage() {
               type="date"
               className="w-[160px]"
               value={to}
+              min={from || undefined}
               onChange={(e) => {
                 setTo(e.target.value);
                 resetPage();
@@ -192,6 +202,12 @@ export default function AdminOrdersPage() {
               ))}
             </Select>
           </div>
+          {rangeInvalid ? (
+            <p className="w-full text-sm text-red-600">
+              “From” must be before “To”. Showing all orders until the range is
+              fixed.
+            </p>
+          ) : null}
         </div>
 
         {/* Summary */}
@@ -200,7 +216,7 @@ export default function AdminOrdersPage() {
             <span className="font-medium text-foreground">{total}</span>{" "}
             {total === 1 ? "order" : "orders"} matched
           </span>
-          {rows.length > 0 ? (
+          {rows.length > 0 && singleCurrency ? (
             <>
               <span className="text-muted-foreground">
                 Page total{" "}
@@ -215,6 +231,11 @@ export default function AdminOrdersPage() {
                 </span>
               </span>
             </>
+          ) : rows.length > 0 ? (
+            <span className="text-muted-foreground">
+              This page mixes currencies — totals are hidden to avoid summing
+              across them.
+            </span>
           ) : null}
         </div>
 

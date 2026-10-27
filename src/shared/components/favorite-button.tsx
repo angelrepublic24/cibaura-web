@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Heart } from "lucide-react";
 import { FavoritesApi, favoriteKeys } from "@/features/favorites/api";
+import type { AgencyPublicProfile } from "@/features/agencies/api";
 import { useAuthStore } from "@/shared/auth/store";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +30,16 @@ export function FavoriteButton({
     queryKey: favoriteKeys.ids(),
     queryFn: FavoritesApi.ids,
     enabled: authed,
+    // On the favourites page the full agency list (`favoriteKeys.list()`) is
+    // already cached and, by definition, holds exactly the agencies this user
+    // has hearted. Seed the ids cache from it so the hearts render filled on
+    // first paint instead of flashing empty until the separate ids() request
+    // resolves. Off the favourites page the list cache is empty, so this is a
+    // no-op and the query fetches as before.
+    initialData: () => {
+      const list = qc.getQueryData<AgencyPublicProfile[]>(favoriteKeys.list());
+      return list?.map((a) => a.id);
+    },
   });
 
   const favorited = idsQuery.data?.includes(agencyId) ?? false;

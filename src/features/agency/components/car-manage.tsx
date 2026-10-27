@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import Link from "next/link";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ImagePlus } from "lucide-react";
@@ -116,12 +118,7 @@ function CarManageBody({ carId }: { carId: string }) {
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <div className="relative h-14 w-20 shrink-0 overflow-hidden rounded-[var(--radius-sm)] border border-border bg-muted">
-            {photo ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={photo} alt="" className="absolute inset-0 h-full w-full object-cover" />
-            ) : (
-              <CarPhotoPlaceholder />
-            )}
+            <CoverThumb photo={photo} />
           </div>
           <div className="min-w-0">
             <h1 className="flex flex-wrap items-center gap-2 text-2xl font-bold">
@@ -307,5 +304,26 @@ function PublishCard({ car }: { car: AgencyCar }) {
         ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Cover thumb with fallback, matching the fleet list (BUG-002): a plain
+ * `<img>` with no `onError` left a broken box when the photo existed but
+ * failed to load — it only fell back to the placeholder when there was NO
+ * photo. Now a failed load (404, S3 error, network) also degrades to the
+ * branded placeholder.
+ */
+function CoverThumb({ photo }: { photo: string | null }) {
+  const [failed, setFailed] = useState(false);
+  if (!photo || failed) return <CarPhotoPlaceholder />;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={photo}
+      alt=""
+      onError={() => setFailed(true)}
+      className="absolute inset-0 h-full w-full object-cover"
+    />
   );
 }

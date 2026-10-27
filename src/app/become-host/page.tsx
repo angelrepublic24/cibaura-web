@@ -50,14 +50,14 @@ const BENEFITS = [
   {
     icon: KeyRound,
     title: "Paid to your bank",
-    body: "Earnings land in your wallet after each rental and are paid out to your Dominican bank account.",
+    body: "Earnings land in your wallet after each rental and are paid out to your bank account.",
   },
 ];
 
 const STEPS = [
-  { n: 1, title: "About you", body: "Your name, cédula and phone." },
+  { n: 1, title: "About you", body: "Your name, ID and phone." },
   { n: 2, title: "Your address", body: "Where renters pick up the car." },
-  { n: 3, title: "Your ID", body: "A photo of both sides of your cédula." },
+  { n: 3, title: "Your ID", body: "A photo of both sides of your ID." },
   { n: 4, title: "Host agreement", body: "Read and sign it online." },
   { n: 5, title: "Your first car", body: "Photos, price and its registration card." },
 ];

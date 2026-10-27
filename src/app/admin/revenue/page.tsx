@@ -259,7 +259,7 @@ function LedgerRow({
               <>
                 <span aria-hidden>·</span>
                 <Link
-                  href="/admin/orders"
+                  href={`/admin/orders/${entry.bookingId}`}
                   className="font-medium text-primary hover:underline"
                 >
                   Booking #{entry.bookingId.slice(0, 8)}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -124,6 +124,39 @@ function useSaveSettings(onSaved?: () => void) {
       onSaved?.();
     },
   });
+}
+
+/**
+ * Logo/banner preview with a load-failure fallback. `z.url()` validates the
+ * URL FORMAT only, not reachability, so a format-valid but unreachable/typo'd
+ * link passed validation and rendered the browser's broken-image glyph. On a
+ * failed load we degrade to the same placeholder shown for an empty/invalid
+ * field; the `failed` flag resets whenever the URL changes so a corrected
+ * link retries.
+ */
+function BrandingPreview({
+  src,
+  show,
+  className,
+  placeholder,
+}: {
+  src: string;
+  show: boolean;
+  className: string;
+  placeholder: React.ReactNode;
+}) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [src]);
+  if (!show || failed) return <>{placeholder}</>;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt=""
+      onError={() => setFailed(true)}
+      className={className}
+    />
+  );
 }
 
 /**
@@ -269,16 +302,14 @@ export function AgencyProfileForm({ settings }: { settings: AgencySettings }) {
               <Label htmlFor="st-logo">Logo</Label>
               <div className="flex items-center gap-3">
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius)] border border-border bg-muted">
-                  {logoUrl && !errors.logoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={logoUrl}
-                      alt=""
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <ImageIcon className="h-5 w-5 text-muted-foreground" />
-                  )}
+                  <BrandingPreview
+                    src={logoUrl}
+                    show={!!logoUrl && !errors.logoUrl}
+                    className="h-full w-full object-cover"
+                    placeholder={
+                      <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                    }
+                  />
                 </div>
                 <div className="flex-1 space-y-1.5">
                   <Button
@@ -316,18 +347,16 @@ export function AgencyProfileForm({ settings }: { settings: AgencySettings }) {
             <div className="space-y-1.5">
               <Label htmlFor="st-banner">Banner</Label>
               <div className="overflow-hidden rounded-[var(--radius)] border border-border">
-                {bannerUrl && !errors.bannerUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={bannerUrl}
-                    alt=""
-                    className="h-28 w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-28 w-full items-center justify-center bg-gradient-to-r from-accent-soft to-muted">
-                    <ImageIcon className="h-6 w-6 text-muted-foreground" />
-                  </div>
-                )}
+                <BrandingPreview
+                  src={bannerUrl}
+                  show={!!bannerUrl && !errors.bannerUrl}
+                  className="h-28 w-full object-cover"
+                  placeholder={
+                    <div className="flex h-28 w-full items-center justify-center bg-gradient-to-r from-accent-soft to-muted">
+                      <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                  }
+                />
               </div>
               <div className="flex items-center gap-2">
                 <Button
