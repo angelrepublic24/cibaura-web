@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CardElement,
   Elements,
@@ -107,6 +107,57 @@ function CardForm({ onDone }: { onDone: () => void }) {
 }
 
 export function AddCardForm({ onDone }: { onDone: () => void }) {
+  // `getStripe()` resolves the Stripe.js instance, or `null` when the script
+  // cannot load (ad-blocker, CSP, offline) — in which case `useStripe()` would
+  // stay null forever and the form would render a dead, empty box with a
+  // permanently disabled "Save card" button and no explanation. Resolve the
+  // promise ourselves so we can show an explicit loading / could-not-load state
+  // instead of mounting <Elements> into a silent dead end.
+  const [stripeStatus, setStripeStatus] = useState<
+    "loading" | "ready" | "failed"
+  >("loading");
+
+  useEffect(() => {
+    let active = true;
+    stripePromise
+      .then((stripe) => {
+        if (active) setStripeStatus(stripe ? "ready" : "failed");
+      })
+      .catch(() => {
+        if (active) setStripeStatus("failed");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (stripeStatus === "loading") {
+    return (
+      <div className="rounded-[var(--radius)] border border-border bg-surface p-4 shadow-sm">
+        <p className="text-sm text-muted-foreground">Loading payment form…</p>
+      </div>
+    );
+  }
+
+  if (stripeStatus === "failed") {
+    return (
+      <div className="space-y-3 rounded-[var(--radius)] border border-border bg-surface p-4 shadow-sm">
+        <p className="text-sm text-destructive" role="alert">
+          The payment form could not load. Disable your ad-blocker or check your
+          connection, then reload the page to add a card.
+        </p>
+        <div className="flex items-center gap-2">
+          <Button type="button" onClick={() => window.location.reload()}>
+            Reload
+          </Button>
+          <Button type="button" variant="outline" onClick={onDone}>
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Elements stripe={stripePromise}>
       <CardForm onDone={onDone} />
