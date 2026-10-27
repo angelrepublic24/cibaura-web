@@ -87,11 +87,25 @@ function BranchesBody() {
             onRetry={() => query.refetch()}
           />
         ) : (query.data?.length ?? 0) === 0 ? (
-          <EmptyState
-            title="No branches yet"
-            description="Add a branch so your cars have a pickup location and show up in city search."
-            action={<Button onClick={() => setShowForm(true)}>Add branch</Button>}
-          />
+          individual ? (
+            // A private host's single pickup address comes from their
+            // application, not this page (the server rejects a self-created
+            // branch with INDIVIDUAL_SINGLE_BRANCH). A zero-branch state is
+            // anomalous — guide them the same way the host wizard does rather
+            // than offering an "Add branch" button that renders nothing.
+            <EmptyState
+              title="Your pickup address is missing"
+              description="The address from your application was not found. Contact support to set up your pickup location."
+            />
+          ) : (
+            <EmptyState
+              title="No branches yet"
+              description="Add a branch so your cars have a pickup location and show up in city search."
+              action={
+                <Button onClick={() => setShowForm(true)}>Add branch</Button>
+              }
+            />
+          )
         ) : (
           <div className="space-y-3">
             {(query.data ?? []).map((b) =>

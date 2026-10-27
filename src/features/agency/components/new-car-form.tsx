@@ -38,6 +38,13 @@ import { Select } from "@/shared/components/ui/select";
 
 const AMOUNT_REGEX = /^\d+(\.\d{1,2})?$/;
 
+/** Realistic model-year bounds: no car older than 1950, at most next year. */
+const MIN_CAR_YEAR = 1950;
+const MAX_CAR_YEAR = new Date().getFullYear() + 1;
+/** A real car seats at least the driver and at most a large passenger van. */
+const MIN_SEATS = 1;
+const MAX_SEATS = 15;
+
 /**
  * The three states a car's deposit can hold, which the wire stores in one
  * nullable column: `inherit` -> `null` (use the agency's value), `none` ->
@@ -59,11 +66,21 @@ const carSchema = z.object({
   modelId: z.string().min(1, "Pick a model"),
   year: z
     .string()
-    .regex(/^(19|20)\d{2}$/, "Enter a 4-digit year"),
+    .regex(/^\d{4}$/, "Enter a 4-digit year")
+    .refine(
+      (v) => Number(v) >= MIN_CAR_YEAR && Number(v) <= MAX_CAR_YEAR,
+      `Enter a year between ${MIN_CAR_YEAR} and ${MAX_CAR_YEAR}`,
+    ),
   color: z.enum(CAR_COLORS),
   transmission: z.enum(TRANSMISSIONS),
   fuel: z.enum(FUEL_TYPES),
-  seats: z.string().regex(/^\d{1,2}$/, "Enter the number of seats"),
+  seats: z
+    .string()
+    .regex(/^\d{1,2}$/, "Enter the number of seats")
+    .refine(
+      (v) => Number(v) >= MIN_SEATS && Number(v) <= MAX_SEATS,
+      `Between ${MIN_SEATS} and ${MAX_SEATS} seats`,
+    ),
   category: z.enum(CAR_CATEGORIES),
   plate: z.string().min(3, "Enter the plate (kept private)"),
   pricePerDay: z
