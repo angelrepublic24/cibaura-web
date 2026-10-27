@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { AuthApi } from "@/features/auth/api";
 import { loginSchema, type LoginFormValues } from "@/features/auth/schemas";
+import { roleHome } from "@/features/auth/role-home";
 import { useAuthStore } from "@/shared/auth/store";
 import {
   API_ERROR_CODES,
@@ -52,13 +53,7 @@ export function LoginForm({ next }: { next?: string }) {
       // worse: the login response carries roles only, so it would mean hanging
       // an agency read (and its failure modes) off the auth path to choose
       // between two screens that both explain themselves.
-      const home =
-        user.roles.includes("agency_owner") ||
-        user.roles.includes("agency_staff")
-          ? "/agency"
-          : user.roles.includes("platform_admin")
-            ? "/admin"
-            : "/account";
+      const home = roleHome(user);
       // Only follow a SAME-ORIGIN internal path. Reject protocol-relative
       // ("//evil.com") and backslash ("/\\evil.com", which browsers normalize
       // to "//") forms that would open-redirect off-site after login.
@@ -91,10 +86,14 @@ export function LoginForm({ next }: { next?: string }) {
               id="login-email"
               type="email"
               autoComplete="email"
+              aria-invalid={!!form.formState.errors.email}
+              aria-describedby={
+                form.formState.errors.email ? "login-email-error" : undefined
+              }
               {...form.register("email")}
             />
             {form.formState.errors.email ? (
-              <p className="text-sm text-red-600">
+              <p id="login-email-error" className="text-sm text-red-600" role="alert">
                 {form.formState.errors.email.message}
               </p>
             ) : null}
@@ -114,10 +113,16 @@ export function LoginForm({ next }: { next?: string }) {
               id="login-password"
               type="password"
               autoComplete="current-password"
+              aria-invalid={!!form.formState.errors.password}
+              aria-describedby={
+                form.formState.errors.password
+                  ? "login-password-error"
+                  : undefined
+              }
               {...form.register("password")}
             />
             {form.formState.errors.password ? (
-              <p className="text-sm text-red-600">
+              <p id="login-password-error" className="text-sm text-red-600" role="alert">
                 {form.formState.errors.password.message}
               </p>
             ) : null}
@@ -136,7 +141,14 @@ export function LoginForm({ next }: { next?: string }) {
 
         <p className="mt-4 text-center text-sm text-muted-foreground">
           No account yet?{" "}
-          <Link href="/auth/register" className="text-primary underline">
+          <Link
+            href={
+              next
+                ? `/auth/register?next=${encodeURIComponent(next)}`
+                : "/auth/register"
+            }
+            className="text-primary underline"
+          >
             Create one
           </Link>
         </p>

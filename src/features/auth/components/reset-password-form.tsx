@@ -146,10 +146,14 @@ export function ResetPasswordForm({ token }: { token?: string }) {
               type="password"
               autoComplete="new-password"
               autoFocus
+              aria-invalid={!!errors.password}
+              aria-describedby={errors.password ? "reset-password-error" : undefined}
               {...form.register("password")}
             />
             {errors.password ? (
-              <p className="text-sm text-red-600">{errors.password.message}</p>
+              <p id="reset-password-error" className="text-sm text-red-600" role="alert">
+                {errors.password.message}
+              </p>
             ) : null}
           </div>
 
@@ -159,10 +163,14 @@ export function ResetPasswordForm({ token }: { token?: string }) {
               id="reset-confirm"
               type="password"
               autoComplete="new-password"
+              aria-invalid={!!errors.confirmPassword}
+              aria-describedby={
+                errors.confirmPassword ? "reset-confirm-error" : undefined
+              }
               {...form.register("confirmPassword")}
             />
             {errors.confirmPassword ? (
-              <p className="text-sm text-red-600">
+              <p id="reset-confirm-error" className="text-sm text-red-600" role="alert">
                 {errors.confirmPassword.message}
               </p>
             ) : null}
