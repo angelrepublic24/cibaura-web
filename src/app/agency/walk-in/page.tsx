@@ -88,6 +88,7 @@ function WalkInForm() {
     /.+@.+\..+/.test(customerEmail) &&
     !!from &&
     !!to &&
+    from >= businessTodayIso() &&
     to > from &&
     (!deliver || !!addr);
 
@@ -97,10 +98,12 @@ function WalkInForm() {
     <div className="mx-auto max-w-2xl">
       <h1 className="font-display text-2xl text-foreground">Walk-in sale</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Book a car for a customer at the counter. Enter an existing customer&apos;s
-        email, or a new one&apos;s details to register them on the spot. This is
-        an offline sale — you collect payment and check the license yourself; the
-        car is reserved so the app can&apos;t double-book it.
+        Book a car at the counter for a customer who doesn&apos;t have a Cibaura
+        account — enter their email and details to register them on the spot. (If
+        the email already belongs to a registered account, that customer books
+        from their own account instead.) This is an offline sale — you collect
+        payment and check the license yourself; the car is reserved so the app
+        can&apos;t double-book it.
       </p>
 
       <Card className="mt-5">
