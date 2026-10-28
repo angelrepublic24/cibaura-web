@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, CalendarClock, Inbox } from "lucide-react";
-import { AgencyApi, agencyKeys } from "@/features/agency/api";
+import {
+  useAgencyRequests,
+  useAgencyWallet,
+  useFleet,
+} from "@/modules/agency/hooks/agency.hook";
 import type { Booking } from "@/shared/types/domain";
 import { formatMoneyCents } from "@/shared/utils/money";
 import {
@@ -23,26 +26,11 @@ import { cn } from "@/lib/utils";
 
 /** /agency — dashboard home: headline stats + upcoming pickups from real queries. */
 export default function AgencyDashboardPage() {
-  const fleetQuery = useQuery({
-    queryKey: agencyKeys.fleet(),
-    queryFn: () => AgencyApi.fleet(),
-  });
-  const requestsQuery = useQuery({
-    queryKey: agencyKeys.requests({ state: "requested" }),
-    queryFn: () => AgencyApi.requests({ state: "requested" }),
-  });
-  const acceptedQuery = useQuery({
-    queryKey: agencyKeys.requests({ state: "accepted" }),
-    queryFn: () => AgencyApi.requests({ state: "accepted" }),
-  });
-  const activeQuery = useQuery({
-    queryKey: agencyKeys.requests({ state: "active" }),
-    queryFn: () => AgencyApi.requests({ state: "active" }),
-  });
-  const walletQuery = useQuery({
-    queryKey: agencyKeys.wallet(),
-    queryFn: AgencyApi.wallet,
-  });
+  const fleetQuery = useFleet();
+  const requestsQuery = useAgencyRequests({ state: "requested" });
+  const acceptedQuery = useAgencyRequests({ state: "accepted" });
+  const activeQuery = useAgencyRequests({ state: "active" });
+  const walletQuery = useAgencyWallet();
 
   const stats: StatProps[] = [
     {

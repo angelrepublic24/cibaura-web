@@ -1,18 +1,23 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
 import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
   List as ListIcon,
 } from "lucide-react";
-import { AgencyApi, agencyKeys } from "@/features/agency/api";
-import { PermissionGate } from "@/features/agency/components/permission-gate";
-import { useAllFleet } from "@/features/agency/hooks";
-import { useAgencySession } from "@/features/agency/hooks";
-import { occupancyForScope } from "@/features/agency/branch-scope";
+import {
+  useAgencyCalendar,
+  useCreateManualBlock,
+  useDeleteManualBlock,
+  useInvalidateAgencyCalendar,
+} from "@/modules/agency/hooks/agency.hook";
+import { PermissionGate } from "@/modules/agency/components/permission-gate";
+import { useAllFleet } from "@/modules/agency/hooks/agency.hook";
+import { useAgencySession } from "@/modules/agency/hooks/agency.hook";
+import { occupancyForScope } from "@/modules/agency/helpers/agency.helper";
 import {
   getApiErrorStatus,
   getErrorMessage,
@@ -113,7 +118,6 @@ export default function AgencyCalendarPage() {
 }
 
 function OccupancyCalendar() {
-  const qc = useQueryClient();
   const [month, setMonth] = useState<string>(currentMonth());
   const [carId, setCarId] = useState<string>("");
   const [view, setView] = useState<View>("month");
@@ -132,33 +136,27 @@ function OccupancyCalendar() {
   // A selection may become invalid after a reassignment or a shorter API response.
   const selectedCarId = fleet.cars.some((car) => car.id === carId) ? carId : "";
 
-  const calendarQuery = useQuery({
-    queryKey: [
-      ...agencyKeys.calendar(selectedCarId || null, month),
-      session.data?.agency.id,
-      scope,
-    ],
-    queryFn: () => AgencyApi.calendar(selectedCarId || null, month),
-    enabled: Boolean(scope) && !fleet.isLoading && !fleet.isError,
-  });
+  const calendarQuery = useAgencyCalendar(
+    selectedCarId || null,
+    month,
+    !fleet.isLoading && !fleet.isError,
+  );
 
-  const deleteBlock = useMutation({
-    mutationFn: (blockId: string) => {
+  const deleteBlock = useDeleteManualBlock(
+    selectedCarId || null,
+    month,
+    (blockId) => {
       if (
         !entries.some(
           (entry) => entry.id === blockId && entry.source === "manual_block",
         )
-      )
+      ) {
         throw new Error(
           "This block is no longer available within your access.",
         );
-      return AgencyApi.deleteManualBlock(blockId);
+      }
     },
-    onSuccess: () =>
-      qc.invalidateQueries({
-        queryKey: agencyKeys.calendar(selectedCarId || null, month),
-      }),
-  });
+  );
 
   // carId → label, for booking/block bars under "All cars".
   const carsById = useMemo(() => {
@@ -188,11 +186,10 @@ function OccupancyCalendar() {
           });
   const isCurrentMonth = month === currentMonth();
 
-  function invalidate() {
-    qc.invalidateQueries({
-      queryKey: agencyKeys.calendar(selectedCarId || null, month),
-    });
-  }
+  const invalidate = useInvalidateAgencyCalendar(
+    selectedCarId || null,
+    month,
+  );
 
   return (
     <div>
@@ -563,19 +560,23 @@ function ManualBlockForm({
   const [to, setTo] = useState("");
   const [note, setNote] = useState("");
 
-  const mutation = useMutation({
-    mutationFn: () => {
-      if (carsLoading || !cars.some((car) => car.id === blockCarId))
-        throw new Error("Select an available car within your access.");
-      return AgencyApi.createManualBlock({
-        carId: blockCarId,
-        from,
-        to,
-        note: note || undefined,
-      });
-    },
-    onSuccess: onDone,
+  // The parent owns the refresh (`onDone`), because it is the one that knows
+  // which month and car the calendar is showing.
+  const create = useCreateManualBlock((input) => {
+    if (carsLoading || !cars.some((car) => car.id === input.carId)) {
+      throw new Error("Select an available car within your access.");
+    }
   });
+  const mutation = {
+    isPending: create.isPending,
+    isError: create.isError,
+    error: create.error,
+    mutate: () =>
+      create.mutate(
+        { carId: blockCarId, from, to, note: note || undefined },
+        { onSuccess: onDone },
+      ),
+  };
 
   const selectedCarId = cars.some((car) => car.id === blockCarId)
     ? blockCarId

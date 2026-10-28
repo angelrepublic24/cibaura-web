@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ForgotPasswordForm } from "@/features/auth/components/forgot-password-form";
+import { ForgotPasswordForm } from "@/modules/auth/components/forgot-password-form";
 import { Logo } from "@/shared/components/logo";
 import { pageMetadata } from "@/shared/seo/metadata";
 

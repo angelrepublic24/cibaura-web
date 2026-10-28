@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { parseAgencyDirectoryFilters } from "@/features/agencies/filters";
-import { AgencyDirectory } from "@/features/agencies/components/agency-directory";
+import { parseAgencyDirectoryFilters } from "@/modules/agencies/helpers/agencies-filters.helper";
+import { AgencyDirectory } from "@/modules/agencies/components/agency-directory";
 import { pageMetadata } from "@/shared/seo/metadata";
 import { BreadcrumbJsonLd } from "@/shared/seo/structured-data";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
-import { agencyProfileKeys } from "@/features/agencies/api";
+import { agencyProfileKeys } from "@/modules/agencies/hooks/agencies.hook";
 import {
   getDirectory,
   prefetchCities,

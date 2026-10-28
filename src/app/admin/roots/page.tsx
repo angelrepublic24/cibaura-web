@@ -1,15 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Clock } from "lucide-react";
 import {
-  InvitesApi,
-  inviteKeys,
-  INVITE_ROLES,
-  type AdminInvite,
-  type InviteRole,
-} from "@/features/admin/invites";
+  useAdminInvites,
+  useCreateInvite,
+  useRevokeInvite,
+} from "@/modules/admin/hooks/admin.hook";
+import { INVITE_ROLES } from "@/modules/admin/schema/admin.schema";
+import type {
+  AdminInvite,
+  InviteRole,
+} from "@/modules/admin/types/admin.types";
 import { RoleGuard } from "@/shared/auth/guard";
 import {
   EmptyState,
@@ -56,37 +58,39 @@ function daysUntil(iso: string): number {
 }
 
 export default function AdminRootsPage() {
-  const qc = useQueryClient();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<InviteRole>(INVITE_ROLES[0].value);
   const [sentTo, setSentTo] = useState<string | null>(null);
 
-  const listQuery = useQuery({
-    queryKey: inviteKeys.list(),
-    queryFn: InvitesApi.list,
-  });
+  const listQuery = useAdminInvites();
 
-  const invalidate = () =>
-    qc.invalidateQueries({ queryKey: inviteKeys.all });
-
-  const invite = useMutation({
-    mutationFn: () =>
-      InvitesApi.create({
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        email: email.trim(),
-        role,
-      }),
-    onSuccess: (created) => {
-      setSentTo(created.email);
-      setFirstName("");
-      setLastName("");
-      setEmail("");
-      invalidate();
-    },
-  });
+  // The hook refreshes the pending list; clearing this form and saying who
+  // the link went to are the page's own.
+  const createInvite = useCreateInvite();
+  const invite = {
+    isPending: createInvite.isPending,
+    error: createInvite.error,
+    reset: createInvite.reset,
+    mutate: () =>
+      createInvite.mutate(
+        {
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          email: email.trim(),
+          role,
+        },
+        {
+          onSuccess: (created) => {
+            setSentTo(created.email);
+            setFirstName("");
+            setLastName("");
+            setEmail("");
+          },
+        },
+      ),
+  };
 
   const trimmed = email.trim();
   const canSubmit =
@@ -137,7 +141,7 @@ export default function AdminRootsPage() {
                     onChange={(e) => {
                       setFirstName(e.target.value);
                       if (sentTo) setSentTo(null);
-                      if (invite.isError) invite.reset();
+                      if (invite.error) invite.reset();
                     }}
                   />
                 </div>
@@ -153,7 +157,7 @@ export default function AdminRootsPage() {
                     onChange={(e) => {
                       setLastName(e.target.value);
                       if (sentTo) setSentTo(null);
-                      if (invite.isError) invite.reset();
+                      if (invite.error) invite.reset();
                     }}
                   />
                 </div>
@@ -173,7 +177,7 @@ export default function AdminRootsPage() {
                     onChange={(e) => {
                       setEmail(e.target.value);
                       if (sentTo) setSentTo(null);
-                      if (invite.isError) invite.reset();
+                      if (invite.error) invite.reset();
                     }}
                     aria-invalid={trimmed.length > 0 && !EMAIL_RE.test(trimmed)}
                   />
@@ -204,9 +208,9 @@ export default function AdminRootsPage() {
               </Button>
             </form>
 
-            {invite.isError ? (
+            {invite.error ? (
               <p className="mt-2 text-sm text-destructive">
-                {(invite.error as Error).message}
+                {invite.error.message}
               </p>
             ) : null}
             {sentTo ? (
@@ -254,7 +258,7 @@ export default function AdminRootsPage() {
             ) : (
               <ul className="divide-y divide-border rounded-[var(--radius)] border border-border bg-surface">
                 {invites.map((inv) => (
-                  <InviteRow key={inv.id} invite={inv} onDone={invalidate} />
+                  <InviteRow key={inv.id} invite={inv} />
                 ))}
               </ul>
             )}
@@ -267,20 +271,22 @@ export default function AdminRootsPage() {
 
 function InviteRow({
   invite,
-  onDone,
 }: {
   invite: AdminInvite;
-  onDone: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
 
-  const revoke = useMutation({
-    mutationFn: () => InvitesApi.revoke(invite.id),
-    onSuccess: () => {
-      setConfirming(false);
-      onDone();
-    },
-  });
+  // The hook refreshes the pending list; closing the confirmation is ours.
+  const revokeInvite = useRevokeInvite();
+  const revoke = {
+    isPending: revokeInvite.isPending,
+    error: revokeInvite.error,
+    reset: revokeInvite.reset,
+    mutate: () =>
+      revokeInvite.mutate(invite.id, {
+        onSuccess: () => setConfirming(false),
+      }),
+  };
 
   const days = daysUntil(invite.expiresAt);
 
@@ -343,9 +349,9 @@ function InviteRow({
         )}
       </div>
 
-      {revoke.isError ? (
+      {revoke.error ? (
         <p className="w-full text-sm text-destructive">
-          {(revoke.error as Error).message}
+          {revoke.error.message}
         </p>
       ) : null}
     </li>

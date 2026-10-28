@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
-import { AgencyApi } from "@/features/agency/api";
-import { useAllFleet } from "@/features/agency/hooks";
-import { PermissionGate } from "@/features/agency/components/permission-gate";
+import { useWalkInBooking } from "@/modules/agency/hooks/agency.hook";
+import { useAllFleet } from "@/modules/agency/hooks/agency.hook";
+import { PermissionGate } from "@/modules/agency/components/permission-gate";
 import { businessTodayIso } from "@/shared/utils/dates";
 import {
   AddressAutocomplete,
@@ -58,9 +57,11 @@ function WalkInForm() {
   const [addr, setAddr] = useState<PickedAddress | null>(null);
   const [reference, setReference] = useState("");
 
-  const mutation = useMutation({
-    mutationFn: () =>
-      AgencyApi.walkInBooking({
+  const walkIn = useWalkInBooking();
+
+  function submit() {
+    walkIn.mutate(
+      {
         carId,
         customerEmail: customerEmail.trim(),
         customerName: customerName.trim() || undefined,
@@ -77,11 +78,14 @@ function WalkInForm() {
               deliveryReference: reference.trim() || undefined,
             }
           : {}),
-      }),
-    // The counter booking is confirmed and now blocks the calendar — take the
-    // salesperson there so they see it land.
-    onSuccess: () => router.push("/agency/calendar"),
-  });
+      },
+      {
+        // The counter booking is confirmed and now blocks the calendar — take
+        // the salesperson there so they see it land.
+        onSuccess: () => router.push("/agency/calendar"),
+      },
+    );
+  }
 
   const ready =
     !!carId &&
@@ -238,18 +242,18 @@ function WalkInForm() {
             </div>
           ) : null}
 
-          {mutation.isError ? (
+          {walkIn.isError ? (
             <p className="text-sm text-destructive">
-              {(mutation.error as Error).message}
+              {walkIn.error.message}
             </p>
           ) : null}
 
           <Button
             className="w-full"
-            disabled={!ready || mutation.isPending}
-            onClick={() => mutation.mutate()}
+            disabled={!ready || walkIn.isPending}
+            onClick={submit}
           >
-            {mutation.isPending ? "Creating booking…" : "Create booking"}
+            {walkIn.isPending ? "Creating booking…" : "Create booking"}
           </Button>
         </CardContent>
       </Card>

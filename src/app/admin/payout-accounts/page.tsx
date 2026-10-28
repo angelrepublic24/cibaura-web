@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+
 import { Building2 } from "lucide-react";
-import { AdminApi, adminKeys } from "@/features/admin/api";
-import { useAdminPayoutAccounts } from "@/features/admin/hooks";
+import {
+  useDisablePayoutAccount,
+  useEnablePayoutAccount,
+} from "@/modules/admin/hooks/admin.hook";
+import { useAdminPayoutAccounts } from "@/modules/admin/hooks/admin.hook";
 import {
   API_ERROR_CODES,
   getErrorMessage,
@@ -25,7 +28,6 @@ import { Dialog } from "@/shared/components/ui/dialog";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { formatDateTime } from "@/shared/utils/dates";
 import { cn } from "@/lib/utils";
-
 /**
  * /admin/payout-accounts — Stripe payout recipients per agency (ADR-0012):
  * onboarding status mirrored from Stripe, the attached bank account, the
@@ -194,10 +196,9 @@ function mapAccountError(error: unknown): string | undefined {
 }
 
 function AccountRow({ account: a }: { account: PayoutAccountAdminDto }) {
-  const qc = useQueryClient();
   const [action, setAction] = useState<null | "disable" | "enable">(null);
-  const invalidate = () =>
-    qc.invalidateQueries({ queryKey: adminKeys.payoutAccounts() });
+  // The hook refreshes the directory.
+  const disable = useDisablePayoutAccount();
 
   return (
     <tr className="align-top transition-colors hover:bg-muted/40">
@@ -278,8 +279,10 @@ function AccountRow({ account: a }: { account: PayoutAccountAdminDto }) {
           confirmLabel="Disable payouts"
           destructive
           onConfirm={async (value) => {
-            await AdminApi.disablePayoutAccount(a.agencyId, value ?? "");
-            invalidate();
+            await disable.mutateAsync({
+              agencyId: a.agencyId,
+              reason: value ?? "",
+            });
           }}
           mapError={mapAccountError}
         />
@@ -287,7 +290,6 @@ function AccountRow({ account: a }: { account: PayoutAccountAdminDto }) {
           open={action === "enable"}
           onClose={() => setAction(null)}
           account={a}
-          onDone={invalidate}
         />
       </td>
     </tr>
@@ -298,20 +300,20 @@ function EnableDialog({
   open,
   onClose,
   account,
-  onDone,
 }: {
   open: boolean;
   onClose: () => void;
   account: PayoutAccountAdminDto;
-  onDone: () => void;
 }) {
-  const mutation = useMutation({
-    mutationFn: () => AdminApi.enablePayoutAccount(account.agencyId),
-    onSuccess: () => {
-      onDone();
-      onClose();
-    },
-  });
+  const enable = useEnablePayoutAccount();
+  const mutation = {
+    isPending: enable.isPending,
+    error: enable.error,
+    reset: enable.reset,
+    // The hook refreshes the directory; dismissing the dialog is ours.
+    mutate: () =>
+      enable.mutate(account.agencyId, { onSuccess: onClose }),
+  };
   const { reset } = mutation;
   useEffect(() => {
     if (open) reset();
@@ -327,7 +329,7 @@ function EnableDialog({
       title={`Re-enable Stripe payouts for ${account.agencyName}?`}
       description="The account goes back to the status Stripe reports; automatic payouts resume once it is active."
     >
-      {mutation.isError ? (
+      {mutation.error ? (
         <p className="mb-4 text-sm text-destructive" role="alert">
           {mapAccountError(mutation.error) ??
             getErrorMessage(mutation.error, "Could not enable the account.")}

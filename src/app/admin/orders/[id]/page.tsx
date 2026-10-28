@@ -1,11 +1,10 @@
 "use client";
 
 import { PriceBreakdown } from "@/shared/components/price-breakdown";
-
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+
 import {
   ArrowLeft,
   Building2,
@@ -13,30 +12,38 @@ import {
   CreditCard,
   MapPin,
 } from "lucide-react";
-import { AdminApi, adminKeys, type AdminBookingDetail } from "@/features/admin/api";
+import {
+  useAdminBooking,
+  useAdminCancelBooking,
+} from "@/modules/admin/hooks/admin.hook";
+import type { AdminBookingDetail } from "@/modules/admin/types/admin.types";
 import {
   ClaimCard,
   ContractPdfButton,
   DepositCard,
   InspectionsCard,
   SettlementCard,
-} from "@/features/admin/components/order-lifecycle-cards";
-import { bookingKeys } from "@/features/bookings/api";
-import { ChatPanel } from "@/features/bookings/components/chat-panel";
+} from "@/modules/admin/components/order-lifecycle-cards";
+
+import { ChatPanel } from "@/modules/bookings/components/chat-panel";
 import {
   AgreementCard,
   CustomerCard,
-} from "@/features/agency/components/booking-parties";
+} from "@/modules/agency/components/booking-parties";
 import { RoleGuard } from "@/shared/auth/guard";
 import { BookingStateBadge } from "@/shared/components/booking-state-badge";
 import { ReasonDialog } from "@/shared/components/reason-dialog";
 import { ErrorState, LoadingState } from "@/shared/components/states";
 import { Badge } from "@/shared/components/ui/badge";
 import { Button } from "@/shared/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/shared/components/ui/card";
 import { closedBookingReason } from "@/shared/utils/booking-reasons";
 import { formatIsoDate } from "@/shared/utils/dates";
-
 /**
  * /admin/orders/[id] — platform-admin order (booking) detail from
  * GET /admin/bookings/:id: the agency-viewer booking (customer identity +
@@ -62,11 +69,7 @@ const PAYMENT_STATUS_LABELS: Record<string, string> = {
 export default function AdminOrderDetailPage() {
   const { id } = useParams<{ id: string }>();
 
-  const query = useQuery({
-    queryKey: adminKeys.booking(id),
-    queryFn: () => AdminApi.getBooking(id),
-    enabled: !!id,
-  });
+  const query = useAdminBooking(id);
 
   return (
     <RoleGuard allow={["platform_admin"]}>
@@ -95,8 +98,9 @@ export default function AdminOrderDetailPage() {
 }
 
 function OrderDetail({ booking }: { booking: AdminBookingDetail }) {
-  const qc = useQueryClient();
   const [cancelOpen, setCancelOpen] = useState(false);
+  // The hook refreshes the admin subtree AND the booking's own copy.
+  const cancel = useAdminCancelBooking(booking.id);
   const p = booking.pricing;
   const reason = closedBookingReason(booking);
   const cancellable = CANCELLABLE_STATES.has(booking.state);
@@ -269,11 +273,7 @@ function OrderDetail({ booking }: { booking: AdminBookingDetail }) {
         confirmLabel="Cancel booking"
         destructive
         onConfirm={async (value) => {
-          await AdminApi.cancelBooking(booking.id, value ?? "");
-          qc.invalidateQueries({ queryKey: adminKeys.booking(booking.id) });
-          qc.invalidateQueries({ queryKey: adminKeys.bookings() });
-          qc.invalidateQueries({ queryKey: adminKeys.overview() });
-          qc.invalidateQueries({ queryKey: bookingKeys.detail(booking.id) });
+          await cancel.mutateAsync(value ?? "");
         }}
       />
     </div>

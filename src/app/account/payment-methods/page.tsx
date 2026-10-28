@@ -1,14 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CreditCard, Trash2 } from "lucide-react";
 import {
-  PaymentMethodsApi,
-  paymentMethodKeys,
-} from "@/features/payments/api";
-import { AddCardForm } from "@/features/payments/components/add-card-form";
-import { stripeConfigured } from "@/features/payments/stripe";
+  useMyPaymentMethods,
+  useRemovePaymentMethod,
+} from "@/modules/payments/hooks/payments.hook";
+import { AddCardForm } from "@/modules/payments/components/add-card-form";
+import { stripeConfigured } from "@/modules/payments/helpers/payments.helper";
 import { getErrorMessage } from "@/shared/api/errors";
 import type { PaymentMethod } from "@/shared/types/domain";
 import {
@@ -26,25 +25,16 @@ import { Dialog } from "@/shared/components/ui/dialog";
  * tokenization UI in a later iteration.
  */
 export default function PaymentMethodsPage() {
-  const qc = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
   // The card the user is about to detach — removal is a confirmed,
   // irreversible action (it detaches at the gateway too), so it is gated
   // behind a confirmation dialog like the other destructive account flows.
   const [toRemove, setToRemove] = useState<PaymentMethod | null>(null);
 
-  const query = useQuery({
-    queryKey: paymentMethodKeys.mine(),
-    queryFn: PaymentMethodsApi.findMine,
-  });
+  const query = useMyPaymentMethods();
 
-  const removeMutation = useMutation({
-    mutationFn: (id: string) => PaymentMethodsApi.remove(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: paymentMethodKeys.mine() });
-      setToRemove(null);
-    },
-  });
+  // The hook refreshes the list; closing the dialog is this page's business.
+  const removeMutation = useRemovePaymentMethod();
 
   function openRemove(pm: PaymentMethod) {
     removeMutation.reset();
@@ -168,7 +158,10 @@ export default function PaymentMethodsPage() {
               variant="destructive"
               disabled={removeMutation.isPending}
               onClick={() => {
-                if (toRemove) removeMutation.mutate(toRemove.id);
+                if (toRemove)
+                  removeMutation.mutate(toRemove.id, {
+                    onSuccess: () => setToRemove(null),
+                  });
               }}
             >
               {removeMutation.isPending ? "Removing…" : "Remove card"}

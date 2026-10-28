@@ -157,25 +157,45 @@ function load(file, extra = "", modules = {}) {
   });
   return exports;
 }
-const { BookingsApi, bookingKeys } = load("src/features/bookings/api.ts", "", {
-  "@/shared/api/client": {
-    Api: {
-      post: async (path, input) => {
-        lastRequest = { path, input };
-        return {
-          data: {
-            ...claim,
-            status: input.accept ? "approved" : "under_review",
-          },
-        };
+// The real service builds the request path; only the transport is faked.
+// Its zod schemas are stubbed to pass-through so the fixtures below stay
+// readable — their SHAPE is what the schema tests cover.
+const passthrough = new Proxy({}, { get: () => ({ parse: (value) => value }) });
+const { bookingsService } = load(
+  "src/modules/bookings/services/bookings.service.ts",
+  "",
+  {
+    "@/shared/api/client": {
+      Api: {
+        post: async (path, input) => {
+          lastRequest = { path, input };
+          return {
+            data: {
+              ...claim,
+              status: input.accept ? "approved" : "under_review",
+            },
+          };
+        },
       },
     },
+    "@/modules/bookings/schema/bookings.schema": passthrough,
+    "@/modules/legal/schema/legal.schema": passthrough,
+  },
+);
+// The component asks a HOOK now; this one runs the real service call and
+// records the refresh the hook would do.
+mocks.useRespondClaim = (bookingId, claimId) => ({
+  isPending: false,
+  mutate: (input) => {
+    pendingRequest = bookingsService
+      .respondClaim(bookingId, claimId, input)
+      .then(() => {
+        invalidated = bookingId;
+      });
   },
 });
-mocks.BookingsApi = BookingsApi;
-mocks.bookingKeys = bookingKeys;
 const customerClaim = load(
-  "src/features/bookings/components/claim-response-card.tsx",
+  "src/modules/bookings/components/claim-response-card.tsx",
   "\nexport { RespondForm };",
 );
 const render = (Component, props) =>
@@ -226,37 +246,42 @@ for (const response of ["accept", "reject"]) {
   assert.equal(lastRequest.input.accept, response === "accept");
   assert.equal(lastRequest.input.note, formValues.note || undefined);
   assert.equal(invalidated, booking.id);
-  assert.equal(typeof mutation.onError, "function");
   checks++;
 }
-const admin = load("src/features/admin/components/order-lifecycle-cards.tsx");
+// A claim that closed under us is a refresh, not an error to argue with —
+// the hook, which owns the cache, is where that rule lives now.
+const bookingHooks = load("src/modules/bookings/hooks/bookings.hook.ts");
+bookingHooks.useRespondClaim(booking.id, claim.id);
+assert.equal(typeof mutation.onError, "function");
+checks++;
+const admin = load("src/modules/admin/components/order-lifecycle-cards.tsx");
 for (const [file, name, props, pattern] of [
   [
-    "src/features/bookings/components/deposit-banner.tsx",
+    "src/modules/bookings/components/deposit-banner.tsx",
     "DepositBanner",
     { booking },
     /USD 250.00/,
   ],
   [
-    "src/features/bookings/components/settlement-card.tsx",
+    "src/modules/bookings/components/settlement-card.tsx",
     "SettlementCard",
     { booking },
     /USD 31.00/,
   ],
   [
-    "src/features/agency/components/deposit-status-card.tsx",
+    "src/modules/agency/components/deposit-status-card.tsx",
     "DepositStatusCard",
     { booking },
     /USD 250.00/,
   ],
   [
-    "src/features/agency/components/claim-card.tsx",
+    "src/modules/agency/components/claim-card.tsx",
     "ClaimCard",
     { booking },
     /Fixture damage description/,
   ],
   [
-    "src/features/agency/components/agency-settlement-card.tsx",
+    "src/modules/agency/components/agency-settlement-card.tsx",
     "AgencySettlementCard",
     { booking: { ...booking, state: "settled" } },
     /USD 69.00/,
@@ -291,14 +316,13 @@ render(admin.InspectionsCard, {
 assert.equal(inspectionEnabled, true);
 checks++;
 const { InspectionsSection } = load(
-  "src/features/bookings/components/inspections-section.tsx",
+  "src/modules/bookings/components/inspections-section.tsx",
 );
 const inspectionHtml = render(InspectionsSection, { booking });
 assert.match(inspectionHtml, /12,345 km/);
 assert.match(inspectionHtml, /Recorded fixture scratch/);
 checks++;
-const hooks = load("src/features/bookings/hooks.ts");
-hooks.useBookingDetail(booking.id);
+bookingHooks.useBookingDetail(booking.id);
 for (const [state, currentClaim, interval] of [
   ["returned", null, 30000],
   ["settled", claim, 30000],
@@ -425,7 +449,7 @@ assert.match(
 );
 checks++;
 const summary = load(
-  "src/features/bookings/components/booking-summary.tsx",
+  "src/modules/bookings/components/booking-summary.tsx",
   "",
   {
     "@/shared/components/price-breakdown": { PriceBreakdown },
@@ -452,12 +476,12 @@ for (const taxCents of [0, 1800]) {
   };
   for (const result of [
     render(
-      load("src/features/bookings/components/settlement-card.tsx")
+      load("src/modules/bookings/components/settlement-card.tsx")
         .SettlementCard,
       { booking: current },
     ),
     render(
-      load("src/features/agency/components/agency-settlement-card.tsx")
+      load("src/modules/agency/components/agency-settlement-card.tsx")
         .AgencySettlementCard,
       { booking: current },
     ),

@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { parseCarFilters } from "@/features/cars/filters";
-import { CarSearchResults } from "@/features/cars/components/car-search-results";
+import { parseCarFilters } from "@/modules/cars/helpers/cars.helper";
+import { CarSearchResults } from "@/modules/cars/components/car-search-results";
 import { pageMetadata } from "@/shared/seo/metadata";
 import { BreadcrumbJsonLd } from "@/shared/seo/structured-data";
 import { getPublicCity } from "@/shared/seo/public-api";
 import Link from "next/link";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
-import { carKeys } from "@/features/cars/api";
+import { carKeys } from "@/modules/cars/hooks/cars.hook";
 import {
   getCarSearch,
   getCarCatalog,

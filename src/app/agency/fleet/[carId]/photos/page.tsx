@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { CarPhotosManager } from "@/features/agency/components/car-photos-manager";
+import { CarPhotosManager } from "@/modules/agency/components/car-photos-manager";
 
 export const metadata = { title: "Car photos" };
 

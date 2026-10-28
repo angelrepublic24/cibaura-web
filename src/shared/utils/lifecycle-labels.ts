@@ -10,7 +10,7 @@ import type {
  * (inspection type, media label, fuel gauge, settlement case). Status
  * badges whose wording depends on who is looking ("Awaiting your
  * confirmation" vs "Awaiting customer") stay next to their surface:
- * `features/bookings/labels.ts` (customer) and
+ * `modules/bookings/helpers/bookings.helper.ts` (customer) and
  * `shared/components/claim-deposit-labels.tsx` (host + admin).
  *
  * Wire values arrive as plain strings; an unknown value renders verbatim so

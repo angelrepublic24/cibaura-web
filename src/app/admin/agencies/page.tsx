@@ -2,9 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+
 import { Building2, ExternalLink } from "lucide-react";
-import { AdminApi, adminKeys, type AdminAgencyRow } from "@/features/admin/api";
+import {
+  useAdminAgencies,
+  useSetAgencyStatus,
+} from "@/modules/admin/hooks/admin.hook";
+import type { AdminAgencyRow } from "@/modules/admin/types/admin.types";
 import type { AgencyVerificationStatus } from "@/shared/types/domain";
 import { RoleGuard } from "@/shared/auth/guard";
 import { ReasonDialog } from "@/shared/components/reason-dialog";
@@ -16,7 +20,6 @@ import { Card } from "@/shared/components/ui/card";
 import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
 import { Skeleton } from "@/shared/components/ui/skeleton";
-
 /**
  * /admin/agencies — the platform-wide agencies directory (all statuses).
  *
@@ -67,18 +70,10 @@ export default function AdminAgenciesPage() {
   const [status, setStatus] = useState<StatusFilter>("all");
   const [page, setPage] = useState(1);
 
-  const query = useQuery({
-    queryKey: adminKeys.agencies({
-      status: status === "all" ? undefined : status,
-      page,
-      pageSize: PAGE_SIZE,
-    }),
-    queryFn: () =>
-      AdminApi.listAgencies({
-        status: status === "all" ? undefined : status,
-        page,
-        pageSize: PAGE_SIZE,
-      }),
+  const query = useAdminAgencies({
+    status: status === "all" ? undefined : status,
+    page,
+    pageSize: PAGE_SIZE,
   });
 
   const agencies = query.data?.items ?? [];
@@ -212,13 +207,10 @@ export default function AdminAgenciesPage() {
 }
 
 function AgencyRow({ agency }: { agency: AdminAgencyRow }) {
-  const qc = useQueryClient();
   const [action, setAction] = useState<null | "suspend" | "reactivate">(null);
-
-  function invalidate() {
-    // Directory, overview counts AND the applications queue (same agency row).
-    qc.invalidateQueries({ queryKey: adminKeys.all });
-  }
+  // The hook refreshes the directory, the overview counts AND the
+  // applications queue — the same agency row appears in all three.
+  const setStatus = useSetAgencyStatus(agency.id);
 
   return (
     <tr className="align-middle transition-colors hover:bg-muted/40">
@@ -322,8 +314,7 @@ function AgencyRow({ agency }: { agency: AdminAgencyRow }) {
           confirmLabel="Suspend agency"
           destructive
           onConfirm={async (value) => {
-            await AdminApi.setAgencyStatus(agency.id, "suspended", value);
-            invalidate();
+            await setStatus.mutateAsync({ status: "suspended", reason: value });
           }}
         />
         <ReasonDialog
@@ -340,8 +331,7 @@ function AgencyRow({ agency }: { agency: AdminAgencyRow }) {
           }}
           confirmLabel="Reactivate agency"
           onConfirm={async (value) => {
-            await AdminApi.setAgencyStatus(agency.id, "verified", value);
-            invalidate();
+            await setStatus.mutateAsync({ status: "verified", reason: value });
           }}
         />
       </td>

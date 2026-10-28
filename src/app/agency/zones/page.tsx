@@ -1,9 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
 import { Trash2 } from "lucide-react";
-import { AgencyApi, agencyKeys } from "@/features/agency/api";
+import {
+  useAgencyBranches,
+  useAgencyZones,
+  useCreateZone,
+  useDeleteZone,
+} from "@/modules/agency/hooks/agency.hook";
 import { formatMoneyCents, wholeUnitsToCents } from "@/shared/utils/money";
 import {
   EmptyState,
@@ -15,7 +20,7 @@ import { Card, CardContent } from "@/shared/components/ui/card";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
-import { PermissionGate } from "@/features/agency/components/permission-gate";
+import { PermissionGate } from "@/modules/agency/components/permission-gate";
 
 /**
  * /agency/zones — delivery zones per branch (airport, hotel zone…), each with a
@@ -33,10 +38,7 @@ export default function AgencyZonesPage() {
 function AgencyZones() {
   const [branchId, setBranchId] = useState("");
 
-  const branchesQuery = useQuery({
-    queryKey: agencyKeys.branches(),
-    queryFn: AgencyApi.branches,
-  });
+  const branchesQuery = useAgencyBranches();
 
   return (
     <div>
@@ -84,34 +86,33 @@ function AgencyZones() {
 }
 
 function ZonesForBranch({ branchId }: { branchId: string }) {
-  const qc = useQueryClient();
   const [name, setName] = useState("");
   const [fee, setFee] = useState("");
 
-  const zonesQuery = useQuery({
-    queryKey: agencyKeys.zones(branchId),
-    queryFn: () => AgencyApi.zones(branchId),
-  });
+  const zonesQuery = useAgencyZones(branchId);
+  // The hooks refresh the list; clearing the form is this component's.
+  const createZone = useCreateZone(branchId);
+  const remove = useDeleteZone(branchId);
 
-  const create = useMutation({
-    mutationFn: () =>
-      AgencyApi.createZone(branchId, {
-        name: name.trim(),
-        // Unit conversion at the input boundary (agency-entered fee).
-        feeCents: wholeUnitsToCents(Number(fee)),
-      }),
-    onSuccess: () => {
-      setName("");
-      setFee("");
-      qc.invalidateQueries({ queryKey: agencyKeys.zones(branchId) });
-    },
-  });
-
-  const remove = useMutation({
-    mutationFn: (zoneId: string) => AgencyApi.deleteZone(zoneId),
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: agencyKeys.zones(branchId) }),
-  });
+  const create = {
+    isPending: createZone.isPending,
+    isError: createZone.isError,
+    error: createZone.error,
+    mutate: () =>
+      createZone.mutate(
+        {
+          name: name.trim(),
+          // Unit conversion at the input boundary (agency-entered fee).
+          feeCents: wholeUnitsToCents(Number(fee)),
+        },
+        {
+          onSuccess: () => {
+            setName("");
+            setFee("");
+          },
+        },
+      ),
+  };
 
   const feeValid = /^\d+(\.\d{1,2})?$/.test(fee);
   const ready = name.trim().length >= 2 && feeValid;
@@ -147,7 +148,7 @@ function ZonesForBranch({ branchId }: { branchId: string }) {
               {create.isPending ? "Adding…" : "Add zone"}
             </Button>
           </div>
-          {create.isError ? (
+          {create.error ? (
             <p className="mt-3 text-sm text-red-600">{create.error.message}</p>
           ) : null}
         </CardContent>

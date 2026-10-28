@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
-import { BookingsApi, bookingKeys } from "@/features/bookings/api";
+import { useMyBookings } from "@/modules/bookings/hooks/bookings.hook";
 import { BookingStateBadge } from "@/shared/components/booking-state-badge";
 import { formatMoneyCents } from "@/shared/utils/money";
 import { formatIsoDate } from "@/shared/utils/dates";
@@ -16,10 +15,7 @@ import { Card, CardContent } from "@/shared/components/ui/card";
 
 /** /account — the customer's bookings list. */
 export default function AccountBookingsPage() {
-  const query = useQuery({
-    queryKey: bookingKeys.mine(),
-    queryFn: () => BookingsApi.findMine(),
-  });
+  const query = useMyBookings();
 
   if (query.isLoading) return <LoadingState label="Loading your bookings…" />;
   if (query.isError) {

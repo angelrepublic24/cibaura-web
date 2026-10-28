@@ -14,7 +14,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useAuthStore } from "@/shared/auth/store";
-import { useLogout } from "@/features/auth/hooks";
+import { useLogout } from "@/modules/auth/hooks/auth.hook";
 import { cn } from "@/lib/utils";
 
 /**

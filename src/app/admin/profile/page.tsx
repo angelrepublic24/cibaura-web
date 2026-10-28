@@ -1,8 +1,8 @@
 "use client";
 
 import { Mail, UserCircle } from "lucide-react";
-import { ChangePasswordForm } from "@/features/auth/components/change-password-form";
-import { useMe } from "@/features/auth/hooks";
+import { ChangePasswordForm } from "@/modules/auth/components/change-password-form";
+import { useMe } from "@/modules/auth/hooks/auth.hook";
 import { useAuthStore } from "@/shared/auth/store";
 import type { Role } from "@/shared/types/domain";
 import { ErrorState, LoadingState } from "@/shared/components/states";
@@ -20,7 +20,7 @@ import {
  *
  * Reads the profile from the shared `useMe()` query (falling back to the
  * already-hydrated auth store so the header renders instantly), and hosts the
- * shared change-password card (`features/auth`).
+ * shared change-password card (`modules/auth`).
  */
 
 const ROLE_LABELS: Record<Role, string> = {

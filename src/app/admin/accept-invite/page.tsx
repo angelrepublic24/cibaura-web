@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AcceptInviteForm } from "@/features/admin/components/accept-invite-form";
+import { AcceptInviteForm } from "@/modules/admin/components/accept-invite-form";
 import { Logo } from "@/shared/components/logo";
 import { pageMetadata } from "@/shared/seo/metadata";
 

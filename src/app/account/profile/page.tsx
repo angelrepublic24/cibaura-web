@@ -4,11 +4,14 @@ import { useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { AuthApi, authKeys } from "@/features/auth/api";
-import { PHONE_MESSAGE, PHONE_REGEX } from "@/features/auth/schemas";
-import { ChangePasswordForm } from "@/features/auth/components/change-password-form";
-import { DeleteAccountCard } from "@/features/auth/components/delete-account-card";
+import { useQueryClient } from "@tanstack/react-query";
+import { authKeys, useUpdateMe } from "@/modules/auth/hooks/auth.hook";
+import {
+  PHONE_MESSAGE,
+  PHONE_REGEX,
+} from "@/modules/auth/schema/auth.schema";
+import { ChangePasswordForm } from "@/modules/auth/components/change-password-form";
+import { DeleteAccountCard } from "@/modules/auth/components/delete-account-card";
 import { useAuthStore } from "@/shared/auth/store";
 import { getErrorMessage } from "@/shared/api/errors";
 import { Button } from "@/shared/components/ui/button";
@@ -64,19 +67,30 @@ export default function ProfilePage() {
     seededForUserId.current = user.id;
   }, [user, form]);
 
-  const mutation = useMutation({
-    mutationFn: (values: ProfileFormValues) =>
-      AuthApi.updateMe({
+  // The component talks to the module's HOOK, never to the service: the hook
+  // owns the mutation and `authKeys`, and leaves the caller to mirror the
+  // result where this page needs it (store + /users/me cache + form).
+  const mutation = useUpdateMe();
+
+  function save(values: ProfileFormValues) {
+    mutation.mutate(
+      {
         fullName: values.fullName.trim(),
         // Empty string means "clear my phone" — the API takes null for that.
         phone: values.phone?.trim() || null,
-      }),
-    onSuccess: (updated) => {
-      setUser(updated); // header greeting etc. update immediately
-      qc.invalidateQueries({ queryKey: authKeys.me() });
-      form.reset({ fullName: updated.fullName, phone: updated.phone ?? "" });
-    },
-  });
+      },
+      {
+        onSuccess: (updated) => {
+          setUser(updated); // header greeting etc. update immediately
+          qc.invalidateQueries({ queryKey: authKeys.me() });
+          form.reset({
+            fullName: updated.fullName,
+            phone: updated.phone ?? "",
+          });
+        },
+      },
+    );
+  }
 
   const saved = mutation.isSuccess && !form.formState.isDirty;
 
@@ -90,7 +104,7 @@ export default function ProfilePage() {
         <CardContent>
           <form
             className="space-y-4"
-            onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+            onSubmit={form.handleSubmit(save)}
             noValidate
           >
             <div className="space-y-1.5">

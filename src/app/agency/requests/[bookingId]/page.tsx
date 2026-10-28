@@ -1,5 +1,5 @@
-import { AgencyBookingDetail } from "@/features/agency/components/agency-booking-detail";
-import { PermissionGate } from "@/features/agency/components/permission-gate";
+import { AgencyBookingDetail } from "@/modules/agency/components/agency-booking-detail";
+import { PermissionGate } from "@/modules/agency/components/permission-gate";
 
 /**
  * /agency/requests/[bookingId] — the AGENCY's booking detail: timeline,

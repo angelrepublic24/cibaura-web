@@ -1,14 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, KeyRound, ShieldAlert } from "lucide-react";
 import {
-  IntegrationsApi,
-  integrationKeys,
-  type IntegrationsView,
-  type SettingView,
-} from "@/features/admin/integrations";
+  useClearIntegration,
+  useIntegrations,
+  useSetIntegration,
+} from "@/modules/admin/hooks/admin.hook";
+import type {
+  IntegrationsView,
+  SettingView,
+} from "@/modules/admin/types/admin.types";
 import { RoleGuard } from "@/shared/auth/guard";
 import { ErrorState, LoadingState } from "@/shared/components/states";
 import { Badge } from "@/shared/components/ui/badge";
@@ -55,10 +57,7 @@ function SourceChip({ source }: { source: SettingView["source"] }) {
 }
 
 export default function AdminIntegrationsPage() {
-  const query = useQuery({
-    queryKey: integrationKeys.list(),
-    queryFn: IntegrationsApi.list,
-  });
+  const query = useIntegrations();
 
   return (
     <RoleGuard allow={["platform_admin"]}>
@@ -155,31 +154,41 @@ function SettingRow({
   item: SettingView;
   masterKeyConfigured: boolean;
 }) {
-  const qc = useQueryClient();
   const [value, setValue] = useState("");
   const [editing, setEditing] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const invalidate = () =>
-    qc.invalidateQueries({ queryKey: integrationKeys.all });
+  // Both hooks refetch the list (a secret is never readable, so the response
+  // cannot be patched in); this row owns its own box and its "saved" note.
+  const setIntegration = useSetIntegration();
+  const clearIntegration = useClearIntegration();
 
-  const save = useMutation({
-    mutationFn: () => IntegrationsApi.set(item.key, value),
-    onSuccess: () => {
-      setValue("");
-      setEditing(false);
-      setSaved(true);
-      invalidate();
-    },
-  });
+  const save = {
+    isPending: setIntegration.isPending,
+    error: setIntegration.error,
+    reset: setIntegration.reset,
+    mutate: () =>
+      setIntegration.mutate(
+        { key: item.key, value },
+        {
+          onSuccess: () => {
+            setValue("");
+            setEditing(false);
+            setSaved(true);
+          },
+        },
+      ),
+  };
 
-  const clear = useMutation({
-    mutationFn: () => IntegrationsApi.clear(item.key),
-    onSuccess: () => {
-      setSaved(false);
-      invalidate();
-    },
-  });
+  const clear = {
+    isPending: clearIntegration.isPending,
+    error: clearIntegration.error,
+    reset: clearIntegration.reset,
+    mutate: () =>
+      clearIntegration.mutate(item.key, {
+        onSuccess: () => setSaved(false),
+      }),
+  };
 
   // Saving a secret requires the server-side master key; non-secrets never do.
   const writeBlocked = item.secret && !masterKeyConfigured;
@@ -309,14 +318,14 @@ function SettingRow({
         </form>
       ) : null}
 
-      {save.isError ? (
+      {save.error ? (
         <p className="mt-2 text-sm text-destructive">
-          {(save.error as Error).message}
+          {save.error.message}
         </p>
       ) : null}
-      {clear.isError ? (
+      {clear.error ? (
         <p className="mt-2 text-sm text-destructive">
-          {(clear.error as Error).message}
+          {clear.error.message}
         </p>
       ) : null}
       {saved ? (

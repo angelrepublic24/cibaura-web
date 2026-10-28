@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { RegisterForm } from "@/features/auth/components/register-form";
-import { RedirectIfAuthenticated } from "@/features/auth/components/redirect-if-authenticated";
+import { RegisterForm } from "@/modules/auth/components/register-form";
+import { RedirectIfAuthenticated } from "@/modules/auth/components/redirect-if-authenticated";
 import { Logo } from "@/shared/components/logo";
 import { pageMetadata } from "@/shared/seo/metadata";
 

@@ -1,9 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+
 import { Search, UserCircle } from "lucide-react";
-import { AdminApi, adminKeys, type AdminUser } from "@/features/admin/api";
+import {
+  useAdminUsers,
+  useSetUserStatus,
+} from "@/modules/admin/hooks/admin.hook";
+import type { AdminUser } from "@/modules/admin/types/admin.types";
 import { useAuthStore } from "@/shared/auth/store";
 import { RoleGuard } from "@/shared/auth/guard";
 import { ReasonDialog } from "@/shared/components/reason-dialog";
@@ -16,7 +20,6 @@ import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-
 /**
  * /admin/users — every account on the platform: search by email/name, filter
  * by role and status, suspend (revokes every session; login answers
@@ -74,11 +77,7 @@ export default function AdminUsersPage() {
   const [page, setPage] = useState(1);
 
   const query = { q, role, status, page, pageSize: PAGE_SIZE };
-  const listQuery = useQuery({
-    queryKey: adminKeys.users(query),
-    queryFn: () => AdminApi.listUsers(query),
-    placeholderData: keepPreviousData,
-  });
+  const listQuery = useAdminUsers(query);
 
   const rows = listQuery.data?.items ?? [];
   const total = listQuery.data?.total ?? 0;
@@ -248,18 +247,16 @@ export default function AdminUsersPage() {
 }
 
 function UserRow({ user: u }: { user: AdminUser }) {
-  const qc = useQueryClient();
   const me = useAuthStore((s) => s.user);
+  // The hook refreshes the directory; suspending also revokes every session
+  // the user holds, which the server does.
+  const setStatus = useSetUserStatus(u.id);
   const [action, setAction] = useState<null | "suspend" | "reactivate">(null);
 
   const isSelf = me?.id === u.id;
   const isAdmin = u.roles.includes("platform_admin");
   const canSuspend = u.status === "active" && !isSelf && !isAdmin;
   const canReactivate = u.status === "suspended";
-
-  function invalidate() {
-    qc.invalidateQueries({ queryKey: adminKeys.users() });
-  }
 
   return (
     <tr className="align-middle transition-colors hover:bg-muted/40">
@@ -334,8 +331,7 @@ function UserRow({ user: u }: { user: AdminUser }) {
           confirmLabel="Suspend account"
           destructive
           onConfirm={async (value) => {
-            await AdminApi.setUserStatus(u.id, "suspended", value);
-            invalidate();
+            await setStatus.mutateAsync({ status: "suspended", reason: value });
           }}
         />
         <ReasonDialog
@@ -352,8 +348,7 @@ function UserRow({ user: u }: { user: AdminUser }) {
           }}
           confirmLabel="Reactivate account"
           onConfirm={async (value) => {
-            await AdminApi.setUserStatus(u.id, "active", value);
-            invalidate();
+            await setStatus.mutateAsync({ status: "active", reason: value });
           }}
         />
       </td>

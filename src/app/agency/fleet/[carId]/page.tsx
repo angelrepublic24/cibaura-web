@@ -1,4 +1,4 @@
-import { CarManage } from "@/features/agency/components/car-manage";
+import { CarManage } from "@/modules/agency/components/car-manage";
 
 export const metadata = { title: "Manage car" };
 

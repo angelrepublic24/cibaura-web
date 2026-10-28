@@ -49,6 +49,13 @@ const mocks = {
   useAuthStore: (select) => select(authState),
   useAgencySession: () => session,
   useQuery: ({ queryKey }) => queryResult(queryKey),
+  // The surfaces read through module hooks now; each answers from the same
+  // keyed fixtures the old `useQuery` stub did.
+  useAgencyApplication: () => queryResult("application"),
+  useMyAgencyDocuments: () => queryResult("documents"),
+  useHostAgreement: () => queryResult("agreement"),
+  useFleet: () => queryResult("fleet"),
+  useAgencyBranches: () => queryResult("branches"),
   usePermission: () => ({ can: () => true }),
   useAgencyAccessRevokedWatcher: () => undefined,
   isAgencyAccessRevokedError: () => false,
@@ -179,7 +186,7 @@ assert.match(layoutFor("suspended"), /REVOKED:suspended/);
 // ── The review screen itself ────────────────────────────────────────────────
 
 const { AgencyApplicationReview } = load(
-  "src/features/agency/application-review.tsx",
+  "src/modules/agency/components/application-review.tsx",
 );
 const reviewWith = (application) => {
   queryData = { application };
@@ -248,7 +255,7 @@ for (const roles of [["customer"], ["agency_owner"], ["agency_staff"]]) {
 // ── Host wizard: the first-car step waits for verification ──────────────────
 
 const { MemberSteps } = load(
-  "src/features/agencies/components/host-wizard.tsx",
+  "src/modules/agencies/components/host-wizard.tsx",
   "\nexport { MemberSteps };",
 );
 const wizardFor = (verificationStatus) => {

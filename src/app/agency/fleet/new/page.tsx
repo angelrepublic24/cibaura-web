@@ -1,4 +1,4 @@
-import { NewCarForm } from "@/features/agency/components/new-car-form";
+import { NewCarForm } from "@/modules/agency/components/new-car-form";
 
 export const metadata = { title: "Add car" };
 

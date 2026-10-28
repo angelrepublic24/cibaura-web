@@ -26,11 +26,20 @@ function load(file, dependencies, jsx = false) {
   return exports;
 }
 
-const contract = load("src/features/admin/platform-config-contract.ts", {
-  "@/shared/utils/money": {
-    wholeUnitsToCents: (units) => Math.round(units * 100),
-  },
+const money = {
+  wholeUnitsToCents: (units) => Math.round(units * 100),
+};
+// The contract is the schema file plus the two pure mappers beside it; the
+// console reads both, so the suite treats them as one surface.
+const configSchema = load("src/modules/admin/schema/platform-config.schema.ts", {
+  "@/shared/utils/money": money,
 });
+const contract = {
+  ...configSchema,
+  ...load("src/modules/admin/helpers/admin.helper.ts", {
+    "@/shared/utils/money": money,
+  }),
+};
 
 /** Every one of the fifteen settings, at its backend default. */
 const DEFAULTS = {
@@ -69,12 +78,27 @@ const transport = {
     return { data: { ...stored } };
   },
 };
-const { platformConfigApi: api } = load(
-  "src/features/admin/platform-config-api.ts",
-  {
-    "@/shared/api/client": { Api: transport },
-    "./platform-config-contract": contract,
-  },
+// The admin service reaches across modules for its response schemas; only
+// the config contract and the transport matter here, so every other wire
+// schema answers with a pass-through parser.
+const passthrough = new Proxy({}, { get: () => ({ parse: (value) => value }) });
+const { adminService: api } = load(
+  "src/modules/admin/services/admin.service.ts",
+  new Proxy(
+    {
+      "@/shared/api/client": { Api: transport },
+      "@/modules/admin/schema/platform-config.schema": configSchema,
+    },
+    {
+      get: (own, name) =>
+        name in own
+          ? own[name]
+          : typeof name === "string" && name.startsWith("@/")
+            ? passthrough
+            : undefined,
+      has: () => true,
+    },
+  ),
 );
 const plain = (value) => JSON.parse(JSON.stringify(value));
 let checks = 0;
@@ -297,14 +321,17 @@ await test("The console renders an input for every one of the fifteen", () => {
   const ui = (file) =>
     load(`src/shared/components/ui/${file}.tsx`, { "@/lib/utils": { cn } }, true);
   const { PlatformConfigForm } = load(
-    "src/features/admin/components/platform-config-form.tsx",
+    "src/modules/admin/components/platform-config-form.tsx",
     {
-      "@/features/admin/api": {
-        AdminApi: { updateConfig: async () => ({}) },
-        adminKeys: { config: () => ["admin", "config"] },
+      "@/modules/admin/hooks/admin.hook": {
+        useUpdatePlatformConfig: () => ({
+          isPending: false,
+          error: null,
+          mutate: () => {},
+        }),
       },
-      "@/features/admin/platform-config-contract": contract,
-      "@/features/legal/api": { legalKeys: { all: ["legal"] } },
+      "@/modules/admin/schema/platform-config.schema": configSchema,
+      "@/modules/admin/helpers/admin.helper": contract,
       "@/shared/api/errors": { getErrorMessage: (_error, fallback) => fallback },
       "@/lib/utils": { cn },
       "@hookform/resolvers/zod": { zodResolver: () => undefined },
