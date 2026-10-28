@@ -1,5 +1,5 @@
-import { parseCarFilters } from "@/features/cars/filters";
-import { CarDetail } from "@/features/cars/components/car-detail";
+import { parseCarFilters } from "@/modules/cars/helpers/cars.helper";
+import { CarDetail } from "@/modules/cars/components/car-detail";
 import { pageMetadata } from "@/shared/seo/metadata";
 import {
   carDescription,
@@ -9,12 +9,12 @@ import {
   getPublicCar,
 } from "@/shared/seo/public-api";
 import { BreadcrumbJsonLd, VehicleJsonLd } from "@/shared/seo/structured-data";
-import { carGallery } from "@/features/cars/photos";
+import { carGallery } from "@/modules/cars/helpers/cars.helper";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
-import { carKeys } from "@/features/cars/api";
+import { carKeys } from "@/modules/cars/hooks/cars.hook";
 import { getAgencyReviews, publicQueryClient } from "@/shared/seo/prefetch";
-import { agencyProfileKeys } from "@/features/agencies/api";
-import { AgencyReviews } from "@/features/agencies/components/agency-profile";
+import { agencyProfileKeys } from "@/modules/agencies/hooks/agencies.hook";
+import { AgencyReviews } from "@/modules/agencies/components/agency-profile";
 import { StarRating } from "@/shared/components/star-rating";
 import Link from "next/link";
 

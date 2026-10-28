@@ -1,13 +1,12 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { AgencyApi, agencyKeys } from "@/features/agency/api";
+import { useAgencySettings } from "@/modules/agency/hooks/agency.hook";
 import {
   AgencyProfileForm,
   PayoutBankDetailsForm,
-} from "@/features/agency/components/agency-settings-form";
-import { HostAgreementCard } from "@/features/agency/components/host-agreement-card";
-import { PermissionGate } from "@/features/agency/components/permission-gate";
+} from "@/modules/agency/components/agency-settings-form";
+import { HostAgreementCard } from "@/modules/agency/components/host-agreement-card";
+import { PermissionGate } from "@/modules/agency/components/permission-gate";
 import { ErrorState, LoadingState } from "@/shared/components/states";
 
 /**
@@ -25,10 +24,7 @@ export default function AgencySettingsPage() {
 }
 
 function SettingsBody() {
-  const query = useQuery({
-    queryKey: agencyKeys.settings(),
-    queryFn: AgencyApi.settings,
-  });
+  const query = useAgencySettings();
 
   if (query.isPending) return <LoadingState label="Loading settings…" />;
   if (query.isError) {

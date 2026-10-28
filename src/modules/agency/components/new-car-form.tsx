@@ -1,0 +1,685 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+
+import { ImagePlus, X } from "lucide-react";
+import {
+  useAgencyBranches,
+  useCreateCarWithPhotos,
+  useUpdateCar,
+} from "@/modules/agency/hooks/agency.hook";
+import type { CreateCarInput } from "@/modules/agency/types/agency.types";
+import {
+  MAX_PHOTOS_PER_CAR,
+  validateCarPhotoFile,
+} from "@/modules/agency/helpers/agency.helper";
+import {
+  useCarMakes,
+  useCarModels,
+} from "@/modules/catalog/hooks/catalog.hook";
+import {
+  CAR_CATEGORIES,
+  CAR_COLORS,
+  FUEL_TYPES,
+  TRANSMISSIONS,
+  type AgencyCar,
+} from "@/shared/types/domain";
+import { getErrorMessage } from "@/shared/api/errors";
+import {
+  centsToWholeUnitsInput,
+  formatMoneyCents,
+  wholeUnitsToCents,
+} from "@/shared/utils/money";
+import { Button } from "@/shared/components/ui/button";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
+import { Select } from "@/shared/components/ui/select";
+const AMOUNT_REGEX = /^\d+(\.\d{1,2})?$/;
+
+/** Realistic model-year bounds: no car older than 1950, at most next year. */
+const MIN_CAR_YEAR = 1950;
+const MAX_CAR_YEAR = new Date().getFullYear() + 1;
+/** A real car seats at least the driver and at most a large passenger van. */
+const MIN_SEATS = 1;
+const MAX_SEATS = 15;
+
+/**
+ * The three states a car's deposit can hold, which the wire stores in one
+ * nullable column: `inherit` -> `null` (use the agency's value), `none` ->
+ * `0` (charge nothing EVEN IF the agency asks for something), `custom` ->
+ * the amount. A single optional amount field cannot express them: an empty
+ * box would have to mean both "inherit" and "none".
+ */
+const DEPOSIT_MODES = ["inherit", "none", "custom"] as const;
+
+/**
+ * Numeric fields are kept as validated strings in the form and converted
+ * once on submit — keeps react-hook-form + zod typing simple and the
+ * error messages friendly. Money is typed in whole units and converted to
+ * cents at this input boundary (never computed).
+ */
+const carSchema = z.object({
+  branchId: z.string().min(1, "Pick a branch"),
+  makeId: z.string().min(1, "Pick a make"),
+  modelId: z.string().min(1, "Pick a model"),
+  year: z
+    .string()
+    .regex(/^\d{4}$/, "Enter a 4-digit year")
+    .refine(
+      (v) => Number(v) >= MIN_CAR_YEAR && Number(v) <= MAX_CAR_YEAR,
+      `Enter a year between ${MIN_CAR_YEAR} and ${MAX_CAR_YEAR}`,
+    ),
+  color: z.enum(CAR_COLORS),
+  transmission: z.enum(TRANSMISSIONS),
+  fuel: z.enum(FUEL_TYPES),
+  seats: z
+    .string()
+    .regex(/^\d{1,2}$/, "Enter the number of seats")
+    .refine(
+      (v) => Number(v) >= MIN_SEATS && Number(v) <= MAX_SEATS,
+      `Between ${MIN_SEATS} and ${MAX_SEATS} seats`,
+    ),
+  category: z.enum(CAR_CATEGORIES),
+  plate: z.string().min(3, "Enter the plate (kept private)"),
+  pricePerDay: z
+    .string()
+    .regex(AMOUNT_REGEX, "Enter the per-day price, e.g. 45 or 45.50"),
+  depositMode: z.enum(DEPOSIT_MODES),
+  /** Read only when `depositMode` is "custom" — see the refinement below. */
+  depositAmount: z.string(),
+});
+
+/**
+ * The amount is required — and must be more than zero — only in `custom`
+ * mode; "zero" is what `none` is for, and leaving it typed in the box while
+ * switching back to `inherit` must not block the save.
+ */
+const carFormSchema = carSchema.superRefine((values, ctx) => {
+  if (values.depositMode !== "custom") return;
+  const typed = values.depositAmount;
+  if (!AMOUNT_REGEX.test(typed) || Number(typed) <= 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["depositAmount"],
+      message: 'Enter the deposit, e.g. 200 or 200.00 — or choose "No deposit"',
+    });
+  }
+});
+type CarFormValues = z.infer<typeof carSchema>;
+
+function defaultsFor(
+  car: AgencyCar | undefined,
+  fixedBranchId: string | undefined,
+): CarFormValues {
+  return {
+    branchId: car?.branchId ?? fixedBranchId ?? "",
+    makeId: car?.makeId ?? "",
+    modelId: car?.modelId ?? "",
+    year: car ? String(car.year) : "",
+    color: car?.color ?? "white",
+    transmission: car?.transmission ?? "automatic",
+    fuel: car?.fuel ?? "gasoline",
+    seats: car ? String(car.seats) : "5",
+    category: car?.category ?? "sedan",
+    plate: car?.plate ?? "",
+    pricePerDay: car ? centsToWholeUnitsInput(car.hostDailyRateCents) : "",
+    depositMode: depositModeOf(car),
+    depositAmount:
+      car && car.depositOverrideCents !== null && car.depositOverrideCents > 0
+        ? centsToWholeUnitsInput(car.depositOverrideCents)
+        : "",
+  };
+}
+
+/** Which of the three states the stored override represents. */
+function depositModeOf(car: AgencyCar | undefined): CarFormValues["depositMode"] {
+  if (!car || car.depositOverrideCents === null) return "inherit";
+  return car.depositOverrideCents === 0 ? "none" : "custom";
+}
+
+/**
+ * Form state -> the value the wire stores for `depositOverrideCents`.
+ * `null` is a real choice here, not an absent field: it is what hands the
+ * decision back to the agency default.
+ */
+function depositOverrideCents(values: CarFormValues): number | null {
+  if (values.depositMode === "inherit") return null;
+  if (values.depositMode === "none") return 0;
+  return wholeUnitsToCents(Number(values.depositAmount));
+}
+
+/** Form → wire fields shared by create and edit (branch/photos handled apart). */
+function toCarFields(
+  values: CarFormValues,
+): Omit<CreateCarInput, "branchId" | "photos" | "depositCents"> {
+  return {
+    makeId: values.makeId,
+    modelId: values.modelId,
+    year: Number(values.year),
+    color: values.color,
+    transmission: values.transmission,
+    fuel: values.fuel,
+    seats: Number(values.seats),
+    category: values.category,
+    plate: values.plate,
+    // Unit conversion at the input boundary (agency-entered price). This is
+    // the HOST's own rate; what a renter is quoted is the server's business.
+    pricePerDayCents: wholeUnitsToCents(Number(values.pricePerDay)),
+  };
+}
+
+type CarFormProps =
+  | {
+      mode: "create";
+      /** Hide the branch picker and list the car at this branch (single-branch hosts). */
+      fixedBranchId?: string;
+      /** Called instead of navigating away once the car (and its photos) exist. */
+      onCreated?: (car: AgencyCar) => void;
+      submitLabel?: string;
+    }
+  | {
+      mode: "edit";
+      car: AgencyCar;
+      onSaved?: (car: AgencyCar) => void;
+      onCancel?: () => void;
+    };
+
+/**
+ * Catalog-driven car form. `create` posts the car as a draft and uploads
+ * the picked photos right after; `edit` patches the listing fields (photos
+ * and status are managed on the car page). One component for both modes so
+ * the field rules never drift.
+ */
+export function CarForm(props: CarFormProps) {
+  const router = useRouter();
+  const editing = props.mode === "edit";
+  const car = editing ? props.car : undefined;
+  const fixedBranchId = !editing ? props.fixedBranchId : undefined;
+
+  const form = useForm<CarFormValues>({
+    resolver: zodResolver(carFormSchema),
+    defaultValues: defaultsFor(car, fixedBranchId),
+  });
+
+  const branchesQuery = useAgencyBranches(!editing && !fixedBranchId);
+
+  const makesQuery = useCarMakes();
+
+  // Dependent select: models load only after a make is chosen.
+  const makeId = form.watch("makeId");
+  const modelsQuery = useCarModels(makeId);
+
+  // ── Photos (create only): picked before submit, uploaded right after ──────
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const [photoErrors, setPhotoErrors] = useState<string[]>([]);
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+
+  // Object-URL previews, revoked whenever the selection changes/unmounts.
+  const previews = useMemo(
+    () => photoFiles.map((f) => URL.createObjectURL(f)),
+    [photoFiles],
+  );
+  useEffect(
+    () => () => previews.forEach((url) => URL.revokeObjectURL(url)),
+    [previews],
+  );
+
+  function addPhotos(list: FileList | null) {
+    if (!list) return;
+    const errors: string[] = [];
+    const accepted = Array.from(list).filter((f) => {
+      const reason = validateCarPhotoFile(f);
+      if (reason) errors.push(`${f.name}: ${reason}`);
+      return !reason;
+    });
+    const merged = [...photoFiles, ...accepted];
+    if (merged.length > MAX_PHOTOS_PER_CAR) {
+      errors.push(`A car can have at most ${MAX_PHOTOS_PER_CAR} photos.`);
+    }
+    setPhotoErrors(errors);
+    setPhotoFiles(merged.slice(0, MAX_PHOTOS_PER_CAR));
+  }
+
+  // Both hooks refresh the fleet; where the host goes next and what this
+  // form re-seeds are its own business. The unused one stays idle.
+  const createCar = useCreateCarWithPhotos();
+  const updateCar = useUpdateCar(editing ? props.car.id : "");
+
+  const create = {
+    isPending: createCar.isPending,
+    error: createCar.error,
+    mutate: (values: CarFormValues) => {
+      const override = depositOverrideCents(values);
+      createCar.mutate(
+        {
+          car: {
+            branchId: values.branchId,
+            ...toCarFields(values),
+            // Inheriting is the create DTO's default, so it is expressed by
+            // omission; `0` is a decision and has to travel.
+            ...(override === null ? {} : { depositCents: override }),
+          },
+          photos: photoFiles,
+          onPhotoProgress: (u) =>
+            setUploadStatus(
+              `Uploading photo ${u.index + 1} of ${photoFiles.length}… ${u.percent}%`,
+            ),
+        },
+        {
+          onSuccess: ({ car: created, uploaded }) => {
+            setUploadStatus(null);
+            if (props.mode === "create" && props.onCreated) {
+              props.onCreated(created);
+              return;
+            }
+            // Some photos failed → land on the manage-photos surface to
+            // retry; otherwise back to the fleet list.
+            if (uploaded < photoFiles.length) {
+              router.push(`/agency/fleet/${created.id}/photos`);
+            } else {
+              router.push("/agency/fleet");
+            }
+          },
+        },
+      );
+    },
+  };
+
+  const update = {
+    isPending: updateCar.isPending,
+    error: updateCar.error,
+    mutate: (values: CarFormValues) =>
+      updateCar.mutate(
+        {
+          ...toCarFields(values),
+          // `null` CLEARS the override and hands the decision back to the
+          // agency default; `0` pins this car to no deposit regardless of it.
+          depositCents: depositOverrideCents(values),
+        },
+        {
+          onSuccess: (saved) => {
+            form.reset(defaultsFor(saved, undefined));
+            if (props.mode === "edit") props.onSaved?.(saved);
+          },
+        },
+      ),
+  };
+
+  const mutation = editing ? update : create;
+  const errors = form.formState.errors;
+  const showBranch = !editing && !fixedBranchId;
+
+  // Warn whenever this car ends up with NO hold to claim damage against:
+  // either the host picked "none", or it inherits and the chain currently
+  // resolves to zero (which only the server can tell us, via the saved car).
+  const depositMode = form.watch("depositMode");
+  const noDeposit =
+    depositMode === "none" ||
+    (depositMode === "inherit" && !!car && !car.depositRequired);
+
+  return (
+    <form
+      className="space-y-4"
+      onSubmit={form.handleSubmit((values) => {
+        if (props.mode === "edit") {
+          update.mutate(values);
+        } else {
+          create.mutate(values);
+        }
+      })}
+      noValidate
+    >
+      {showBranch ? (
+        <div className="space-y-1.5">
+          <Label htmlFor="car-branch">Branch</Label>
+          <Select
+            id="car-branch"
+            disabled={branchesQuery.isLoading || branchesQuery.isError}
+            {...form.register("branchId")}
+          >
+            <option value="">
+              {branchesQuery.isError
+                ? "Branches unavailable"
+                : "Select a branch"}
+            </option>
+            {(branchesQuery.data ?? []).map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </Select>
+          {errors.branchId ? (
+            <p className="text-sm text-destructive">{errors.branchId.message}</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="car-make">Make</Label>
+          <Select
+            id="car-make"
+            disabled={makesQuery.isLoading || makesQuery.isError}
+            {...form.register("makeId", {
+              onChange: () => form.setValue("modelId", ""),
+            })}
+          >
+            <option value="">
+              {makesQuery.isError ? "Catalog unavailable" : "Select a make"}
+            </option>
+            {(makesQuery.data ?? []).map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </Select>
+          {errors.makeId ? (
+            <p className="text-sm text-destructive">{errors.makeId.message}</p>
+          ) : null}
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="car-model">Model</Label>
+          <Select
+            id="car-model"
+            disabled={!makeId || modelsQuery.isLoading}
+            {...form.register("modelId")}
+          >
+            <option value="">
+              {makeId ? "Select a model" : "Pick a make first"}
+            </option>
+            {(modelsQuery.data ?? []).map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </Select>
+          {errors.modelId ? (
+            <p className="text-sm text-destructive">{errors.modelId.message}</p>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="car-year">Year</Label>
+          <Input id="car-year" inputMode="numeric" placeholder="2024" {...form.register("year")} />
+          {errors.year ? (
+            <p className="text-sm text-destructive">{errors.year.message}</p>
+          ) : null}
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="car-color">Color</Label>
+          <Select id="car-color" {...form.register("color")}>
+            {CAR_COLORS.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </Select>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="car-category">Category</Label>
+          <Select id="car-category" {...form.register("category")}>
+            {CAR_CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </Select>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="car-transmission">Transmission</Label>
+          <Select id="car-transmission" {...form.register("transmission")}>
+            {TRANSMISSIONS.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </Select>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="car-fuel">Fuel</Label>
+          <Select id="car-fuel" {...form.register("fuel")}>
+            {FUEL_TYPES.map((f) => (
+              <option key={f} value={f}>
+                {f}
+              </option>
+            ))}
+          </Select>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="car-seats">Seats</Label>
+          <Input id="car-seats" inputMode="numeric" {...form.register("seats")} />
+          {errors.seats ? (
+            <p className="text-sm text-destructive">{errors.seats.message}</p>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="car-plate">Plate (private)</Label>
+          <Input id="car-plate" placeholder="A123456" {...form.register("plate")} />
+          {errors.plate ? (
+            <p className="text-sm text-destructive">{errors.plate.message}</p>
+          ) : null}
+          <p className="text-xs text-muted-foreground">
+            Never shown to customers.
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="car-price">Your price per day</Label>
+          <Input
+            id="car-price"
+            inputMode="decimal"
+            placeholder="45.00"
+            {...form.register("pricePerDay")}
+          />
+          {errors.pricePerDay ? (
+            <p className="text-sm text-destructive">{errors.pricePerDay.message}</p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              What you are paid per day. Customers see this plus the Cibaura
+              service fee as a single daily rate.
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="car-deposit-mode">Security deposit</Label>
+          <Select id="car-deposit-mode" {...form.register("depositMode")}>
+            <option value="inherit">Use my agency default</option>
+            <option value="none">No deposit for this car</option>
+            <option value="custom">Set an amount for this car</option>
+          </Select>
+          {depositMode === "inherit" ? (
+            <p className="text-xs text-muted-foreground">
+              {car
+                ? car.depositRequired
+                  ? `Currently ${formatMoneyCents(car.resolvedDepositCents)} — change it in agency settings.`
+                  : "Your agency asks for no deposit today."
+                : "Change it in agency settings to apply it to every car that inherits."}
+            </p>
+          ) : null}
+        </div>
+
+        {depositMode === "custom" ? (
+          <div className="space-y-1.5">
+            <Label htmlFor="car-deposit">Deposit amount</Label>
+            <Input
+              id="car-deposit"
+              inputMode="decimal"
+              placeholder="200.00"
+              aria-invalid={!!errors.depositAmount}
+              {...form.register("depositAmount")}
+            />
+            {errors.depositAmount ? (
+              <p className="text-sm text-destructive">
+                {errors.depositAmount.message}
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Held on the renter&apos;s card at check-in — never charged —
+                and released after the return.
+              </p>
+            )}
+          </div>
+        ) : null}
+      </div>
+
+      {noDeposit ? (
+        <p
+          className="rounded-[var(--radius-sm)] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
+          role="status"
+        >
+          Without a deposit you will not be able to charge for damage through
+          Cibaura. You will have to settle it directly with the customer.
+        </p>
+      ) : null}
+
+      {!editing ? (
+        /* Photos — picked here, uploaded right after the car is created. */
+        <div className="space-y-2">
+          <Label>Photos</Label>
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            multiple
+            hidden
+            onChange={(e) => {
+              addPhotos(e.target.files);
+              e.target.value = "";
+            }}
+          />
+
+          {photoFiles.length > 0 ? (
+            <ul className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+              {photoFiles.map((file, i) => (
+                <li
+                  key={`${file.name}-${i}`}
+                  className="relative aspect-[4/3] overflow-hidden rounded-[var(--radius-sm)] border border-border bg-muted"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={previews[i]}
+                    alt={file.name}
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                  {i === 0 ? (
+                    <span className="absolute left-1 top-1 rounded bg-surface/90 px-1.5 py-0.5 text-[10px] font-medium">
+                      Cover
+                    </span>
+                  ) : null}
+                  <button
+                    type="button"
+                    aria-label={`Remove ${file.name}`}
+                    className="absolute right-1 top-1 rounded-full bg-surface/90 p-1 shadow-sm hover:bg-surface"
+                    disabled={mutation.isPending}
+                    onClick={() =>
+                      setPhotoFiles((prev) => prev.filter((_, j) => j !== i))
+                    }
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          <button
+            type="button"
+            onClick={() => photoInputRef.current?.click()}
+            disabled={mutation.isPending || photoFiles.length >= MAX_PHOTOS_PER_CAR}
+            className="flex w-full flex-col items-center gap-1 rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground transition-colors hover:border-border-strong hover:text-foreground disabled:opacity-60"
+          >
+            <ImagePlus className="h-5 w-5" />
+            {photoFiles.length >= MAX_PHOTOS_PER_CAR
+              ? `Maximum of ${MAX_PHOTOS_PER_CAR} photos selected`
+              : "Add photos of this exact car — JPEG, PNG or WEBP, up to 5 MB each"}
+          </button>
+          <p className="text-xs text-muted-foreground">
+            {photoFiles.length}/{MAX_PHOTOS_PER_CAR} selected · the first photo
+            becomes the cover. You can also manage photos later from the fleet
+            list. Cars can be saved as drafts without photos.
+          </p>
+          {photoErrors.length > 0 ? (
+            <ul className="space-y-0.5 text-sm text-destructive">
+              {photoErrors.map((msg) => (
+                <li key={msg}>{msg}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+
+      {uploadStatus ? (
+        <p className="text-sm text-muted-foreground" role="status">
+          {uploadStatus}
+        </p>
+      ) : null}
+
+      {mutation.error ? (
+        <p className="text-sm text-destructive" role="alert">
+          {getErrorMessage(mutation.error, "Could not save the car.")}
+        </p>
+      ) : null}
+
+      <div className="flex gap-2">
+        <Button
+          type="submit"
+          disabled={mutation.isPending || (editing && !form.formState.isDirty)}
+        >
+          {mutation.isPending
+            ? uploadStatus
+              ? "Uploading photos…"
+              : "Saving…"
+            : editing
+              ? "Save changes"
+              : (props.submitLabel ?? "Save as draft")}
+        </Button>
+        {editing ? (
+          props.onCancel ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={mutation.isPending}
+              onClick={props.onCancel}
+            >
+              Cancel
+            </Button>
+          ) : null
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => router.push("/agency/fleet")}
+          >
+            Cancel
+          </Button>
+        )}
+      </div>
+    </form>
+  );
+}
+
+/** `/agency/fleet/new` — the plain create flow (navigates back to the fleet). */
+export function NewCarForm() {
+  return <CarForm mode="create" />;
+}

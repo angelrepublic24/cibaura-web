@@ -16,7 +16,7 @@ type BadgeVariant =
 /**
  * Status copy + badges for the ADR-0011/0012/0013 lifecycles as the HOST
  * and the ADMIN read them ("Awaiting customer", "Customer absent"). The
- * customer's own wording lives in `features/bookings/labels.ts`; the
+ * customer's own wording lives in `modules/bookings/helpers/bookings.helper.ts`; the
  * viewer-neutral labels (inspection type, media label, fuel gauge,
  * settlement case) in `shared/utils/lifecycle-labels.ts`. Wire values
  * arrive as plain strings; a value newer than this client renders verbatim

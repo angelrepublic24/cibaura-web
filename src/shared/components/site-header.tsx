@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMe } from "@/features/auth/hooks";
+import { useMe } from "@/modules/auth/hooks/auth.hook";
 import { useAuthStore } from "@/shared/auth/store";
 import { UserMenu } from "@/shared/components/user-menu";
-import { NotificationBell } from "@/shared/components/notification-bell";
+import { NotificationBell } from "@/modules/notifications/components/notification-bell";
 import { Logo } from "@/shared/components/logo";
 import { cn } from "@/lib/utils";
 

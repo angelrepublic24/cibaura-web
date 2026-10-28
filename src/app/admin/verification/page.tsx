@@ -1,8 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { VerificationApi, verificationKeys } from "@/features/verification/api";
+import {
+  useDownloadVerificationDocument,
+  useRejectCustomer,
+  useVerificationCustomer,
+  useVerificationQueue,
+  useVerifyCustomer,
+} from "@/modules/verification/hooks/verification.hook";
 import type {
   CustomerDocument,
   CustomerVerificationAdmin,
@@ -75,10 +80,7 @@ export default function AdminVerificationPage() {
   const [status, setStatus] = useState<StatusFilter>("pending");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const listQuery = useQuery({
-    queryKey: verificationKeys.customers(status),
-    queryFn: () => VerificationApi.listCustomers(status),
-  });
+  const listQuery = useVerificationQueue(status);
 
   const customers = listQuery.data ?? [];
 
@@ -202,42 +204,17 @@ export default function AdminVerificationPage() {
 }
 
 function CustomerDetail({ userId }: { userId: string }) {
-  const qc = useQueryClient();
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
 
-  const detailQuery = useQuery({
-    queryKey: verificationKeys.customer(userId),
-    queryFn: () => VerificationApi.getCustomer(userId),
-  });
+  const detailQuery = useVerificationCustomer(userId);
 
-  // Invalidate every customers list (all filters) AND this detail.
-  const invalidate = () =>
-    qc.invalidateQueries({ queryKey: verificationKeys.all });
+  // Both decision hooks invalidate every customers list (all filters) AND
+  // this detail; closing the reject form is this page's own business.
+  const verify = useVerifyCustomer(userId);
+  const reject = useRejectCustomer(userId);
 
-  const verify = useMutation({
-    mutationFn: () => VerificationApi.verifyCustomer(userId),
-    onSuccess: () => invalidate(),
-  });
-
-  const reject = useMutation({
-    mutationFn: () => VerificationApi.rejectCustomer(userId, reason.trim()),
-    onSuccess: () => {
-      invalidate();
-      setRejecting(false);
-      setReason("");
-    },
-  });
-
-  const viewDoc = useMutation({
-    mutationFn: (docId: string) =>
-      VerificationApi.downloadDocument(userId, docId),
-    onSuccess: (blob) => {
-      const url = URL.createObjectURL(blob);
-      window.open(url, "_blank", "noopener");
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    },
-  });
+  const viewDoc = useDownloadVerificationDocument(userId);
 
   if (detailQuery.isLoading) {
     return (
@@ -356,7 +333,15 @@ function CustomerDetail({ userId }: { userId: string }) {
                         variant="outline"
                         size="sm"
                         disabled={loading}
-                        onClick={() => viewDoc.mutate(doc.id)}
+                        onClick={() =>
+                          viewDoc.mutate(doc.id, {
+                            onSuccess: (blob) => {
+                              const url = URL.createObjectURL(blob);
+                              window.open(url, "_blank", "noopener");
+                              setTimeout(() => URL.revokeObjectURL(url), 60_000);
+                            },
+                          })
+                        }
                       >
                         {loading ? "Opening…" : "View"}
                       </Button>
@@ -422,7 +407,14 @@ function CustomerDetail({ userId }: { userId: string }) {
                     <Button
                       variant="destructive"
                       disabled={reason.trim().length < 3 || reject.isPending}
-                      onClick={() => reject.mutate()}
+                      onClick={() =>
+                        reject.mutate(reason.trim(), {
+                          onSuccess: () => {
+                            setRejecting(false);
+                            setReason("");
+                          },
+                        })
+                      }
                     >
                       {reject.isPending ? "Rejecting…" : "Confirm rejection"}
                     </Button>

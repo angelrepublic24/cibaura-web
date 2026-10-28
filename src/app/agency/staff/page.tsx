@@ -1,15 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AgencyApi, agencyKeys } from "@/features/agency/api";
-import { usePermission } from "@/features/agency/use-permission";
 import {
-  BUNDLE_LABELS,
-  type BranchScope,
-  type StaffMember,
-} from "@/features/agency/rbac";
-import { StaffForm } from "@/features/agency/components/staff-form";
+  useAgencyStaff,
+  usePermission,
+  useRemoveStaff,
+} from "@/modules/agency/hooks/agency.hook";
+import { BUNDLE_LABELS } from "@/modules/agency/helpers/agency.helper";
+import type { BranchScope, StaffMember } from "@/modules/agency/types/agency.types";
+import { StaffForm } from "@/modules/agency/components/staff-form";
 import { getErrorMessage } from "@/shared/api/errors";
 import {
   EmptyState,
@@ -80,10 +79,7 @@ function StaffManager() {
   const [showCreate, setShowCreate] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const query = useQuery({
-    queryKey: agencyKeys.staff(),
-    queryFn: AgencyApi.staff,
-  });
+  const query = useAgencyStaff();
 
   return (
     <div>
@@ -162,16 +158,10 @@ function StaffRow({
   member: StaffMember;
   onEdit: () => void;
 }) {
-  const qc = useQueryClient();
   const [confirming, setConfirming] = useState(false);
 
-  const remove = useMutation({
-    mutationFn: () => AgencyApi.removeStaff(member.id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: agencyKeys.staff() });
-      setConfirming(false);
-    },
-  });
+  // The hook refreshes the roster; closing the confirmation is ours.
+  const remove = useRemoveStaff(member.id);
 
   return (
     <Card>
@@ -199,7 +189,11 @@ function StaffRow({
                 variant="destructive"
                 size="sm"
                 disabled={remove.isPending}
-                onClick={() => remove.mutate()}
+                onClick={() =>
+                  remove.mutate(undefined, {
+                    onSuccess: () => setConfirming(false),
+                  })
+                }
               >
                 {remove.isPending ? "Deactivating…" : "Confirm"}
               </Button>

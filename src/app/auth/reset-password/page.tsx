@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ResetPasswordForm } from "@/features/auth/components/reset-password-form";
+import { ResetPasswordForm } from "@/modules/auth/components/reset-password-form";
 import { Logo } from "@/shared/components/logo";
 import { pageMetadata } from "@/shared/seo/metadata";
 

@@ -1,6 +1,6 @@
 import type { CarDetail } from "@/shared/types/domain";
-import type { AgencyPublicProfile, Review } from "@/features/agencies/api";
-import { carGallery } from "@/features/cars/photos";
+import type { AgencyPublicProfile, Review } from "@/modules/agencies/types/agencies.types";
+import { carGallery } from "@/modules/cars/helpers/cars.helper";
 import { absoluteUrl } from "./metadata";
 import { carDescription, carPath, carTitle } from "./public-api";
 

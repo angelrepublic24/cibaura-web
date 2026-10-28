@@ -4,12 +4,12 @@ import { useState } from "react";
 
 import Link from "next/link";
 import { ImagePlus, Settings2 } from "lucide-react";
-import { useAgencySession, useFleetPages } from "@/features/agency/hooks";
-import { CarDocumentStatusBadge } from "@/features/agency/components/car-registration-document";
-import { PermissionGate } from "@/features/agency/components/permission-gate";
-import { usePermission } from "@/features/agency/use-permission";
-import { carPhoto } from "@/features/cars/photos";
-import { CarPhotoPlaceholder } from "@/features/cars/components/car-photo-placeholder";
+import { useAgencySession, useFleetPages } from "@/modules/agency/hooks/agency.hook";
+import { CarDocumentStatusBadge } from "@/modules/agency/components/car-registration-document";
+import { PermissionGate } from "@/modules/agency/components/permission-gate";
+import { usePermission } from "@/modules/agency/hooks/agency.hook";
+import { carPhoto } from "@/modules/cars/helpers/cars.helper";
+import { CarPhotoPlaceholder } from "@/modules/cars/components/car-photo-placeholder";
 import { formatMoneyCents } from "@/shared/utils/money";
 import {
   EmptyState,

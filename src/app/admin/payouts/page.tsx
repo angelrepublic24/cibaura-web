@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  keepPreviousData,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+
 import { Building2, ExternalLink, RefreshCw } from "lucide-react";
-import { AdminApi, adminKeys, type AdminPayout } from "@/features/admin/api";
+import {
+  useAdminPayouts,
+  usePayPayout,
+  useRejectPayout,
+  useRetryPayout,
+} from "@/modules/admin/hooks/admin.hook";
+import type { AdminPayout } from "@/modules/admin/types/admin.types";
 import { PAYOUT_STATUSES, type PayoutStatus } from "@/shared/types/domain";
 import {
   API_ERROR_CODES,
@@ -31,7 +32,6 @@ import { Dialog } from "@/shared/components/ui/dialog";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { formatMoneyCents } from "@/shared/utils/money";
 import { cn } from "@/lib/utils";
-
 /**
  * /admin/payouts — every payout across both rails (ADR-0008 / ADR-0012).
  * Manual bank transfers: agencies request them, an admin wires the money
@@ -71,11 +71,7 @@ export default function AdminPayoutsPage() {
   const [page, setPage] = useState(1);
 
   const query = { status, page, pageSize: PAGE_SIZE };
-  const listQuery = useQuery({
-    queryKey: adminKeys.payouts(query),
-    queryFn: () => AdminApi.listPayouts(query),
-    placeholderData: keepPreviousData,
-  });
+  const listQuery = useAdminPayouts(query);
 
   const rows = listQuery.data?.items ?? [];
   const total = listQuery.data?.total ?? 0;
@@ -231,17 +227,14 @@ function mapPayoutError(error: unknown): string | undefined {
 }
 
 function PayoutRow({ payout: p }: { payout: AdminPayout }) {
-  const qc = useQueryClient();
   const [action, setAction] = useState<null | "pay" | "reject" | "retry">(null);
   const stripe = p.method === "stripe_connect";
   const pending = p.status === "requested" && !stripe;
   const retryable = p.status === "failed" && stripe;
 
-  function invalidate() {
-    qc.invalidateQueries({ queryKey: adminKeys.payouts() });
-    qc.invalidateQueries({ queryKey: adminKeys.overview() });
-  }
-
+  // Each hook refreshes the queue and the overview counts the row feeds.
+  const pay = usePayPayout();
+  const reject = useRejectPayout();
 
   return (
     <tr className="align-top transition-colors hover:bg-muted/40">
@@ -356,7 +349,6 @@ function PayoutRow({ payout: p }: { payout: AdminPayout }) {
           open={action === "retry"}
           onClose={() => setAction(null)}
           payout={p}
-          onDone={invalidate}
         />
 
         <ReasonDialog
@@ -374,8 +366,7 @@ function PayoutRow({ payout: p }: { payout: AdminPayout }) {
           }}
           confirmLabel="Mark as paid"
           onConfirm={async (value) => {
-            await AdminApi.payPayout(p.id, value ?? "");
-            invalidate();
+            await pay.mutateAsync({ id: p.id, reference: value ?? "" });
           }}
           mapError={mapPayoutError}
         />
@@ -394,8 +385,7 @@ function PayoutRow({ payout: p }: { payout: AdminPayout }) {
           confirmLabel="Reject payout"
           destructive
           onConfirm={async (value) => {
-            await AdminApi.rejectPayout(p.id, value ?? "");
-            invalidate();
+            await reject.mutateAsync({ id: p.id, reason: value ?? "" });
           }}
           mapError={mapPayoutError}
         />
@@ -409,20 +399,20 @@ function RetryDialog({
   open,
   onClose,
   payout: p,
-  onDone,
 }: {
   open: boolean;
   onClose: () => void;
   payout: AdminPayout;
-  onDone: () => void;
 }) {
-  const mutation = useMutation({
-    mutationFn: () => AdminApi.retryPayout(p.id),
-    onSuccess: () => {
-      onDone();
-      onClose();
-    },
-  });
+  const retry = useRetryPayout();
+  const mutation = {
+    isPending: retry.isPending,
+    error: retry.error,
+    reset: retry.reset,
+    // The hook refreshes the queue; dismissing the dialog is this caller's.
+    mutate: () =>
+      retry.mutate(p.id, { onSuccess: onClose }),
+  };
   const { reset } = mutation;
   useEffect(() => {
     if (open) reset();
@@ -438,7 +428,7 @@ function RetryDialog({
       title={`Retry ${formatMoneyCents(p.amountCents, p.currency)} to ${p.agencyName}?`}
       description="A new Stripe payout is created and the amount leaves the agency's wallet again. This failed payout stays in the history."
     >
-      {mutation.isError ? (
+      {mutation.error ? (
         <p className="mb-4 text-sm text-destructive" role="alert">
           {mapPayoutError(mutation.error) ??
             getErrorMessage(mutation.error, "Could not retry the payout.")}

@@ -6,12 +6,15 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AgencyApi, agencyKeys } from "@/features/agency/api";
-import { PermissionGate } from "@/features/agency/components/permission-gate";
-import { EarningsPanel } from "@/features/agency/components/earnings-panel";
-import { StripePayoutsCard } from "@/features/agency/components/stripe-payouts-card";
-import { usePermission } from "@/features/agency/use-permission";
+import {
+  useAgencyPayouts,
+  useAgencyWallet,
+  useRequestPayout,
+} from "@/modules/agency/hooks/agency.hook";
+import { PermissionGate } from "@/modules/agency/components/permission-gate";
+import { EarningsPanel } from "@/modules/agency/components/earnings-panel";
+import { StripePayoutsCard } from "@/modules/agency/components/stripe-payouts-card";
+import { usePermission } from "@/modules/agency/hooks/agency.hook";
 import type {
   AgencyWallet,
   LedgerEntry,
@@ -68,14 +71,8 @@ export default function AgencyWalletPage() {
 
 function WalletBody() {
   const { can } = usePermission();
-  const walletQuery = useQuery({
-    queryKey: agencyKeys.wallet(),
-    queryFn: AgencyApi.wallet,
-  });
-  const payoutsQuery = useQuery({
-    queryKey: agencyKeys.payouts(),
-    queryFn: AgencyApi.payouts,
-  });
+  const walletQuery = useAgencyWallet();
+  const payoutsQuery = useAgencyPayouts();
 
   if (walletQuery.isPending) return <LoadingState label="Loading wallet…" />;
   if (walletQuery.isError) {
@@ -258,7 +255,6 @@ function payoutSchema(availableCents: number, currency: string) {
 }
 
 function RequestPayoutCard({ wallet }: { wallet: AgencyWallet }) {
-  const qc = useQueryClient();
   const [done, setDone] = useState<Payout | null>(null);
   const currency = wallet.account.currency;
   const available = wallet.availableCents;
@@ -272,21 +268,18 @@ function RequestPayoutCard({ wallet }: { wallet: AgencyWallet }) {
     defaultValues: { amount: "" },
   });
 
-  const mutation = useMutation({
-    mutationFn: (values: PayoutFormValues) =>
-      AgencyApi.requestPayout(wholeUnitsToCents(Number(values.amount))),
-    onSuccess: (payout) => {
-      setDone(payout);
-      form.reset({ amount: "" });
-      // Available balance drops by the reservation; the payouts list grows.
-      qc.invalidateQueries({ queryKey: agencyKeys.wallet() });
-      qc.invalidateQueries({ queryKey: agencyKeys.payouts() });
-    },
-    onError: () => {
-      // A server-side "not enough" means our snapshot is stale — refresh it.
-      qc.invalidateQueries({ queryKey: agencyKeys.wallet() });
-    },
-  });
+  // The hook refreshes the balance and the payouts list either way (a
+  // server-side "not enough" means our snapshot was the stale one).
+  const mutation = useRequestPayout();
+
+  function submit(values: PayoutFormValues) {
+    mutation.mutate(wholeUnitsToCents(Number(values.amount)), {
+      onSuccess: (payout) => {
+        setDone(payout);
+        form.reset({ amount: "" });
+      },
+    });
+  }
 
   const canRequest = available >= MIN_PAYOUT_CENTS;
   const error = mutation.error;
@@ -310,7 +303,7 @@ function RequestPayoutCard({ wallet }: { wallet: AgencyWallet }) {
           noValidate
           onSubmit={form.handleSubmit((values) => {
             setDone(null);
-            mutation.mutate(values);
+            submit(values);
           })}
           className="flex flex-wrap items-start gap-3"
         >

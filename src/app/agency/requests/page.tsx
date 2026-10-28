@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
-import { AgencyApi, agencyKeys, type AgencyRequest } from "@/features/agency/api";
-import { BookingLifecycleActions } from "@/features/agency/components/booking-lifecycle-actions";
-import { PermissionGate } from "@/features/agency/components/permission-gate";
-import { identityAvailable } from "@/features/agency/components/renter-identity-card";
-import { RequestDeadline } from "@/features/agency/components/request-deadline";
+import { useAgencyRequests } from "@/modules/agency/hooks/agency.hook";
+import type { AgencyRequest } from "@/modules/agency/types/agency.types";
+import { BookingLifecycleActions } from "@/modules/agency/components/booking-lifecycle-actions";
+import { PermissionGate } from "@/modules/agency/components/permission-gate";
+import { identityAvailable } from "@/modules/agency/components/renter-identity-card";
+import { RequestDeadline } from "@/modules/agency/components/request-deadline";
 import { BOOKING_STATES, type BookingState } from "@/shared/types/domain";
 import { BookingStateBadge } from "@/shared/components/booking-state-badge";
 import { formatMoneyCents } from "@/shared/utils/money";
@@ -87,10 +87,7 @@ function RequestsInbox() {
   const [state, setState] = useState<BookingState>("requested");
   const [page, setPage] = useState(1);
 
-  const query = useQuery({
-    queryKey: agencyKeys.requests({ state, page }),
-    queryFn: () => AgencyApi.requests({ state, page }),
-  });
+  const query = useAgencyRequests({ state, page });
 
   const total = query.data?.total ?? 0;
   const pageSize = query.data?.pageSize ?? 20;

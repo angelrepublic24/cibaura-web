@@ -2,22 +2,24 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
+import { useAdminRevenue } from "@/modules/admin/hooks/admin.hook";
+import type {
+  AdminRevenueEntry,
+  AdminRevenueQuery,
+} from "@/modules/admin/types/admin.types";
 import {
-  AdminApi,
-  adminKeys,
-  type AdminRevenueEntry,
-  type AdminRevenueQuery,
-} from "@/features/admin/api";
-import { EmptyState, ErrorState, LoadingState } from "@/shared/components/states";
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from "@/shared/components/states";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent } from "@/shared/components/ui/card";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { formatMoneyCents } from "@/shared/utils/money";
 import { cn } from "@/lib/utils";
-
 /**
  * /admin/revenue — platform earnings. The platform wallet (a singleton
  * WalletAccount, ownerType = PLATFORM) is credited each booking's
@@ -41,11 +43,7 @@ export default function AdminRevenuePage() {
     : { from: from || undefined, to: to || undefined };
   const rangeApplied = !rangeInvalid && (from !== "" || to !== "");
 
-  const query = useQuery({
-    queryKey: adminKeys.revenue(effective),
-    queryFn: () => AdminApi.getRevenue(effective),
-    placeholderData: keepPreviousData,
-  });
+  const query = useAdminRevenue(effective);
 
   return (
     <div className="space-y-8">

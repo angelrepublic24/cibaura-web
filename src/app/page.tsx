@@ -1,6 +1,6 @@
 import { ShieldCheck, KeyRound, MessagesSquare } from "lucide-react";
-import { HeroSearch } from "@/features/cars/components/hero-search";
-import { HostCtaBand } from "@/features/agencies/components/host-cta-band";
+import { HeroSearch } from "@/modules/cars/components/hero-search";
+import { HostCtaBand } from "@/modules/agencies/components/host-cta-band";
 import { pageMetadata, SITE_DESCRIPTION } from "@/shared/seo/metadata";
 import { OrganizationJsonLd } from "@/shared/seo/structured-data";
 

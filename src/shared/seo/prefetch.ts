@@ -1,19 +1,10 @@
 import "server-only";
 import { QueryClient } from "@tanstack/react-query";
 import { publicGet } from "./public-api";
-import { agencyProfileKeys } from "@/features/agencies/api";
-import type {
-  AgencyCarsFilters,
-  AgencyDirectoryFilters,
-  AgencyPublicProfile,
-  Review,
-} from "@/features/agencies/api";
-import type { CarSearchFilters } from "@/features/cars/filters";
-import {
-  agencyCarsParams,
-  carSearchParams,
-  carCatalogParams,
-} from "@/features/cars/request-params";
+import { agencyProfileKeys } from "@/modules/agencies/hooks/agencies.hook";
+import type { AgencyCarsFilters, AgencyDirectoryFilters, AgencyPublicProfile, Review } from "@/modules/agencies/types/agencies.types";
+import type { CarSearchFilters } from "@/modules/cars/types/cars.types";
+import { agencyCarsParams, carCatalogParams, carSearchParams } from "@/modules/cars/helpers/cars.helper";
 import type { Car, City, Paginated } from "@/shared/types/domain";
 
 export function publicQueryClient() {

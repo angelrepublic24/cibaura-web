@@ -84,27 +84,40 @@ function load(file, modules = {}) {
   );
   return exports;
 }
-const destinations = load("src/features/cars/destinations.ts");
-assert(destinations.hasUniqueCitySlug(cities[0], cities));
+const domain = load("src/shared/types/domain.ts");
+const wire = load("src/shared/api/wire.ts", {
+  zod: require("zod"),
+  "@/shared/types/domain": domain,
+});
+// `cars.schema.ts` validates the query string with zod; the loader stubs every
+// module it is not handed, and a stubbed `z` fails at module evaluation.
+const carsSchema = load("src/modules/cars/schema/cars.schema.ts", {
+  zod: require("zod"),
+  "@/shared/utils/dates": load("src/shared/utils/dates.ts"),
+  "@/shared/api/wire": wire,
+});
+const carsHelper = load("src/modules/cars/helpers/cars.helper.ts", {
+  "@/lib/config": { API_URL: "" },
+  "@/shared/utils/money": { wholeUnitsToCents: (value) => value * 100 },
+  "@/modules/cars/schema/cars.schema": carsSchema,
+});
+assert(carsHelper.hasUniqueCitySlug(cities[0], cities));
 assert(
-  !destinations.hasUniqueCitySlug(cities[0], [
+  !carsHelper.hasUniqueCitySlug(cities[0], [
     ...cities,
     { ...cities[0], id: "duplicate" },
   ]),
 );
 const { DestinationFields } = load(
-  "src/features/cars/components/destination-fields.tsx",
+  "src/modules/cars/components/destination-fields.tsx",
   {
-    "../destinations": destinations,
-    "@tanstack/react-query": {
-      useQuery: ({ queryKey }) => ({
-        data:
-          queryKey[1] === "countries"
-            ? countryData
-            : queryKey[1] === "regions"
-              ? regions
-              : cities,
-      }),
+    "@/modules/cars/helpers/cars.helper": carsHelper,
+    // The component reads the catalog through hooks now; the fixtures stand
+    // in for the three it calls.
+    "@/modules/catalog/hooks/catalog.hook": {
+      useCountries: () => ({ data: countryData }),
+      useCities: () => ({ data: cities }),
+      useRegions: () => ({ data: regions }),
     },
   },
 );
@@ -161,9 +174,7 @@ assert.equal(
   find(tree, (node) => node.props?.id === "hero-country").props.readOnly,
   true,
 );
-const params = load("src/features/cars/request-params.ts", {
-  "@/shared/utils/money": { wholeUnitsToCents: (value) => value * 100 },
-});
+const params = carsHelper;
 const catalog = params.carCatalogParams("santo-domingo", {
   from: "2026-12-01",
   to: "2026-12-03",
@@ -178,16 +189,12 @@ const picker = load("src/shared/components/date-range-picker.tsx", {
   "@/shared/utils/dates": dates,
   "@/lib/utils": { cn: (...values) => values.filter(Boolean).join(" ") },
 });
-// `filters.ts` validates the query string with zod; the loader stubs every
-// module it is not handed, and a stubbed `z` fails at module evaluation.
-const filters = load("src/features/cars/filters.ts", {
-  "@/shared/utils/dates": dates,
-  zod: require("zod"),
-});
+const filters = carsHelper;
 let navigation;
-const { HeroSearch } = load("src/features/cars/components/hero-search.tsx", {
-  "@tanstack/react-query": { useQuery: () => ({ data: countryData }) },
-  "../destinations": destinations,
+const { HeroSearch } = load("src/modules/cars/components/hero-search.tsx", {
+  "@/modules/catalog/hooks/catalog.hook": {
+    useCountries: () => ({ data: countryData }),
+  },
   "./destination-fields": { DestinationFields },
   "next/navigation": {
     useRouter: () => ({
@@ -196,7 +203,7 @@ const { HeroSearch } = load("src/features/cars/components/hero-search.tsx", {
       },
     }),
   },
-  "@/features/cars/filters": filters,
+  "@/modules/cars/helpers/cars.helper": carsHelper,
   "@/shared/utils/dates": {
     ...dates,
     todayIso: () => "2026-09-27",
@@ -305,7 +312,7 @@ assert(
   "unassigned cities remain selectable without a region",
 );
 assert(
-  destinations.hasUniqueCitySlug(cities[0], [
+  carsHelper.hasUniqueCitySlug(cities[0], [
     ...cities,
     { ...cities[0], id: "other", countryId: "us" },
   ]),
@@ -551,13 +558,17 @@ console.log(
 // ── URL filter parsing: degrade, never explode ─────────────────────────────
 // The query string is the least trusted input in the web app, and it becomes
 // a TanStack cache key and an API query string. These lock the contract the
-// zod schemas in `features/cars/filters.ts` have to keep: malformed input
+// zod schemas in `modules/cars/schema/cars.schema.ts` have to keep: malformed input
 // yields `undefined`, nothing throws, and the permissive numeric grammar the
 // live URLs already rely on stays permissive.
-const agencyFilters = load("src/features/agencies/filters.ts", {
-  "@/features/cars/filters": filters,
-  zod: require("zod"),
-});
+const agencyFilters = load(
+  "src/modules/agencies/helpers/agencies-filters.helper.ts",
+  {
+    "@/modules/cars/helpers/cars.helper": carsHelper,
+    "@/modules/cars/schema/cars.schema": carsSchema,
+    zod: require("zod"),
+  },
+);
 let parserChecks = 0;
 const parsed = (sp) => {
   parserChecks++;

@@ -1,15 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+
 import { FilePenLine, Plus } from "lucide-react";
-import { AdminApi, adminKeys } from "@/features/admin/api";
+import { useCreateContractTemplate } from "@/modules/admin/hooks/admin.hook";
 import {
   ContractTemplateEditor,
   TemplateStatusBadge,
-} from "@/features/admin/components/contract-template-editor";
-import { CONTRACT_KIND_LABELS } from "@/features/admin/contracts";
-import { useContractTemplates } from "@/features/admin/hooks";
+} from "@/modules/admin/components/contract-template-editor";
+import { CONTRACT_KIND_LABELS } from "@/modules/admin/helpers/admin.helper";
+import { useContractTemplates } from "@/modules/admin/hooks/admin.hook";
 import { getErrorMessage } from "@/shared/api/errors";
 import {
   CONTRACT_KINDS,
@@ -17,16 +17,12 @@ import {
   type ContractTemplateAdminDto,
 } from "@/shared/types/domain";
 import { RoleGuard } from "@/shared/auth/guard";
-import {
-  EmptyState,
-  ErrorState,
-} from "@/shared/components/states";
+import { EmptyState, ErrorState } from "@/shared/components/states";
 import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent } from "@/shared/components/ui/card";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { formatDateTime } from "@/shared/utils/dates";
 import { cn } from "@/lib/utils";
-
 /**
  * /admin/contracts — versioned contract templates (ADR-0010). One tab per
  * kind (host agreement / rental agreement); the list shows every version
@@ -115,24 +111,27 @@ function KindWorkspace({
   selectedId: string | null;
   onSelect: (id: string) => void;
 }) {
-  const qc = useQueryClient();
   const list = useContractTemplates(kind);
   const templates = list.data ?? [];
   const published = templates.find((t) => t.status === "published") ?? null;
   const selected = templates.find((t) => t.id === selectedId) ?? null;
 
-  const createDraft = useMutation({
-    mutationFn: () =>
-      AdminApi.createContractTemplate({
-        kind,
-        title: published?.title ?? CONTRACT_KIND_LABELS[kind],
-        bodyMarkdown: published?.bodyMarkdown ?? STARTER_BODY,
-      }),
-    onSuccess: (draft) => {
-      qc.invalidateQueries({ queryKey: adminKeys.contractTemplates(kind) });
-      onSelect(draft.id);
-    },
-  });
+  // The hook refreshes the template list; selecting the new draft is this
+  // screen's own.
+  const create = useCreateContractTemplate();
+  const createDraft = {
+    isPending: create.isPending,
+    error: create.error,
+    mutate: () =>
+      create.mutate(
+        {
+          kind,
+          title: published?.title ?? CONTRACT_KIND_LABELS[kind],
+          bodyMarkdown: published?.bodyMarkdown ?? STARTER_BODY,
+        },
+        { onSuccess: (draft) => onSelect(draft.id) },
+      ),
+  };
 
   return (
     <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,300px)_1fr]">
@@ -149,7 +148,7 @@ function KindWorkspace({
               ? "New draft from published"
               : "New draft"}
         </Button>
-        {createDraft.isError ? (
+        {createDraft.error ? (
           <p className="text-sm text-destructive" role="alert">
             {getErrorMessage(createDraft.error, "Could not create the draft.")}
           </p>

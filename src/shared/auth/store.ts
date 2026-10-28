@@ -7,7 +7,7 @@ import { clearQueryCache } from "@/shared/providers/query-client-registry";
 
 /**
  * Client-side session store (zustand). Hydrated by the `useMe` query in
- * `src/features/auth/hooks.ts`; the guard components read from here.
+ * `src/modules/auth/hooks/auth.hook.ts`; the guard components read from here.
  *
  * Holds ONLY the non-sensitive user snapshot — the credentials themselves
  * live in httpOnly cookies the backend manages (see `shared/api/client.ts`),
@@ -46,7 +46,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   /**
    * LOCAL sign-out only (state + marker + caches). Server-side revocation +
    * cookie clearing is `POST /auth/logout` — see `useLogout` in
-   * `features/auth/hooks.ts`, which calls the API first and then this.
+   * `modules/auth/hooks/auth.hook.ts`, which calls the service first and
+   * then this.
    */
   signOut: () => {
     clearUserMarker();

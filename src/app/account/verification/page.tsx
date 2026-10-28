@@ -1,6 +1,6 @@
 "use client";
 
-import { VerificationPanel } from "@/features/verification/components/verification-panel";
+import { VerificationPanel } from "@/modules/verification/components/verification-panel";
 
 /**
  * /account/verification — the customer identity/license verification surface.

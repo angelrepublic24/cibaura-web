@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { parseAgencyCarFilters } from "@/features/agencies/filters";
-import { AgencyProfile } from "@/features/agencies/components/agency-profile";
+import { parseAgencyCarFilters } from "@/modules/agencies/helpers/agencies-filters.helper";
+import { AgencyProfile } from "@/modules/agencies/components/agency-profile";
 import { pageMetadata } from "@/shared/seo/metadata";
 import { getPublicAgency } from "@/shared/seo/public-api";
 import { AgencyJsonLd, BreadcrumbJsonLd } from "@/shared/seo/structured-data";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
-import { agencyProfileKeys } from "@/features/agencies/api";
+import { agencyProfileKeys } from "@/modules/agencies/hooks/agencies.hook";
 import {
   getAgencyCars,
   getAgencyReviews,

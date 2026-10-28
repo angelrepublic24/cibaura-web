@@ -1,0 +1,166 @@
+"use client";
+
+import { useState } from "react";
+import { ChevronDown, ChevronUp, ShieldCheck } from "lucide-react";
+
+import { usePublicContract } from "@/modules/legal/hooks/legal.hook";
+import { CancellationPolicySummary } from "@/modules/legal/components/cancellation-policy";
+import { ContractHtml } from "@/modules/legal/components/contract-html";
+import {
+  API_ERROR_CODES,
+  getErrorMessage,
+  isApiErrorCode,
+} from "@/shared/api/errors";
+import { formatMoneyCents } from "@/shared/utils/money";
+import { Button } from "@/shared/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/shared/components/ui/card";
+import { Skeleton } from "@/shared/components/ui/skeleton";
+
+/**
+ * "Deposit and cancellation policy" on the car page: the security deposit
+ * currently resolved for this car (`CarDetailDto.depositCents` — car, then
+ * agency, then platform, decided server-side), the three policy tiers from
+ * `GET /legal/current`, and the published rental agreement
+ * (`GET /legal/contracts/rental_agreement`, generic placeholders) so the
+ * customer can read what they will sign BEFORE choosing dates.
+ *
+ * `depositRequired` is the server's answer, not `depositCents > 0` read
+ * again here: "no deposit" is a host's deliberate choice and is stated as
+ * one, never as a missing amount.
+ */
+export function RentalPolicyCard({
+  depositCents,
+  depositRequired,
+  agencyName,
+  className,
+}: {
+  depositCents: number;
+  depositRequired: boolean;
+  agencyName: string;
+  className?: string;
+}) {
+  const [showAgreement, setShowAgreement] = useState(false);
+  const contract = usePublicContract(
+    "rental_agreement",
+    showAgreement,
+  );
+
+  return (
+    <Card className={className}>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <ShieldCheck className="h-4 w-4 text-primary" />
+          Deposit and cancellation policy
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4 text-sm">
+        <div className="rounded-[var(--radius-sm)] bg-muted/60 p-3">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+            Security deposit
+          </p>
+          {depositRequired ? (
+            <>
+              <p className="mt-0.5 text-lg font-semibold text-foreground">
+                {formatMoneyCents(depositCents)} — held and returned
+              </p>
+              <p className="mt-1 text-muted-foreground">
+                Held on your card when {agencyName} starts the check-in — not
+                charged, and not part of your total — and released after
+                check-out. If the host reports damage, you can accept or
+                reject the claim before anything is captured; an admin decides
+                when you disagree.
+              </p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                The deposit is confirmed when the booking is created.
+              </p>
+            </>
+          ) : (
+            <p className="mt-0.5 font-semibold text-foreground">
+              No deposit required
+            </p>
+          )}
+        </div>
+
+        <div>
+          <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">
+            Cancellation and early return
+          </p>
+          <CancellationPolicySummary variant="list" className="text-sm" />
+        </div>
+
+        <div>
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-2 hover:underline"
+            aria-expanded={showAgreement}
+            onClick={() => setShowAgreement((v) => !v)}
+          >
+            {showAgreement ? (
+              <>
+                Hide the rental agreement <ChevronUp className="h-3.5 w-3.5" />
+              </>
+            ) : (
+              <>
+                Read the rental agreement you will sign{" "}
+                <ChevronDown className="h-3.5 w-3.5" />
+              </>
+            )}
+          </button>
+
+          {showAgreement ? (
+            contract.isLoading ? (
+              <div className="mt-2 space-y-2" aria-busy="true">
+                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="h-40 w-full" />
+              </div>
+            ) : contract.isError ? (
+              <div className="mt-2 space-y-2 rounded-[var(--radius-sm)] border border-border bg-muted/60 p-3">
+                <p className="text-muted-foreground">
+                  {isApiErrorCode(
+                    contract.error,
+                    API_ERROR_CODES.TEMPLATE_NOT_PUBLISHED,
+                  )
+                    ? "The rental agreement is not published yet. You will read the full text before signing your request."
+                    : getErrorMessage(
+                        contract.error,
+                        "The agreement could not be loaded right now.",
+                      )}
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => contract.refetch()}
+                >
+                  Try again
+                </Button>
+              </div>
+            ) : contract.data ? (
+              <div className="mt-2 space-y-2">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <p className="font-medium text-foreground">
+                    {contract.data.title}
+                  </p>
+                  <span className="text-xs text-muted-foreground">
+                    Version {contract.data.version}
+                  </span>
+                </div>
+                <ContractHtml html={contract.data.html} className="max-h-80" />
+                <p className="text-xs text-muted-foreground">
+                  Bracketed placeholders are filled in with your details, the
+                  car and the host when you request — you will see and sign that
+                  exact text.
+                </p>
+              </div>
+            ) : null
+          ) : null}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

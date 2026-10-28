@@ -2,7 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { notFound } from "next/navigation";
 import { API_URL } from "@/lib/config";
-import type { AgencyPublicProfile } from "@/features/agencies/api";
+import type { AgencyPublicProfile } from "@/modules/agencies/types/agencies.types";
 import type {
   Car,
   CarDetail,

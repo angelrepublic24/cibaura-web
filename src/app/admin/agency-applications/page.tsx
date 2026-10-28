@@ -1,13 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AdminApi, adminKeys } from "@/features/admin/api";
-import { CarDocumentsReview } from "@/features/admin/components/car-documents-review";
+
+import {
+  useAdminApplication,
+  useAdminApplications,
+  useDownloadApplicationDocument,
+  useRejectApplication,
+  useRequestApplicationDocuments,
+  useVerifyApplication,
+} from "@/modules/admin/hooks/admin.hook";
+import {
+  CarDocumentsReview,
+} from "@/modules/admin/components/car-documents-review";
 import type {
   AgencyApplication,
   AgencyDocument,
-} from "@/features/agencies/api";
+} from "@/modules/agencies/types/agencies.types";
 import type {
   AgencyKind,
   AgencyVerificationStatus,
@@ -27,7 +36,6 @@ import { Select } from "@/shared/components/ui/select";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { cn } from "@/lib/utils";
-
 /**
  * /admin/agency-applications — the platform KYC review queue (ADR-0004).
  *
@@ -91,10 +99,7 @@ export default function AdminAgencyApplicationsPage() {
   const [status, setStatus] = useState<StatusFilter>("pending");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const listQuery = useQuery({
-    queryKey: adminKeys.applications(status),
-    queryFn: () => AdminApi.listApplications(status),
-  });
+  const listQuery = useAdminApplications(status);
 
   const applications = listQuery.data ?? [];
 
@@ -236,7 +241,6 @@ export default function AdminAgencyApplicationsPage() {
 }
 
 function ApplicationDetail({ id }: { id: string }) {
-  const qc = useQueryClient();
   /*
    * WHICH PANEL IS OPEN, as one value rather than a boolean per panel.
    *
@@ -256,47 +260,52 @@ function ApplicationDetail({ id }: { id: string }) {
     setNote("");
   };
 
-  const detailQuery = useQuery({
-    queryKey: adminKeys.application(id),
-    queryFn: () => AdminApi.getApplication(id),
-  });
+  const detailQuery = useAdminApplication(id);
 
-  // Invalidates every applications list (all filters) AND this detail.
-  const invalidate = () =>
-    qc.invalidateQueries({ queryKey: ["admin", "applications"] });
+  // Each hook refreshes every applications list (all filters) AND this
+  // detail; closing the open panel is this screen's own business.
+  const verify = useVerifyApplication();
+  const rejectApplication = useRejectApplication();
+  const requestApplicationDocuments = useRequestApplicationDocuments();
+  const download = useDownloadApplicationDocument();
 
-  const verify = useMutation({
-    mutationFn: () => AdminApi.verifyApplication(id),
-    onSuccess: () => {
-      invalidate();
-    },
-  });
+  const reject = {
+    isPending: rejectApplication.isPending,
+    error: rejectApplication.error,
+    mutate: () =>
+      rejectApplication.mutate(
+        { id, reason: reason.trim() },
+        { onSuccess: closePanel },
+      ),
+  };
 
-  const reject = useMutation({
-    mutationFn: () => AdminApi.rejectApplication(id, reason.trim()),
-    onSuccess: () => {
-      invalidate();
-      closePanel();
-    },
-  });
+  const requestDocuments = {
+    isPending: requestApplicationDocuments.isPending,
+    error: requestApplicationDocuments.error,
+    mutate: () =>
+      requestApplicationDocuments.mutate(
+        { id, note: note.trim() },
+        { onSuccess: closePanel },
+      ),
+  };
 
-  const requestDocuments = useMutation({
-    mutationFn: () => AdminApi.requestApplicationDocuments(id, note.trim()),
-    onSuccess: () => {
-      invalidate();
-      closePanel();
-    },
-  });
-
-  const viewDoc = useMutation({
-    mutationFn: (docId: string) => AdminApi.downloadDocument(id, docId),
-    onSuccess: (blob) => {
-      const url = URL.createObjectURL(blob);
-      window.open(url, "_blank", "noopener");
-      // Revoke later so the opened tab has time to load the bytes.
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    },
-  });
+  const viewDoc = {
+    isPending: download.isPending,
+    error: download.error,
+    variables: download.variables,
+    mutate: (docId: string) =>
+      download.mutate(
+        { agencyId: id, docId },
+        {
+          onSuccess: (blob) => {
+            const url = URL.createObjectURL(blob);
+            window.open(url, "_blank", "noopener");
+            // Revoke later so the opened tab has time to load the bytes.
+            setTimeout(() => URL.revokeObjectURL(url), 60_000);
+          },
+        },
+      ),
+  };
 
   if (detailQuery.isLoading) {
     return (
@@ -390,7 +399,7 @@ function ApplicationDetail({ id }: { id: string }) {
               <ul className="divide-y divide-border rounded-[var(--radius-sm)] border border-border">
                 {app.documents.map((doc: AgencyDocument) => {
                   const loading =
-                    viewDoc.isPending && viewDoc.variables === doc.id;
+                    viewDoc.isPending && viewDoc.variables?.docId === doc.id;
                   return (
                     <li
                       key={doc.id}
@@ -418,9 +427,9 @@ function ApplicationDetail({ id }: { id: string }) {
                 })}
               </ul>
             )}
-            {viewDoc.isError ? (
+            {viewDoc.error ? (
               <p className="mt-2 text-sm text-destructive">
-                {(viewDoc.error as Error).message}
+                {viewDoc.error.message}
               </p>
             ) : null}
           </div>
@@ -462,7 +471,7 @@ function ApplicationDetail({ id }: { id: string }) {
               {openPanel === "none" ? (
                 <div className="flex flex-wrap gap-2">
                   <Button
-                    onClick={() => verify.mutate()}
+                    onClick={() => verify.mutate(id)}
                     disabled={busy}
                   >
                     {verify.isPending ? "Verifying…" : "Verify agency"}
@@ -525,15 +534,14 @@ function ApplicationDetail({ id }: { id: string }) {
                       disabled={requestDocuments.isPending}
                       onClick={() => {
                         closePanel();
-                        requestDocuments.reset();
                       }}
                     >
                       Cancel
                     </Button>
                   </div>
-                  {requestDocuments.isError ? (
+                  {requestDocuments.error ? (
                     <p className="text-sm text-destructive">
-                      {(requestDocuments.error as Error).message}
+                      {requestDocuments.error.message}
                     </p>
                   ) : null}
                 </div>
@@ -564,7 +572,6 @@ function ApplicationDetail({ id }: { id: string }) {
                       disabled={reject.isPending}
                       onClick={() => {
                         closePanel();
-                        reject.reset();
                       }}
                     >
                       Cancel
@@ -573,14 +580,14 @@ function ApplicationDetail({ id }: { id: string }) {
                 </div>
               )}
 
-              {verify.isError ? (
+              {verify.error ? (
                 <p className="text-sm text-destructive">
-                  {(verify.error as Error).message}
+                  {verify.error.message}
                 </p>
               ) : null}
-              {reject.isError ? (
+              {reject.error ? (
                 <p className="text-sm text-destructive">
-                  {(reject.error as Error).message}
+                  {reject.error.message}
                 </p>
               ) : null}
             </div>

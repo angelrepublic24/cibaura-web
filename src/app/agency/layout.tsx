@@ -22,11 +22,11 @@ import {
   isAgencyAccessRevokedError,
   isRevokedStatus,
   useAgencyAccessRevokedWatcher,
-} from "@/features/agency/access-revoked";
-import { AgencyApplicationReview } from "@/features/agency/application-review";
-import { useAgencySession } from "@/features/agency/hooks";
-import { usePermission } from "@/features/agency/use-permission";
-import type { AgencyPermission } from "@/features/agency/rbac";
+} from "@/modules/agency/components/access-revoked";
+import { AgencyApplicationReview } from "@/modules/agency/components/application-review";
+import { useAgencySession } from "@/modules/agency/hooks/agency.hook";
+import { usePermission } from "@/modules/agency/hooks/agency.hook";
+import type { AgencyPermission } from "@/modules/agency/types/agency.types";
 
 type NavItem = {
   href: string;

@@ -1,4 +1,4 @@
-import { BookingDetail } from "@/features/bookings/components/booking-detail";
+import { BookingDetail } from "@/modules/bookings/components/booking-detail";
 
 /**
  * /account/bookings/[id] — booking detail: state timeline + pricing

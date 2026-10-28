@@ -1,0 +1,162 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import {
+  CardElement,
+  Elements,
+  useElements,
+  useStripe,
+} from "@stripe/react-stripe-js";
+import {
+  getStripe,
+  stripeTestMode,
+} from "@/modules/payments/helpers/payments.helper";
+import { useAddPaymentMethod } from "@/modules/payments/hooks/payments.hook";
+import { Button } from "@/shared/components/ui/button";
+
+const stripePromise = getStripe();
+
+/**
+ * Add-card form backed by Stripe Elements. The PAN is entered inside Stripe's
+ * iframe and tokenized in the browser (`stripe.createPaymentMethod`) — our code
+ * only ever sees the resulting `pm_...` id, which we exchange for a saved card
+ * (brand/last4/exp) on the backend. No card number ever reaches our servers.
+ */
+function CardForm({ onDone }: { onDone: () => void }) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [cardError, setCardError] = useState<string | null>(null);
+  const [tokenizing, setTokenizing] = useState(false);
+
+  // The hook refreshes the card list; closing the form is this caller's job.
+  const save = useAddPaymentMethod();
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setCardError(null);
+    if (!stripe || !elements) return;
+    const card = elements.getElement(CardElement);
+    if (!card) return;
+
+    setTokenizing(true);
+    const { paymentMethod, error } = await stripe.createPaymentMethod({
+      type: "card",
+      card,
+    });
+    setTokenizing(false);
+
+    if (error) {
+      setCardError(error.message ?? "We couldn't read that card.");
+      return;
+    }
+    save.mutate(paymentMethod.id, { onSuccess: onDone });
+  }
+
+  const busy = tokenizing || save.isPending;
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-3 rounded-[var(--radius)] border border-border bg-surface p-4 shadow-sm"
+    >
+      <div className="rounded-[var(--radius-sm)] border border-border bg-background px-3 py-3">
+        <CardElement
+          options={{
+            style: {
+              base: {
+                fontSize: "16px",
+                color: "#14181f",
+                "::placeholder": { color: "#9a938a" },
+              },
+              invalid: { color: "#dc2626" },
+            },
+          }}
+        />
+      </div>
+
+      {cardError ? (
+        <p className="text-sm text-destructive">{cardError}</p>
+      ) : null}
+      {save.isError ? (
+        <p className="text-sm text-destructive">
+          {(save.error as Error).message}
+        </p>
+      ) : null}
+
+      <div className="flex items-center gap-2">
+        <Button type="submit" disabled={!stripe || busy}>
+          {busy ? "Saving…" : "Save card"}
+        </Button>
+        <Button type="button" variant="outline" onClick={onDone} disabled={busy}>
+          Cancel
+        </Button>
+      </div>
+
+      {stripeTestMode ? (
+        <p className="text-xs text-muted-foreground">
+          Test mode — use <span className="font-medium">4242 4242 4242 4242</span>,
+          any future expiry, any CVC.
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
+export function AddCardForm({ onDone }: { onDone: () => void }) {
+  // `getStripe()` resolves the Stripe.js instance, or `null` when the script
+  // cannot load (ad-blocker, CSP, offline) — in which case `useStripe()` would
+  // stay null forever and the form would render a dead, empty box with a
+  // permanently disabled "Save card" button and no explanation. Resolve the
+  // promise ourselves so we can show an explicit loading / could-not-load state
+  // instead of mounting <Elements> into a silent dead end.
+  const [stripeStatus, setStripeStatus] = useState<
+    "loading" | "ready" | "failed"
+  >("loading");
+
+  useEffect(() => {
+    let active = true;
+    stripePromise
+      .then((stripe) => {
+        if (active) setStripeStatus(stripe ? "ready" : "failed");
+      })
+      .catch(() => {
+        if (active) setStripeStatus("failed");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (stripeStatus === "loading") {
+    return (
+      <div className="rounded-[var(--radius)] border border-border bg-surface p-4 shadow-sm">
+        <p className="text-sm text-muted-foreground">Loading payment form…</p>
+      </div>
+    );
+  }
+
+  if (stripeStatus === "failed") {
+    return (
+      <div className="space-y-3 rounded-[var(--radius)] border border-border bg-surface p-4 shadow-sm">
+        <p className="text-sm text-destructive" role="alert">
+          The payment form could not load. Disable your ad-blocker or check your
+          connection, then reload the page to add a card.
+        </p>
+        <div className="flex items-center gap-2">
+          <Button type="button" onClick={() => window.location.reload()}>
+            Reload
+          </Button>
+          <Button type="button" variant="outline" onClick={onDone}>
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Elements stripe={stripePromise}>
+      <CardForm onDone={onDone} />
+    </Elements>
+  );
+}

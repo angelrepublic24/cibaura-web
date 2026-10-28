@@ -3,8 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import { claimCurrency } from "@/features/admin/components/order-lifecycle-cards";
-import { useAdminClaims } from "@/features/admin/hooks";
+import { claimCurrency } from "@/modules/admin/components/order-lifecycle-cards";
+import { useAdminClaims } from "@/modules/admin/hooks/admin.hook";
 import { getErrorMessage } from "@/shared/api/errors";
 import { CLAIM_STATUSES, type ClaimAdminDto } from "@/shared/types/domain";
 import { RoleGuard } from "@/shared/auth/guard";

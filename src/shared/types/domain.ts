@@ -854,7 +854,9 @@ export interface WalletAccount {
 /**
  * Ledger movement kinds (backend `LedgerKind` + the cancellation-policy
  * kinds). Rendered with labels via `ledgerKindLabel`; unknown kinds fall
- * back to the raw string so a new backend kind never blanks a row.
+ * back to the raw string so a new backend kind never blanks a row — which
+ * is why `LedgerEntry.kind` is these values OR any other string, and never
+ * a closed union the wire schema would have to reject.
  */
 export type LedgerKind =
   | "settlement"
@@ -878,7 +880,8 @@ export interface LedgerEntry {
   bookingId?: string;
   amountCents: number; // signed: credit > 0, debit < 0
   description: string;
-  kind: LedgerKind;
+  /** One of {@link LedgerKind}, or whatever new kind the backend added. */
+  kind: LedgerKind | (string & {});
   /** Set on `payout` debits — the payout the money left with. */
   payoutId?: string;
   createdAt: string;

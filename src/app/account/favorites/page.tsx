@@ -1,10 +1,9 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { Heart } from "lucide-react";
-import { FavoritesApi, favoriteKeys } from "@/features/favorites/api";
-import { AgencyPublicCard } from "@/features/agencies/components/agency-public-card";
+import { useFavoriteAgencies } from "@/modules/favorites/hooks/favorites.hook";
+import { AgencyPublicCard } from "@/modules/agencies/components/agency-public-card";
 import {
   EmptyState,
   ErrorState,
@@ -14,10 +13,7 @@ import { buttonVariants } from "@/shared/components/ui/button";
 
 /** /account/favorites — the agencies this user has hearted. */
 export default function FavoritesPage() {
-  const query = useQuery({
-    queryKey: favoriteKeys.list(),
-    queryFn: FavoritesApi.list,
-  });
+  const query = useFavoriteAgencies();
 
   const favorites = query.data ?? [];
 

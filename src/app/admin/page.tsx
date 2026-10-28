@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+
 import {
   ArrowRight,
   Building2,
@@ -11,17 +11,14 @@ import {
   UserCheck,
   Wallet,
 } from "lucide-react";
-import { AdminApi, adminKeys, type AdminOverview } from "@/features/admin/api";
+import { useAdminOverview } from "@/modules/admin/hooks/admin.hook";
+import type { AdminOverview } from "@/modules/admin/types/admin.types";
 import { RoleGuard } from "@/shared/auth/guard";
-import {
-  EmptyState,
-  ErrorState,
-} from "@/shared/components/states";
+import { EmptyState, ErrorState } from "@/shared/components/states";
 import { Badge } from "@/shared/components/ui/badge";
 import { Card, CardContent } from "@/shared/components/ui/card";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { formatMoneyCents } from "@/shared/utils/money";
-
 /**
  * /admin — platform overview. This is the console's "report" home: a
  * read-only snapshot of agencies, orders (bookings), platform revenue and the
@@ -48,10 +45,7 @@ const STATE_LABELS: {
 ];
 
 export default function AdminOverviewPage() {
-  const query = useQuery({
-    queryKey: adminKeys.overview(),
-    queryFn: AdminApi.getOverview,
-  });
+  const query = useAdminOverview();
 
   return (
     <RoleGuard allow={["platform_admin"]}>

@@ -1,9 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AdminApi, adminKeys } from "@/features/admin/api";
-import { taxRatePctFieldSchema } from "@/features/admin/platform-config-contract";
+
+import {
+  useAdminCities,
+  useAdminCountries,
+  useCreateCity,
+  usePlatformConfig,
+  useUpdateCountryTaxRate,
+} from "@/modules/admin/hooks/admin.hook";
+import {
+  taxRatePctFieldSchema,
+} from "@/modules/admin/schema/platform-config.schema";
 import { getErrorMessage } from "@/shared/api/errors";
 import {
   EmptyState,
@@ -17,7 +25,6 @@ import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
 import type { Country } from "@/shared/types/domain";
 import { formatPct } from "@/shared/utils/money";
-
 /**
  * /admin/geo — the country → city hierarchy that scopes search. Countries are
  * seeded; admins can ADD cities here (e.g. Mao, La Vega). The slug is derived
@@ -30,32 +37,25 @@ import { formatPct } from "@/shared/utils/money";
  * were quoted at, so editing here never re-prices an existing one.
  */
 export default function AdminGeoPage() {
-  const qc = useQueryClient();
-
-  const countriesQuery = useQuery({
-    queryKey: adminKeys.countries(),
-    queryFn: AdminApi.listCountries,
-  });
-  const citiesQuery = useQuery({
-    queryKey: adminKeys.cities(),
-    queryFn: AdminApi.listCities,
-  });
+  const countriesQuery = useAdminCountries();
+  const citiesQuery = useAdminCities();
   // Only to name the fallback a country with no rate of its own inherits.
-  const configQuery = useQuery({
-    queryKey: adminKeys.config(),
-    queryFn: AdminApi.getConfig,
-  });
+  const configQuery = usePlatformConfig();
 
   const [countryId, setCountryId] = useState("");
   const [name, setName] = useState("");
 
-  const createCity = useMutation({
-    mutationFn: () => AdminApi.createCity({ countryId, name: name.trim() }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: adminKeys.cities() });
-      setName("");
-    },
-  });
+  // The hook refreshes the city list; clearing the box is this page's own.
+  const addCity = useCreateCity();
+  const createCity = {
+    isPending: addCity.isPending,
+    error: addCity.error,
+    mutate: () =>
+      addCity.mutate(
+        { countryId, name: name.trim() },
+        { onSuccess: () => setName("") },
+      ),
+  };
 
   // Default the country select to the first (usually only) country once loaded.
   const countries = countriesQuery.data ?? [];
@@ -145,7 +145,7 @@ export default function AdminGeoPage() {
                   {createCity.isPending ? "Adding…" : "Add city"}
                 </Button>
               </div>
-              {createCity.isError ? (
+              {createCity.error ? (
                 <p className="text-sm text-destructive">
                   {(createCity.error as Error).message}
                 </p>
@@ -201,25 +201,29 @@ function CountryTaxRow({
   country: Country;
   platformRatePct: number | undefined;
 }) {
-  const qc = useQueryClient();
   const stored = country.taxRatePct === null ? "" : String(country.taxRatePct);
   // The box is the admin's DRAFT, seeded once and re-seeded only from a save
   // — a background refetch must not overwrite a rate being typed.
   const [rate, setRate] = useState(stored);
   const [invalid, setInvalid] = useState<string | null>(null);
 
-  const save = useMutation({
-    mutationFn: (taxRatePct: number | null) =>
-      AdminApi.updateCountryTaxRate(country.id, taxRatePct),
-    onSuccess: (saved) => {
-      // The server decides what got stored; re-seed the box from its answer.
-      qc.setQueryData<Country[]>(adminKeys.countries(), (prev) =>
-        prev?.map((c) => (c.id === saved.id ? saved : c)),
-      );
-      setRate(saved.taxRatePct === null ? "" : String(saved.taxRatePct));
-      setInvalid(null);
-    },
-  });
+  // The hook writes the server's answer into the cached list; re-seeding
+  // THIS box from it is the row's own business.
+  const saveRate = useUpdateCountryTaxRate();
+  const save = {
+    isPending: saveRate.isPending,
+    error: saveRate.error,
+    mutate: (taxRatePct: number | null) =>
+      saveRate.mutate(
+        { countryId: country.id, taxRatePct },
+        {
+          onSuccess: (saved) => {
+            setRate(saved.taxRatePct === null ? "" : String(saved.taxRatePct));
+            setInvalid(null);
+          },
+        },
+      ),
+  };
 
   function submit() {
     if (rate.trim() === "") {
@@ -278,7 +282,7 @@ function CountryTaxRow({
       </div>
       {invalid ? (
         <p className="text-xs text-destructive">{invalid}</p>
-      ) : save.isError ? (
+      ) : save.error ? (
         <p className="text-xs text-destructive" role="alert">
           {getErrorMessage(save.error, "Could not save the tax rate.")}
         </p>

@@ -7,14 +7,14 @@ import {
   KeyRound,
   ShieldCheck,
 } from "lucide-react";
-import { useMe } from "@/features/auth/hooks";
+import { useMe } from "@/modules/auth/hooks/auth.hook";
 import { useAuthStore } from "@/shared/auth/store";
-import { useAgencySession } from "@/features/agency/hooks";
+import { useAgencySession } from "@/modules/agency/hooks/agency.hook";
 import {
   AgencyAccessRevoked,
   isRevokedStatus,
-} from "@/features/agency/access-revoked";
-import { HostWizard } from "@/features/agencies/components/host-wizard";
+} from "@/modules/agency/components/access-revoked";
+import { HostWizard } from "@/modules/agencies/components/host-wizard";
 import {
   AGENCY_SIGNUP_PATH,
   HOST_SIGNUP_PATH,

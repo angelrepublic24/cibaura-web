@@ -1,7 +1,7 @@
 "use client";
 
-import { PlatformConfigForm } from "@/features/admin/components/platform-config-form";
-import { usePlatformConfig } from "@/features/admin/hooks";
+import { PlatformConfigForm } from "@/modules/admin/components/platform-config-form";
+import { usePlatformConfig } from "@/modules/admin/hooks/admin.hook";
 import { getErrorMessage } from "@/shared/api/errors";
 import { ErrorState, LoadingState } from "@/shared/components/states";
 

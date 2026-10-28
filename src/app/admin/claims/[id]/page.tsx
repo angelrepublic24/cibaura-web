@@ -4,14 +4,14 @@ import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, ExternalLink, Gavel } from "lucide-react";
-import { ClaimDecideDialog } from "@/features/admin/components/claim-decide-dialog";
-import { InspectionBlock } from "@/features/admin/components/inspection-media-grid";
+import { ClaimDecideDialog } from "@/modules/admin/components/claim-decide-dialog";
+import { InspectionBlock } from "@/modules/admin/components/inspection-media-grid";
 import {
   ClaimAmounts,
   claimCurrency,
   DepositCard,
-} from "@/features/admin/components/order-lifecycle-cards";
-import { useAdminClaim } from "@/features/admin/hooks";
+} from "@/modules/admin/components/order-lifecycle-cards";
+import { useAdminClaim } from "@/modules/admin/hooks/admin.hook";
 import { getErrorMessage } from "@/shared/api/errors";
 import type { ClaimAdminDto } from "@/shared/types/domain";
 import { RoleGuard } from "@/shared/auth/guard";

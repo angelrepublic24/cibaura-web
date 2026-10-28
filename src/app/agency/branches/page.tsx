@@ -1,16 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
 import { Clock, Truck } from "lucide-react";
-import { AgencyApi, agencyKeys } from "@/features/agency/api";
+import {
+  useAgencyBranches,
+  useUpdateBranch,
+} from "@/modules/agency/hooks/agency.hook";
 import {
   BranchForm,
   WEEK_DAYS,
   WEEK_DAY_LABELS,
-} from "@/features/agency/components/branch-form";
-import { PermissionGate } from "@/features/agency/components/permission-gate";
-import { useAgencySession } from "@/features/agency/hooks";
+} from "@/modules/agency/components/branch-form";
+import { PermissionGate } from "@/modules/agency/components/permission-gate";
+import { useAgencySession } from "@/modules/agency/hooks/agency.hook";
 import type { Branch } from "@/shared/types/domain";
 import { formatMoneyCents } from "@/shared/utils/money";
 import {
@@ -40,10 +43,7 @@ function BranchesBody() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const query = useQuery({
-    queryKey: agencyKeys.branches(),
-    queryFn: AgencyApi.branches,
-  });
+  const query = useAgencyBranches();
   // Individual hosts have exactly ONE branch — their pickup address
   // (ADR-0009; the server answers INDIVIDUAL_SINGLE_BRANCH to a second one).
   const session = useAgencySession();
@@ -150,13 +150,7 @@ function BranchRow({
   branch: Branch;
   onEdit: () => void;
 }) {
-  const qc = useQueryClient();
-
-  const toggle = useMutation({
-    mutationFn: () =>
-      AgencyApi.updateBranch(branch.id, { isActive: !branch.isActive }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: agencyKeys.branches() }),
-  });
+  const toggle = useUpdateBranch(branch.id);
 
   const hours = hoursSummary(branch.hours);
 
@@ -196,7 +190,7 @@ function BranchRow({
             variant="outline"
             size="sm"
             disabled={toggle.isPending}
-            onClick={() => toggle.mutate()}
+            onClick={() => toggle.mutate({ isActive: !branch.isActive })}
           >
             {toggle.isPending
               ? "Saving…"

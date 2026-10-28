@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { connection } from "next/server";
 import { unstable_cache } from "next/cache";
-import type { AgencyPublicProfile } from "@/features/agencies/api";
+import type { AgencyPublicProfile } from "@/modules/agencies/types/agencies.types";
 import type { Car, City, Country } from "@/shared/types/domain";
 import { API_URL } from "@/lib/config";
 import { AGENCY_SIGNUP_PATH, HOST_SIGNUP_PATH } from "@/shared/config/supply";

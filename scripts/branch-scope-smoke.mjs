@@ -28,7 +28,9 @@ function load(file, modules = {}, extra = "") {
   );
   return exports;
 }
-const scopeHelpers = load("src/features/agency/branch-scope.ts");
+const scopeHelpers = load("src/modules/agency/helpers/agency.helper.ts", {
+  "@/modules/agency/schema/agency.schema": { AGENCY_PERMISSIONS: [] },
+});
 const { fleetForScope, occupancyForScope } = scopeHelpers;
 const a = { id: "car-a", branchId: "a" };
 const b = { id: "car-b", branchId: "b" };
@@ -71,24 +73,22 @@ const raw = {
     { items: [a], page: 2, pageSize: 1, total: 2 },
   ],
 };
-const hooks = load("src/features/agency/hooks.ts", {
-  react: { useEffect: () => {} },
+const hooks = load("src/modules/agency/hooks/agency.hook.ts", {
+  react: { useCallback: (fn) => fn, useEffect: () => {} },
   "@tanstack/react-query": {
     useQuery: () => session,
+    useMutation: () => ({}),
+    useQueryClient: () => ({}),
     useInfiniteQuery: (options) => {
       queryOptions = options;
       return { data: options.select(raw), hasNextPage: false };
     },
   },
-  "./branch-scope": scopeHelpers,
-  "./api": {
-    AgencyApi: {},
-    agencyKeys: {
-      session: () => ["session"],
-      fleetPages: (filters) => ["agency", "fleet", "pages", filters],
-    },
-  },
-  "@/features/bookings/api": {},
+  "@/modules/agency/helpers/agency.helper": scopeHelpers,
+  "@/modules/agency/services/agency.service": { agencyService: {} },
+  "@/modules/bookings/hooks/bookings.hook": { bookingKeys: { detail: () => [] } },
+  "@/shared/hooks/use-open-signed-url": { useOpenSignedUrl: () => ({}) },
+  "@/shared/api/errors": { API_ERROR_CODES: {}, isApiErrorCode: () => false },
 });
 const paged = hooks.useFleetPages();
 assert.equal(paged.data.pages[0].items.length, 0);
@@ -135,9 +135,9 @@ const states = {
   LoadingState: ({ label }) => React.createElement("p", null, label),
   ErrorState: ({ title }) => React.createElement("p", null, title),
 };
-const gate = load("src/features/agency/components/permission-gate.tsx", {
-  "@/features/agency/use-permission": { usePermission: () => permission },
-  "@/features/agency/rbac": {
+const gate = load("src/modules/agency/components/permission-gate.tsx", {
+  "@/modules/agency/hooks/agency.hook": { usePermission: () => permission },
+  "@/modules/agency/helpers/agency.helper": {
     PERMISSION_LABELS: { "zones:manage": "Manage delivery zones" },
   },
   "@/shared/api/errors": { getErrorMessage: () => "Retry" },
@@ -145,18 +145,22 @@ const gate = load("src/features/agency/components/permission-gate.tsx", {
 });
 const stub = ({ children }) => React.createElement("div", null, children);
 const zones = load("src/app/agency/zones/page.tsx", {
-  "@tanstack/react-query": {
-    useQuery: () => {
+  // The page reads through module hooks now; each one standing in for a
+  // query still proves the gate mounts no read until it allows one.
+  "@/modules/agency/hooks/agency.hook": {
+    useAgencyBranches: () => {
       queries++;
       return { data: [] };
     },
+    useAgencyZones: () => {
+      queries++;
+      return { data: [] };
+    },
+    useCreateZone: () => ({}),
+    useDeleteZone: () => ({}),
   },
   "lucide-react": { Trash2: stub },
-  "@/features/agency/api": {
-    AgencyApi: {},
-    agencyKeys: { branches: () => ["branches"] },
-  },
-  "@/features/agency/components/permission-gate": gate,
+  "@/modules/agency/components/permission-gate": gate,
   "@/shared/utils/money": {},
   "@/shared/components/states": states,
   "@/shared/components/ui/button": { Button: stub },
@@ -214,20 +218,8 @@ const calendar = load(
         return [index === 1 ? "car-b" : index === 2 ? view : initial, () => {}];
       },
     },
-    "@tanstack/react-query": {
-      useQueryClient: () => ({}),
-      useMutation: () => ({}),
-      useQuery: (options) => {
-        calendarOptions = options;
-        return { data: calendarEntries };
-      },
-    },
     "lucide-react": ui,
-    "@/features/agency/api": {
-      AgencyApi: {},
-      agencyKeys: { calendar: (carId, month) => ["calendar", carId, month] },
-    },
-    "@/features/agency/hooks": {
+    "@/modules/agency/hooks/agency.hook": {
       useAllFleet: () => fleet,
       useAgencySession: () => ({
         data: {
@@ -235,13 +227,23 @@ const calendar = load(
           membership: { branchScope: restricted },
         },
       }),
+      // The month query lives in the hook now; this stand-in records the
+      // (carId, month, enabled) the page asks for, which is what the scope
+      // assertions below are about.
+      useAgencyCalendar: (carId, month, enabled) => {
+        calendarOptions = { queryKey: ["calendar", carId, month], enabled };
+        return { data: calendarEntries };
+      },
+      useCreateManualBlock: () => ({}),
+      useDeleteManualBlock: () => ({}),
+      useInvalidateAgencyCalendar: () => () => {},
     },
     "@/shared/api/errors": {
       getApiErrorStatus: () => undefined,
       getErrorMessage: (_e, fallback) => fallback,
     },
-    "@/features/agency/branch-scope": scopeHelpers,
-    "@/features/agency/components/permission-gate": gate,
+    "@/modules/agency/helpers/agency.helper": scopeHelpers,
+    "@/modules/agency/components/permission-gate": gate,
     "@/shared/utils/dates": dates,
     "@/shared/components/states": states,
     "@/shared/components/ui/badge": ui,
@@ -284,20 +286,18 @@ const fleetPage = load(
   {
     "next/link": { default: stub },
     "lucide-react": ui,
-    "@/features/agency/hooks": {
+    "@/modules/agency/hooks/agency.hook": {
       useAgencySession: () => ({ data: { agency: {} } }),
       useFleetPages: () => ({
         data: { pages: [{ items: [], total: 999 }] },
         hasNextPage: true,
       }),
-    },
-    "@/features/agency/components/car-registration-document": ui,
-    "@/features/agency/components/permission-gate": gate,
-    "@/features/agency/use-permission": {
       usePermission: () => ({ can: () => false, branchScope: restricted }),
     },
-    "@/features/cars/photos": {},
-    "@/features/cars/components/car-photo-placeholder": ui,
+    "@/modules/agency/components/car-registration-document": ui,
+    "@/modules/agency/components/permission-gate": gate,
+    "@/modules/cars/helpers/cars.helper": {},
+    "@/modules/cars/components/car-photo-placeholder": ui,
     "@/shared/utils/money": {},
     "@/shared/components/states": states,
     "@/shared/components/ui/badge": ui,

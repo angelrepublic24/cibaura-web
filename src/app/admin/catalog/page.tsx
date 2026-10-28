@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
+
 import {
-  skipToken,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
-import { AdminApi, adminKeys } from "@/features/admin/api";
+  useAdminMakes,
+  useAdminModels,
+  useCreateMake,
+  useCreateModel,
+} from "@/modules/admin/hooks/admin.hook";
 import {
   EmptyState,
   ErrorState,
@@ -17,45 +17,36 @@ import { Button } from "@/shared/components/ui/button";
 import { Card, CardContent } from "@/shared/components/ui/card";
 import { Input } from "@/shared/components/ui/input";
 import { cn } from "@/lib/utils";
-
 /**
  * /admin/catalog — the seeded make → model catalog agencies pick from (never
  * free text, so search facets stay clean). Read view with an add affordance;
  * models are dependent on the selected make.
  */
 export default function AdminCatalogPage() {
-  const qc = useQueryClient();
   const [selectedMakeId, setSelectedMakeId] = useState<string | null>(null);
   const [newMake, setNewMake] = useState("");
   const [newModel, setNewModel] = useState("");
 
-  const makesQuery = useQuery({
-    queryKey: adminKeys.makes(),
-    queryFn: AdminApi.listMakes,
-  });
+  const makesQuery = useAdminMakes();
+  const modelsQuery = useAdminModels(selectedMakeId ?? "");
 
-  const modelsQuery = useQuery({
-    queryKey: adminKeys.models(selectedMakeId ?? ""),
-    queryFn: selectedMakeId
-      ? () => AdminApi.listModels(selectedMakeId)
-      : skipToken,
-  });
+  // Both hooks refresh their list; clearing the box is this page's own.
+  const addMake = useCreateMake();
+  const addModel = useCreateModel(selectedMakeId ?? "");
 
-  const createMake = useMutation({
-    mutationFn: () => AdminApi.createMake(newMake.trim()),
-    onSuccess: () => {
-      setNewMake("");
-      qc.invalidateQueries({ queryKey: adminKeys.makes() });
-    },
-  });
+  const createMake = {
+    isPending: addMake.isPending,
+    error: addMake.error,
+    mutate: () =>
+      addMake.mutate(newMake.trim(), { onSuccess: () => setNewMake("") }),
+  };
 
-  const createModel = useMutation({
-    mutationFn: (makeId: string) => AdminApi.createModel(makeId, newModel.trim()),
-    onSuccess: () => {
-      setNewModel("");
-      qc.invalidateQueries({ queryKey: adminKeys.models(selectedMakeId ?? "") });
-    },
-  });
+  const createModel = {
+    isPending: addModel.isPending,
+    error: addModel.error,
+    mutate: () =>
+      addModel.mutate(newModel.trim(), { onSuccess: () => setNewModel("") }),
+  };
 
   return (
     <div>
@@ -89,7 +80,7 @@ export default function AdminCatalogPage() {
                 Add
               </Button>
             </form>
-            {createMake.isError ? (
+            {createMake.error ? (
               <p className="mt-2 text-sm text-red-600">
                 {createMake.error.message}
               </p>
@@ -148,7 +139,7 @@ export default function AdminCatalogPage() {
                   onSubmit={(e) => {
                     e.preventDefault();
                     if (newModel.trim().length >= 1) {
-                      createModel.mutate(selectedMakeId);
+                      createModel.mutate();
                     }
                   }}
                 >
@@ -166,7 +157,7 @@ export default function AdminCatalogPage() {
                     Add
                   </Button>
                 </form>
-                {createModel.isError ? (
+                {createModel.error ? (
                   <p className="mt-2 text-sm text-red-600">
                     {createModel.error.message}
                   </p>

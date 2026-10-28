@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { AdminApi, adminKeys } from "@/features/admin/api";
-import type { AdminBookingRow } from "@/features/admin/api";
+
+import { useAdminBookings } from "@/modules/admin/hooks/admin.hook";
+import type { AdminBookingRow } from "@/modules/admin/types/admin.types";
 import { BOOKING_STATES, type BookingState } from "@/shared/types/domain";
 import { RoleGuard } from "@/shared/auth/guard";
 import { EmptyState, ErrorState } from "@/shared/components/states";
@@ -22,7 +22,6 @@ import {
   isoMonthParts,
 } from "@/shared/utils/dates";
 import { cn } from "@/lib/utils";
-
 /**
  * /admin/orders — platform-wide bookings across every agency.
  *
@@ -110,11 +109,7 @@ export default function AdminOrdersPage() {
     pageSize: PAGE_SIZE,
   };
 
-  const listQuery = useQuery({
-    queryKey: adminKeys.bookings(query),
-    queryFn: () => AdminApi.listBookings(query),
-    placeholderData: keepPreviousData,
-  });
+  const listQuery = useAdminBookings(query);
 
   const data = listQuery.data;
   const rows = data?.items ?? [];

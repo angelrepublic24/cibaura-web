@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { LegalVersion } from "@/features/legal/components/legal-version";
+import { LegalVersion } from "@/modules/legal/components/legal-version";
 import { LEGAL } from "@/shared/config/legal";
 import { pageMetadata } from "@/shared/seo/metadata";
 import { BreadcrumbJsonLd } from "@/shared/seo/structured-data";

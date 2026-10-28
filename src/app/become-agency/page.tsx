@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+
 import {
   BadgeCheck,
   CalendarClock,
@@ -11,22 +11,18 @@ import {
   ShieldCheck,
   Wallet,
 } from "lucide-react";
-import { useMe } from "@/features/auth/hooks";
+import { useMe } from "@/modules/auth/hooks/auth.hook";
 import { useAuthStore } from "@/shared/auth/store";
-import { AgencyApi, agencyKeys } from "@/features/agency/api";
+import { useAgencySession } from "@/modules/agency/hooks/agency.hook";
 import {
   AgencyAccessRevoked,
   isRevokedStatus,
-} from "@/features/agency/access-revoked";
-import { ApplyForm } from "@/features/agencies/components/apply-form";
-import {
-  AGENCY_SIGNUP_PATH,
-  HOST_SIGNUP_PATH,
-} from "@/shared/config/supply";
+} from "@/modules/agency/components/access-revoked";
+import { ApplyForm } from "@/modules/agencies/components/apply-form";
+import { AGENCY_SIGNUP_PATH, HOST_SIGNUP_PATH } from "@/shared/config/supply";
 import { LoadingState } from "@/shared/components/states";
 import { buttonVariants } from "@/shared/components/ui/button";
 import { Card, CardContent } from "@/shared/components/ui/card";
-
 /**
  * /become-agency — the "list your cars" funnel. Leads with the value
  * proposition (why list on Cibaura), then routes by session into the KYC
@@ -143,12 +139,9 @@ export default function BecomeAgencyPage() {
   // For an existing member, the verification status decides what they see:
   // verified → dashboard; pending → the upload step; rejected/suspended →
   // the access-revoked state (rejection is terminal — no re-submit).
-  const sessionQuery = useQuery({
-    queryKey: agencyKeys.session(),
-    queryFn: () => AgencyApi.session(),
-    enabled: status === "authenticated" && isMember,
-    staleTime: 60_000,
-  });
+  const sessionQuery = useAgencySession(
+    status === "authenticated" && isMember,
+  );
   const verificationStatus = sessionQuery.data?.agency.verificationStatus;
 
   function application() {

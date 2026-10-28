@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
-import { AgenciesApi, agencyProfileKeys } from "@/features/agencies/api";
+import { useAvailableCities } from "@/modules/agencies/hooks/agencies.hook";
 import { useAuthStore } from "@/shared/auth/store";
 import { AGENCY_SIGNUP_PATH, HOST_SIGNUP_PATH } from "@/shared/config/supply";
 
@@ -25,11 +24,7 @@ export function SiteFooterNav() {
   const isAgency = hasRole("agency_owner", "agency_staff");
   const isAuthenticated = status === "authenticated";
 
-  const citiesQuery = useQuery({
-    queryKey: agencyProfileKeys.availableCities(),
-    queryFn: AgenciesApi.availableCities,
-    staleTime: 5 * 60_000,
-  });
+  const citiesQuery = useAvailableCities(5 * 60_000);
   const cities = (citiesQuery.data ?? []).slice(0, MAX_CITY_LINKS);
 
   return (

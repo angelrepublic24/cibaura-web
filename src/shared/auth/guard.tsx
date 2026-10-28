@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useMe } from "@/features/auth/hooks";
+import { useMe } from "@/modules/auth/hooks/auth.hook";
 import { useAuthStore } from "@/shared/auth/store";
 import { getErrorMessage } from "@/shared/api/errors";
 import type { Role } from "@/shared/types/domain";

@@ -54,7 +54,7 @@ function load(file, extraExport = "") {
   return exports;
 }
 
-const admin = load("src/features/admin/components/order-lifecycle-cards.tsx");
+const admin = load("src/modules/admin/components/order-lifecycle-cards.tsx");
 const render = (component, props) =>
   renderToStaticMarkup(React.createElement(component, props));
 for (const refs of [undefined, []]) {
@@ -68,7 +68,7 @@ assert.equal(render(admin.DepositCard, { currency: "USD" }), "");
 assert.equal(render(admin.ClaimCard, { currency: "USD" }), "");
 assert.equal(render(admin.SettlementCard, { currency: "USD" }), "");
 const { DraftEditor } = load(
-  "src/features/agency/components/inspection-panel.tsx",
+  "src/modules/agency/components/inspection-panel.tsx",
   "\nexport { DraftEditor };",
 );
 for (const deposit of [

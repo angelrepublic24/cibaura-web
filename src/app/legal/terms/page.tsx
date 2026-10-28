@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { LegalVersion } from "@/features/legal/components/legal-version";
-import { CancellationPolicySummary } from "@/features/legal/components/cancellation-policy";
+import { LegalVersion } from "@/modules/legal/components/legal-version";
+import { CancellationPolicySummary } from "@/modules/legal/components/cancellation-policy";
 import { LEGAL } from "@/shared/config/legal";
 import { pageMetadata } from "@/shared/seo/metadata";
 import { BreadcrumbJsonLd } from "@/shared/seo/structured-data";
