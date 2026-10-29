@@ -57,8 +57,9 @@ function formatMessageTime(iso: string): string {
  *    the safe direction — since the booking wire type doesn't expose the
  *    customer id to positively identify them.)
  *
- * The server derives `senderRole` from the booking's customer id, so individual
- * agency staff ids are never distinguished (all agency-side reads as "agency").
+ * Every message carries its own sender line — see `senderLabel` below for how
+ * far the wire lets that go, and why an agency-side message is never
+ * attributed to a person the thread cannot name.
  *
  * Near-realtime is polling (refetch every {@link POLL_MS} while the tab is
  * focused). Auto-scroll sticks to the newest message only when the viewer is
@@ -71,6 +72,14 @@ export function ChatPanel({ booking }: { booking: Booking }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   // Whether the viewer is pinned to the bottom (so new messages should scroll).
   const stickRef = useRef(true);
+  /*
+   * Ids of the messages THIS tab sent. The wire names no sender (see
+   * `senderLabel`), so watching one leave the composer is the only way the
+   * panel can honestly say "You" about an agency-side message. Deliberately
+   * a ref and deliberately not persisted: it is knowledge about this
+   * session, and claiming it across sessions would be guessing again.
+   */
+  const sentHere = useRef(new Set<string>());
 
   const viewerIsAgency =
     !!user?.agencyId && user.agencyId === booking.agency.id;
@@ -106,23 +115,53 @@ export function ChatPanel({ booking }: { booking: Booking }) {
     const text = body.trim();
     if (!text || send.isPending) return;
     send.mutate(text, {
-      onSuccess: () => {
+      onSuccess: (message) => {
+        sentHere.current.add(message.id);
         setBody("");
         stickRef.current = true; // pin so my own message scrolls into view
       },
     });
   }
 
+  /** OUR SIDE of the thread: what gets right-aligned — not who wrote it. */
   const isMine = (m: Message) =>
     !viewerIsObserver &&
     m.senderRole === (viewerIsAgency ? "agency" : "customer");
 
-  const senderLabel = (m: Message) =>
-    isMine(m)
-      ? "You"
-      : m.senderRole === "customer"
-        ? "Renter"
-        : booking.agency.name;
+  /**
+   * WHO SENT THIS MESSAGE, as far as the wire can say.
+   *
+   * The server derives `senderRole` from the booking's customer id and
+   * deliberately withholds the sender's user id
+   * (`common/serializers/messaging.serializer.ts`): the UUID would leak the
+   * counterparty's — and individual staff members' — identity. So one side
+   * of this thread identifies a PERSON and the other does not:
+   *
+   *  - the CUSTOMER side is one human by definition, so `senderRole` alone
+   *    identifies them. The renter reading their own thread gets "You"; the
+   *    host gets the renter's name, which `booking.customer` carries from
+   *    the first request (better than the generic "Renter" this printed
+   *    before, and nothing the host could not already read on the identity
+   *    card above).
+   *  - the AGENCY side is a TEAM. `senderRole === "agency"` says the
+   *    agency replied, never which member — so it is labelled "Your team"
+   *    for a host and the agency's name for the renter. It must NOT say
+   *    "You" to a host: that is what this panel used to do to every
+   *    colleague's message, which is the mis-attribution QA #14 reported.
+   *    The one exception is honest because it does not come from the wire —
+   *    a message this tab watched being sent (`sentHere`).
+   *
+   * Naming the individual teammate needs a field the wire does not have;
+   * the footnote below says so rather than letting a label imply it.
+   */
+  const senderLabel = (m: Message) => {
+    // Positively ours: we saw it leave this composer.
+    if (sentHere.current.has(m.id)) return "You";
+    if (m.senderRole === "customer") {
+      return isMine(m) ? "You" : (booking.customer?.name ?? "Renter");
+    }
+    return viewerIsAgency ? "Your team" : booking.agency.name;
+  };
 
   const title = viewerIsObserver
     ? "Booking chat (admin view)"
@@ -185,6 +224,18 @@ export function ChatPanel({ booking }: { booking: Booking }) {
             })
           )}
         </div>
+
+        {/* Said once, where the labels are: a host comparing two "Your team"
+            lines must not conclude the system knows which of them wrote
+            which. It does not — and the composer is right below. */}
+        {viewerIsAgency || viewerIsObserver ? (
+          <p className="text-xs text-muted-foreground">
+            The thread records which side replied, not which teammate
+            {viewerIsAgency
+              ? " — “You” marks only the messages you sent from this tab."
+              : "."}
+          </p>
+        ) : null}
 
         {viewerIsObserver ? (
           <p className="rounded-[var(--radius-sm)] border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">

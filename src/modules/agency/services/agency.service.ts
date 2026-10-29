@@ -132,6 +132,9 @@ const claimListWireSchema = claimWireSchema.array();
  *  - PATCH  /agency/requests/:bookingId/reject { reason 2..160 } -> Booking
  *  - PATCH  /agency/requests/:bookingId/handover-code { code } -> Booking
  *       (`bookings:handle`; 409 HANDOVER_CODE_MISMATCH / _LOCKED / _NOT_APPLICABLE)
+ *  - POST   /agency/requests/:bookingId/remind-renter-documents -> Booking
+ *       (no body; `bookings:handle`; 409 RENTER_DOCUMENTS_IN_ORDER /
+ *        _REMINDER_TOO_SOON / _BOOKING_CLOSED)
  *  - PATCH  /agency/requests/:bookingId/pickup|return|settle -> Booking
  *  - PATCH  /agency/requests/:bookingId/cancel { reason } -> Booking
  *  - POST   /bookings/:bookingId/cancel-active { reason } -> Booking
@@ -358,6 +361,27 @@ class AgencyService {
   }
 
   // ── Lifecycle after accept (pickup → return → settle) ─────────────────────
+
+  /**
+   * Tell the renter their documents are missing. No body: the server decides
+   * what is pending and what the renter is told, so there is nothing for the
+   * host to compose — and nothing they could overstate.
+   *
+   * POST, not PATCH: the booking does not change state. The answer is the
+   * booking with `renterDocuments` REFRESHED, which is what closes the
+   * cooldown on screen.
+   *
+   * Refusals (409): RENTER_DOCUMENTS_IN_ORDER (nothing is missing),
+   * RENTER_DOCUMENTS_REMINDER_TOO_SOON (inside the cooldown — two staff
+   * clicking at once means one of them gets this), and
+   * RENTER_DOCUMENTS_BOOKING_CLOSED (an upload cannot revive the booking).
+   */
+  async remindRenterDocuments(bookingId: string): Promise<Booking> {
+    const res = await Api.post<unknown>(
+      `/agency/requests/${encodeURIComponent(bookingId)}/remind-renter-documents`,
+    );
+    return bookingWireSchema.parse(res.data);
+  }
 
   /**
    * The renter reads out their six digits and the host types them here.

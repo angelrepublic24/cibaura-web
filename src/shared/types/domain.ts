@@ -562,6 +562,28 @@ export interface Quote {
 }
 
 /**
+ * WHETHER THE RENTER STILL OWES DOCUMENTS — the field the agency dashboard
+ * keys the "remind the renter" button off (`POST
+ * /agency/requests/:bookingId/remind-renter-documents`).
+ *
+ * `reasons` carries codes, never identity data: `identity_not_verified`,
+ * `details_incomplete`, `license_expired`, `license_expires_before_return`.
+ * It is EMPTY outside the renter-identity window (ADR-0011) even when
+ * `pending` is true — before acceptance the host learns THAT something is
+ * missing, not which licence date says so. Treat an unknown code as "one
+ * more thing missing" rather than dropping the row.
+ */
+export interface RenterDocumentsDto {
+  /** True ⇒ offer the reminder. False ⇒ the API would refuse it anyway. */
+  pending: boolean;
+  reasons: string[];
+  /** ISO instant of the last reminder for THIS booking; null = never. */
+  lastRemindedAt: string | null;
+  /** ISO instant the next reminder is allowed; null = allowed now. */
+  nextReminderAt: string | null;
+}
+
+/**
  * Canonical `Booking` from the serializer (docs/DOMAIN.md). Everything is
  * nested: the car is a lightweight embed (make/model as strings), the
  * period is `{ start, end }`, and lifecycle instants live under
@@ -600,6 +622,13 @@ export interface Booking {
   cancellationReason: string | null;
   /** Renter identity — present ONLY for the agency/admin viewer. */
   customer?: BookingCustomerDto;
+  /**
+   * Whether the renter still owes documents on THIS booking. Agency/admin
+   * viewers only, and only where the route resolved it — an ABSENT key means
+   * "this response did not answer the question", which is NOT `pending:
+   * false`. See {@link RenterDocumentsDto}.
+   */
+  renterDocuments?: RenterDocumentsDto;
   /** Frozen booking deposit from the backend, cents; never use current car/config values. */
   depositCents: number;
   /** `depositCents > 0`; the hold is returned and is not part of the total. */

@@ -64,6 +64,12 @@ export const API_ERROR_CODES = {
   PAYOUT_RAIL_DISABLED: "PAYOUT_RAIL_DISABLED",
   IDENTITY_NOT_AVAILABLE: "IDENTITY_NOT_AVAILABLE",
   SETTLEMENT_ALREADY_FINALIZED: "SETTLEMENT_ALREADY_FINALIZED",
+  /** The renter has nothing left to upload — the nudge would be a lie. */
+  RENTER_DOCUMENTS_IN_ORDER: "RENTER_DOCUMENTS_IN_ORDER",
+  /** One reminder per booking per cooldown; the message carries the instant. */
+  RENTER_DOCUMENTS_REMINDER_TOO_SOON: "RENTER_DOCUMENTS_REMINDER_TOO_SOON",
+  /** Nothing the renter uploads can revive a closed booking. */
+  RENTER_DOCUMENTS_BOOKING_CLOSED: "RENTER_DOCUMENTS_BOOKING_CLOSED",
 } as const;
 
 export type ApiErrorCode =
