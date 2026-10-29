@@ -26,6 +26,9 @@ import {
 } from "@/modules/agency/components/handover-code-entry";
 import { InspectionPanel } from "@/modules/agency/components/inspection-panel";
 import {
+  RenterDocumentsNotice,
+} from "@/modules/agency/components/renter-documents-notice";
+import {
   RenterIdentityCard,
 } from "@/modules/agency/components/renter-identity-card";
 import { BookingStateBadge } from "@/shared/components/booking-state-badge";
@@ -62,12 +65,12 @@ const LIFECYCLE_NOTES: Partial<Record<BookingState, string>> = {
  * the dashboard chrome instead of being routed through the customer account
  * shell. Reuses the shared summary cards + per-booking chat (the backend
  * grants `GET /bookings/:id` and the thread to the managing agency) and
- * mounts the host operations: accept / reject / cancel, the check-in and
- * check-out inspections that move the booking (ADR-0011), the security
- * deposit and damage-claim cards (ADR-0013), the settlement card (ADR-0012),
- * and what only the agency viewer gets — the renter's identity and the
- * frozen rental agreement. No customer-only surface here (no payment, no
- * review).
+ * mounts the host operations: accept / reject / cancel, the renter-documents
+ * nudge, the check-in and check-out inspections that move the booking
+ * (ADR-0011), the security deposit and damage-claim cards (ADR-0013), the
+ * settlement card (ADR-0012), and what only the agency viewer gets — the
+ * renter's identity and the frozen rental agreement. No customer-only
+ * surface here (no payment, no review).
  */
 export function AgencyBookingDetail({ bookingId }: { bookingId: string }) {
   const query = useAgencyBookingDetail(bookingId);
@@ -140,6 +143,11 @@ export function AgencyBookingDetail({ bookingId }: { bookingId: string }) {
               ) : null}
             </CardContent>
           </Card>
+
+          {/* Above the identity card on purpose: what the renter still owes
+              is what decides whether this booking can move at all, and the
+              host reads it before the papers they do have. */}
+          <RenterDocumentsNotice booking={booking} />
 
           <RenterIdentityCard booking={booking} />
 

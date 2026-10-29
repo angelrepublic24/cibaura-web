@@ -519,6 +519,36 @@ export function useRejectRequest(bookingId: string) {
   });
 }
 
+/**
+ * Nudge the renter about their missing documents.
+ *
+ * The response carries a refreshed `renterDocuments` (the cooldown the
+ * button reads), but it is a plain `Booking` while the cache holds a
+ * `BookingDetail` — so the booking is refetched rather than patched from a
+ * narrower shape. The refresh also runs on a REFUSAL: a 409 means our copy
+ * of `renterDocuments` is the stale one (somebody else just reminded, or the
+ * renter uploaded in the meantime), which is exactly when the button must
+ * stop offering.
+ *
+ * The invalidation is RETURNED, not fired and forgotten: v5 keeps the
+ * mutation pending until a promise returned from `onSettled` settles, so the
+ * button stays disabled until the new cooldown has actually landed. Dropping
+ * the promise re-enables it for one round trip still showing the pre-click
+ * `nextReminderAt` — and a second click in that window answers 409, which
+ * would report a failure for a reminder the renter did receive.
+ */
+export function useRemindRenterDocuments(bookingId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => agencyService.remindRenterDocuments(bookingId),
+    onSettled: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: agencyKeys.all }),
+        qc.invalidateQueries({ queryKey: bookingKeys.detail(bookingId) }),
+      ]),
+  });
+}
+
 export function useConfirmHandover(bookingId: string) {
   const qc = useQueryClient();
   return useMutation({

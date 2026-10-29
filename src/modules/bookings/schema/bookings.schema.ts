@@ -224,6 +224,18 @@ export const bookingHandoverWireSchema = z.object({
   confirmedAt: z.string().nullable(),
 });
 
+/**
+ * Agency/admin viewers only. `reasons` stays `z.string()` on purpose: a code
+ * the backend adds later must read as "something else is missing", not blank
+ * the whole booking at parse time.
+ */
+export const renterDocumentsWireSchema = z.object({
+  pending: z.boolean(),
+  reasons: z.array(z.string()),
+  lastRemindedAt: z.string().nullable(),
+  nextReminderAt: z.string().nullable(),
+});
+
 export const bookingWireSchema = z.object({
   id: z.string(),
   car: z.object({
@@ -251,6 +263,8 @@ export const bookingWireSchema = z.object({
   cancellationReason: z.string().nullable(),
   /** Renter identity — present ONLY for the agency/admin viewer. */
   customer: bookingCustomerWireSchema.optional(),
+  /** Agency/admin viewers only, and only where the route resolved it. */
+  renterDocuments: renterDocumentsWireSchema.optional(),
   /** Frozen booking deposit from the backend, cents. */
   depositCents: z.number(),
   /** `depositCents > 0`; the hold is returned and is not part of the total. */
