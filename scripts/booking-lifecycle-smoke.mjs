@@ -373,9 +373,17 @@ for (const viewer of ["renter", "host"]) {
     assert(result.includes(money.formatMoneyCents(taxRatePct ? 3690 : 0, "USD")));
     assert(result.includes(money.formatMoneyCents(99999, "USD")));
     assert(result.includes(money.formatMoneyCents(35000, "USD")));
-    // BUG-010: renta y delivery son líneas SEPARADAS, no "(included in subtotal)".
-    assert.match(result, /<dt>Rental<\/dt>/);
+    // BUG-010: renta y delivery son líneas SEPARADAS, no "(included in
+    // subtotal)". BUG-002: la línea de renta LEE como el producto que es, y
+    // no queda ninguna línea de "subtotal" que incluya el delivery dentro.
+    const rateCents = viewer === "renter" ? 11000 : 10000;
+    assert(
+      result.includes(
+        `<dt>${money.formatMoneyCents(rateCents, "USD")}/day × 2 days</dt>`,
+      ),
+    );
     assert.match(result, /<dt>Delivery<\/dt>/);
+    assert(!/subtotal/i.test(result), "ninguna línea ambigua de subtotal");
     // La renta es subtotal − delivery (resta exacta de enteros del servidor).
     const rentalCents = viewer === "renter" ? 22550 - 550 : 20500 - 500;
     const deliveryCents = viewer === "renter" ? 550 : 500;
@@ -427,17 +435,158 @@ const exact = {
 };
 assert.match(
   render(PriceBreakdown, { pricing: exact, viewer: "renter" }),
-  /\$110\.00 × 2 days/,
+  /\$110\.00\/day × 2 days/,
 );
 checks++;
 // A booking priced before the markup moved into the daily rate: a cent off,
 // so the row must not pretend to be a multiplication.
 const legacy = { ...exact, renterSubtotalCents: 21999 };
 const legacyView = render(PriceBreakdown, { pricing: legacy, viewer: "renter" });
-assert.match(legacyView, /Rental subtotal/);
+assert.match(legacyView, /<dt>Rental · 2 days<\/dt>/);
+// The rate still has to be readable — stated on its own line, where it claims
+// no multiplication.
+assert.match(legacyView, /<dt>Daily rate<\/dt>/);
 assert(legacyView.includes(money.formatMoneyCents(21999, "USD")));
 assert(!legacyView.includes(money.formatMoneyCents(22000, "USD")));
 checks++;
+
+/*
+ * BUG-002: EVERY LINE A READER CAN SEE ADDS UP TO THE TOTAL.
+ *
+ * Its own fixture on purpose. The snapshot above is deliberately incoherent
+ * (`totalCents: 99999`) to prove the component prints the server's figures
+ * instead of recomputing them, so it is the one fixture that cannot also
+ * prove they reconcile. This one is built from the contract itself
+ * (`subtotal = rate × days + delivery`, `commission = renterSubtotal −
+ * hostSubtotal`, `total = renterSubtotal + tax`) and then checks the
+ * RENDERED numbers, not the inputs.
+ */
+function coherentPricing({ days, delivery, taxRatePct, drift = 0 }) {
+  const hostRate = 10000;
+  const renterRate = 11000; // the platform's cut lives inside the rate
+  const hostDelivery = delivery;
+  const renterDelivery = delivery === 0 ? 0 : delivery + 50;
+  const hostSubtotalCents = hostRate * days + hostDelivery;
+  // `drift` models a booking priced before the markup moved into the rate.
+  const renterSubtotalCents = renterRate * days + renterDelivery + drift;
+  const taxCents = Math.round((renterSubtotalCents * taxRatePct) / 100);
+  return {
+    currency: "USD",
+    days,
+    hostDailyRateCents: hostRate,
+    renterDailyRateCents: renterRate,
+    hostDeliveryFeeCents: hostDelivery,
+    renterDeliveryFeeCents: renterDelivery,
+    hostSubtotalCents,
+    renterSubtotalCents,
+    commissionPct: 10,
+    commissionCents: renterSubtotalCents - hostSubtotalCents,
+    taxRatePct,
+    taxCents,
+    totalCents: renterSubtotalCents + taxCents,
+  };
+}
+
+/** Every `<dt>/<dd>` pair as `{ label, cents }`, read back off the markup. */
+function moneyRows(html) {
+  return [...html.matchAll(/<dt>(.*?)<\/dt><dd>(.*?)<\/dd>/g)].map(
+    ([, label, value]) => ({
+      label,
+      cents: Math.round(Number(value.replace(/[^0-9.-]/g, "")) * 100),
+    }),
+  );
+}
+
+for (const days of [1, 3]) {
+  for (const delivery of [0, 500]) {
+    for (const taxRatePct of [0, 18]) {
+      for (const viewer of ["renter", "host"]) {
+        const snapshot = coherentPricing({ days, delivery, taxRatePct });
+        const html = render(PriceBreakdown, {
+          pricing: snapshot,
+          viewer,
+          deposit: heldDeposit,
+        });
+        const rows = moneyRows(html);
+        const total = rows.find((row) => row.label === "Total");
+        assert(total, "there is always a Total row");
+        /*
+         * The "Daily rate" row is a RATE, not a line item: it only appears
+         * when the label above could not state the product, and it is
+         * excluded here for the same reason it is muted on screen. The
+         * deposit is a hold the copy says is NOT in the total.
+         */
+        const summable = rows.filter(
+          (row) =>
+            row.label !== "Total" &&
+            row.label !== "Daily rate" &&
+            !/deposit/i.test(row.label),
+        );
+        assert.equal(
+          summable.reduce((sum, row) => sum + row.cents, 0),
+          total.cents,
+          `${viewer}: ${days}d delivery=${delivery} tax=${taxRatePct} must reconcile`,
+        );
+        // The rental row is the car alone, and it reads as the product it is.
+        const subtotalCents =
+          viewer === "renter"
+            ? snapshot.renterSubtotalCents
+            : snapshot.hostSubtotalCents;
+        const deliveryCents =
+          viewer === "renter"
+            ? snapshot.renterDeliveryFeeCents
+            : snapshot.hostDeliveryFeeCents;
+        const rateCents =
+          viewer === "renter"
+            ? snapshot.renterDailyRateCents
+            : snapshot.hostDailyRateCents;
+        const dayWord = days === 1 ? "1 day" : `${days} days`;
+        assert(
+          html.includes(
+            `<dt>${money.formatMoneyCents(rateCents, "USD")}/day × ${dayWord}</dt>` +
+              `<dd>${money.formatMoneyCents(subtotalCents - deliveryCents, "USD")}</dd>`,
+          ),
+          `${viewer}: the rental row is the product, delivery taken out`,
+        );
+        // A fee of zero is no line at all, and never an ambiguous subtotal.
+        assert.equal(/<dt>Delivery<\/dt>/.test(html), delivery > 0);
+        assert(!/subtotal/i.test(html));
+        checks++;
+      }
+    }
+  }
+}
+
+// The same reconciliation on a legacy snapshot, where the label degrades: the
+// amounts still add up, because none of them was ever derived here.
+for (const viewer of ["renter", "host"]) {
+  const drifted = coherentPricing({
+    days: 2,
+    delivery: 500,
+    taxRatePct: 18,
+    drift: -1,
+  });
+  const html = render(PriceBreakdown, { pricing: drifted, viewer });
+  const rows = moneyRows(html);
+  const total = rows.find((row) => row.label === "Total");
+  const summable = rows.filter(
+    (row) => row.label !== "Total" && row.label !== "Daily rate",
+  );
+  assert.equal(
+    summable.reduce((sum, row) => sum + row.cents, 0),
+    total.cents,
+    `${viewer}: a drifted snapshot still reconciles`,
+  );
+  // Only the RENTER's subtotal drifts (the host's is exact by contract), so
+  // only the renter's label degrades — and then the rate gets its own line.
+  if (viewer === "renter") {
+    assert.match(html, /<dt>Rental · 2 days<\/dt>/);
+    assert.match(html, /<dt>Daily rate<\/dt>/);
+  } else {
+    assert(html.includes("/day × 2 days"));
+  }
+  checks++;
+}
 // "No deposit" is a host's decision, stated as one — never a blank amount.
 assert.match(
   render(PriceBreakdown, {

@@ -19,7 +19,11 @@ export interface BreakdownDeposit {
   estimate?: boolean;
 }
 
-/** Display API amounts verbatim. Delivery is already part of the subtotal. */
+/**
+ * Display API amounts verbatim. Delivery is already part of the subtotal, so
+ * the CAR's own cost is the subtotal with the fee taken back out — see
+ * `rentalCents` below for why that subtraction is the only arithmetic here.
+ */
 export function PriceBreakdown({
   pricing: p,
   viewer,
@@ -39,50 +43,57 @@ export function PriceBreakdown({
   const rateCents = renter ? p.renterDailyRateCents : p.hostDailyRateCents;
   const subtotalCents = renter ? p.renterSubtotalCents : p.hostSubtotalCents;
 
-  // The amount is ALWAYS the server's subtotal. The multiplication below is
-  // never rendered and never replaces it — it only decides whether the row
-  // may be LABELLED as a product: a delivery fee sits inside the subtotal,
-  // and a booking taken before the markup moved into the daily rate can be a
-  // cent off it, and in both cases "rate × days" would be a false statement.
-  const exactProduct = deliveryCents === 0 && rateCents * p.days === subtotalCents;
+  /*
+   * WHAT THE CAR ITSELF COSTS (BUG-002).
+   *
+   * The delivery fee sits INSIDE the server's subtotal, so a row labelled for
+   * the rental has to take it back out. This subtraction is the only
+   * arithmetic in the component and it is exact by contract — two integers
+   * the server sent, where `subtotal = rate × days + deliveryFee` — so it
+   * cannot drift from the figure that was charged the way `rate × days`
+   * could.
+   *
+   * What it buys is a breakdown that ADDS UP on screen: rental + delivery is
+   * the subtotal, and the subtotal + tax is the total. The row this replaced
+   * carried the subtotal WITH the delivery inside it, so a reader who added
+   * the lines up got the fee twice — and a reader who did not was left
+   * reading one opaque figure for two different things.
+   */
+  const rentalCents = subtotalCents - deliveryCents;
+
+  /*
+   * Whether the rental row may be LABELLED as a product. The amount is always
+   * the server's; this only decides the words next to it, because a booking
+   * taken before the markup moved into the daily rate can sit a cent off the
+   * product, and "rate × days" would then be a false statement printed beside
+   * a true amount. Checked against the RENTAL, not the subtotal: a delivery
+   * fee no longer disqualifies the label, it is just its own line.
+   */
+  const exactProduct = rateCents * p.days === rentalCents;
 
   return (
     <dl className="space-y-1 text-sm">
-      {/* Con delivery, la renta y el envío van en líneas SEPARADAS (BUG-010):
-          el tester veía "Rental and delivery subtotal" como un único total sin
-          desglose. El monto de la renta es subtotal − delivery, una resta de
-          dos enteros DEL SERVIDOR (exacta); nunca `rate × days`, que puede caer
-          un centavo por el redondeo — el mismo invariante que protege el resto
-          del componente. */}
-      {deliveryCents > 0 ? (
-        <>
-          <div className="flex justify-between gap-4">
-            <dt>Rental</dt>
-            <dd>{money(subtotalCents - deliveryCents)}</dd>
-          </div>
-          <div className="text-xs text-muted-foreground">
-            <dt>Daily rate · {days}</dt>
-            <dd>{money(rateCents)}/day</dd>
-          </div>
-          <div className="flex justify-between gap-4">
-            <dt>Delivery</dt>
-            <dd>{money(deliveryCents)}</dd>
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="flex justify-between gap-4">
-            <dt>{exactProduct ? `${money(rateCents)} × ${days}` : "Rental subtotal"}</dt>
-            <dd>{money(subtotalCents)}</dd>
-          </div>
-          {exactProduct ? null : (
-            <div className="text-xs text-muted-foreground">
-              <dt>Daily rate · {days}</dt>
-              <dd>{money(rateCents)}/day</dd>
-            </div>
-          )}
-        </>
+      <div className="flex justify-between gap-4">
+        <dt>
+          {exactProduct ? `${money(rateCents)}/day × ${days}` : `Rental · ${days}`}
+        </dt>
+        <dd>{money(rentalCents)}</dd>
+      </div>
+      {/* Only when the label above could not say it: the renter still needs
+          the per-day figure, and this states it without claiming it
+          multiplies out to the amount. */}
+      {exactProduct ? null : (
+        <div className="flex justify-between gap-4 text-xs text-muted-foreground">
+          <dt>Daily rate</dt>
+          <dd>{money(rateCents)}/day</dd>
+        </div>
       )}
+      {deliveryCents > 0 ? (
+        <div className="flex justify-between gap-4">
+          <dt>Delivery</dt>
+          <dd>{money(deliveryCents)}</dd>
+        </div>
+      ) : null}
       {renter ? null : (
         <div className="flex justify-between gap-4 text-muted-foreground">
           <dt>Platform service fee ({formatPct(p.commissionPct)})</dt>
