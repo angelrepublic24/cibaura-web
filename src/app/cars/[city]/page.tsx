@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
-import { parseCarFilters } from "@/modules/cars/helpers/cars.helper";
+import {
+  carSearchRangeProblem,
+  parseCarFilters,
+} from "@/modules/cars/helpers/cars.helper";
 import { CarSearchResults } from "@/modules/cars/components/car-search-results";
 import { pageMetadata } from "@/shared/seo/metadata";
 import { BreadcrumbJsonLd } from "@/shared/seo/structured-data";
@@ -63,21 +66,35 @@ export default async function CarsByCityPage({ params, searchParams }: Props) {
   const filters = parseCarFilters(await searchParams);
   const location = await getPublicCity(city, filters.country, filters.region);
   const client = publicQueryClient();
-  const hasDates = !!filters.from && !!filters.to && filters.to > filters.from;
+  /*
+   * A RANGE THAT CANNOT BE SEARCHED IS NOT FETCHED (BUG-010) — on this side
+   * either. The client refuses it and renders the reason, so seeding the
+   * cache would be a request whose answer nobody reads, sent on exactly the
+   * URLs that arrive from stale links and crawlers. `from`/`to` survive the
+   * parser (see `carSearchRangeProblem`) precisely so this decision can be
+   * made here instead of the dates vanishing silently.
+   */
+  const rangeProblem = carSearchRangeProblem(filters);
+  const searchable = !rangeProblem && !!filters.from && !!filters.to;
+  // Whether the URL ASKED about dates at all — which is what decides if the
+  // undated browse sections belong on the page, bad range or not.
+  const datesRequested = !!filters.from || !!filters.to;
   const [, directory] = await Promise.all([
     Promise.all([
       prefetchCities(client),
-      hasDates
-        ? client.fetchQuery({
-            queryKey: carKeys.search(city, filters),
-            queryFn: () => getCarSearch(city, filters),
-          })
-        : client.fetchQuery({
-            queryKey: carKeys.catalog(city, filters),
-            queryFn: () => getCarCatalog(city, filters),
-          }),
+      rangeProblem
+        ? Promise.resolve(null)
+        : searchable
+          ? client.fetchQuery({
+              queryKey: carKeys.search(city, filters),
+              queryFn: () => getCarSearch(city, filters),
+            })
+          : client.fetchQuery({
+              queryKey: carKeys.catalog(city, filters),
+              queryFn: () => getCarCatalog(city, filters),
+            }),
     ]),
-    hasDates || filters.country
+    datesRequested || filters.country
       ? Promise.resolve(null)
       : getDirectory({ city: city === "all" ? undefined : city }),
   ]);
@@ -100,7 +117,7 @@ export default async function CarsByCityPage({ params, searchParams }: Props) {
           filters={filters}
         />
       </HydrationBoundary>
-      {!hasDates && (
+      {!datesRequested && (
         <section className="mt-10 space-y-4">
           <h2 className="font-display text-2xl">
             Rent a car in {location.name}

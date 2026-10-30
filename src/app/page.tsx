@@ -21,9 +21,17 @@ export default function HomePage() {
           thing on the right, which left that half reading as empty space; it
           is now a secondary detail layered over the photo.
 
-          The photo is a CSS background with the gradient as its fallback
-          layer, so the section still looks finished while no real photograph
-          exists. Drop a file at /hero/car.jpg and it appears — no code change.
+          The right half is a GRADIENT, not a photograph, because no hero
+          photograph exists in `public/` yet. It used to be layered as
+          `url('/hero/car.jpg'), linear-gradient(…)` so that dropping the file
+          in would light it up with no code change — but a CSS background
+          layer is requested whether or not it resolves, so every single home
+          page load fetched a missing file and logged a 404 (BUG-004). The
+          affordance was not worth a permanent error in every visitor's
+          console and in our own monitoring.
+
+          To use a real photo: add it under `public/hero/`, then put the image
+          layer back in front of the gradient on the div below.
 
           Top padding came down from pt-20/md:pt-28 so the search sits higher
           in the fold and the page invites scrolling instead of filling the
@@ -49,7 +57,7 @@ export default function HomePage() {
           aria-hidden
           className="pointer-events-none absolute inset-y-0 right-0 hidden w-[46%] lg:block"
         >
-          <div className="absolute inset-0 bg-[image:url('/hero/car.jpg'),linear-gradient(130deg,var(--muted)_0%,var(--accent-soft)_60%,var(--surface)_100%)] bg-cover bg-center" />
+          <div className="absolute inset-0 bg-[linear-gradient(130deg,var(--muted)_0%,var(--accent-soft)_60%,var(--surface)_100%)] bg-cover bg-center" />
           {/* Fades the image into the page on its left and bottom edges, so
               there is no hard seam where the photo stops. */}
           <div className="absolute inset-0 bg-gradient-to-r from-background via-background/55 to-transparent" />

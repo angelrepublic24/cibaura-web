@@ -173,10 +173,11 @@ export function usePermission(): UsePermission {
 // ── Fleet ───────────────────────────────────────────────────────────────────
 
 /** One page of the fleet — the dashboard reads `total` from it. */
-export function useFleet(filters: FleetFilters = {}) {
+export function useFleet(filters: FleetFilters = {}, enabled = true) {
   return useQuery({
     queryKey: agencyKeys.fleet(filters),
     queryFn: () => agencyService.fleet(filters),
+    enabled,
   });
 }
 
@@ -478,10 +479,11 @@ export function useDeleteManualBlock(
 
 // ── Requests (the inbox) ────────────────────────────────────────────────────
 
-export function useAgencyRequests(filters: RequestFilters = {}) {
+export function useAgencyRequests(filters: RequestFilters = {}, enabled = true) {
   return useQuery({
     queryKey: agencyKeys.requests(filters),
     queryFn: () => agencyService.requests(filters),
+    enabled,
   });
 }
 

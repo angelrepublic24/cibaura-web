@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { carsService } from "@/modules/cars/services/cars.service";
+import { carSearchRangeProblem } from "@/modules/cars/helpers/cars.helper";
 import type { CarSearchFilters } from "@/modules/cars/types/cars.types";
 
 /** Query keys for the cars module (the only cache it owns). */
@@ -29,9 +30,15 @@ export function hasSearchDates(filters: CarSearchFilters): boolean {
  * renter has picked a range, the published catalog otherwise. The key tracks
  * which one answered, so the two never share a cache entry — and both are
  * the keys the server prefetch seeds.
+ *
+ * AN UNUSABLE RANGE FETCHES NOTHING (BUG-010). A past or backwards range
+ * cannot be searched, and falling back to the undated catalogue would answer
+ * a question nobody asked — cars the renter cannot book for the days they
+ * typed. The query stays idle and the caller renders the reason instead.
  */
 export function useCarListing(city: string, filters: CarSearchFilters) {
   const dated = hasSearchDates(filters);
+  const usable = carSearchRangeProblem(filters) === null;
   return useQuery({
     queryKey: dated
       ? carKeys.search(city, filters)
@@ -40,6 +47,7 @@ export function useCarListing(city: string, filters: CarSearchFilters) {
       dated
         ? carsService.search(city, filters)
         : carsService.catalog(city, filters),
+    enabled: usable,
   });
 }
 

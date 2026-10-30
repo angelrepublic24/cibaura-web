@@ -6,8 +6,12 @@ import {
   useAgencyRequests,
   useAgencyWallet,
   useFleet,
+  usePermission,
 } from "@/modules/agency/hooks/agency.hook";
+import type { AgencyPermission } from "@/modules/agency/types/agency.types";
 import type { Booking } from "@/shared/types/domain";
+import { getErrorMessage } from "@/shared/api/errors";
+import { ErrorState } from "@/shared/components/states";
 import { formatMoneyCents } from "@/shared/utils/money";
 import {
   businessTodayIso,
@@ -24,17 +28,56 @@ import {
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
-/** /agency — dashboard home: headline stats + upcoming pickups from real queries. */
+/**
+ * /agency — dashboard home: headline stats + upcoming pickups from real
+ * queries.
+ *
+ * EVERY TILE IS GATED BY THE PERMISSION ITS READ NEEDS (BUG-007).
+ *
+ * This screen is the one place that queries four different agency surfaces at
+ * once, and it used to ask for all four regardless of what the member holds.
+ * A `sales` member has no `wallet:view`, so opening the dashboard fired
+ * `GET /agency/wallet` and took a 403 — a failed request in their console, a
+ * 403 in our logs, and a tile that renders "—" for a reason the member can do
+ * nothing about. Hiding the tile alone would not have fixed it: the request is
+ * sent by the hook, not by the card, so the PERMISSION HAS TO REACH THE
+ * HOOK. Hence `enabled`, and the same flag deciding whether the tile renders
+ * at all — one source for both, so they cannot disagree.
+ *
+ * The other three tiles are gated the same way, by the same bug: a custom
+ * member without `fleet:read` or `bookings:read` would 403 exactly as the
+ * sales member did on the wallet. The permissions mirror the nav table in
+ * `app/agency/layout.tsx`, which is what decides whether the tile's own
+ * destination is reachable — a tile that links somewhere the member cannot
+ * open is a dead end either way.
+ */
 export default function AgencyDashboardPage() {
-  const fleetQuery = useFleet();
-  const requestsQuery = useAgencyRequests({ state: "requested" });
-  const acceptedQuery = useAgencyRequests({ state: "accepted" });
-  const activeQuery = useAgencyRequests({ state: "active" });
-  const walletQuery = useAgencyWallet();
+  const {
+    can,
+    isPending: permPending,
+    isError: permError,
+    error: permErrorValue,
+    refetch: refetchPermissions,
+  } = usePermission();
+
+  // Fail CLOSED on an unresolved session: `can` is false while it loads, so
+  // nothing is fetched until the permissions are known. In practice the
+  // layout has already awaited the session read before this mounts, so this
+  // is a guard rather than a visible state.
+  const mayReadFleet = can("fleet:read");
+  const mayReadBookings = can("bookings:read");
+  const mayReadWallet = can("wallet:view");
+
+  const fleetQuery = useFleet({}, mayReadFleet);
+  const requestsQuery = useAgencyRequests({ state: "requested" }, mayReadBookings);
+  const acceptedQuery = useAgencyRequests({ state: "accepted" }, mayReadBookings);
+  const activeQuery = useAgencyRequests({ state: "active" }, mayReadBookings);
+  const walletQuery = useAgencyWallet(mayReadWallet);
 
   const stats: StatProps[] = [
     {
       label: "Cars in fleet",
+      permission: "fleet:read",
       value: fleetQuery.data ? String(fleetQuery.data.total) : undefined,
       loading: fleetQuery.isLoading,
       error: fleetQuery.isError,
@@ -42,6 +85,7 @@ export default function AgencyDashboardPage() {
     },
     {
       label: "Pending requests",
+      permission: "bookings:read",
       value: requestsQuery.data ? String(requestsQuery.data.total) : undefined,
       loading: requestsQuery.isLoading,
       error: requestsQuery.isError,
@@ -50,6 +94,7 @@ export default function AgencyDashboardPage() {
     },
     {
       label: "Out now",
+      permission: "bookings:read",
       value: activeQuery.data ? String(activeQuery.data.total) : undefined,
       loading: activeQuery.isLoading,
       error: activeQuery.isError,
@@ -57,6 +102,7 @@ export default function AgencyDashboardPage() {
     },
     {
       label: "Wallet balance",
+      permission: "wallet:view",
       value: walletQuery.data
         ? formatMoneyCents(
             walletQuery.data.account.balanceCents,
@@ -69,6 +115,8 @@ export default function AgencyDashboardPage() {
     },
   ];
 
+  const visibleStats = stats.filter((stat) => can(stat.permission));
+
   // Upcoming pickups = accepted bookings whose pickup day is still ahead,
   // soonest first. A booking whose start day already passed is OVERDUE, not
   // upcoming (the expiry job closes it), so it is filtered out here instead of
@@ -78,27 +126,54 @@ export default function AgencyDashboardPage() {
     .filter((b) => b.period.start >= today)
     .sort((a, b) => a.period.start.localeCompare(b.period.start));
 
+  // A session read that FAILED leaves permissions unknown, which is not the
+  // same as denied: rendering an empty dashboard would read as "you have
+  // nothing", so it says what actually happened and offers the retry.
+  if (permError) {
+    return (
+      <ErrorState
+        title="Could not check your permissions"
+        message={getErrorMessage(permErrorValue, "Please try again.")}
+        onRetry={refetchPermissions}
+      />
+    );
+  }
+
   return (
     <div className="space-y-8">
       <h1 className="font-display text-3xl text-foreground">Agency dashboard</h1>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((s) => (
-          <Stat key={s.label} {...s} />
-        ))}
-      </div>
+      {permPending ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {[0, 1, 2, 3].map((slot) => (
+            <Skeleton key={slot} className="h-28 w-full" />
+          ))}
+        </div>
+      ) : visibleStats.length > 0 ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {visibleStats.map((s) => (
+            <Stat key={s.label} {...s} />
+          ))}
+        </div>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-        <UpcomingPickups
-          bookings={upcoming}
-          loading={acceptedQuery.isLoading}
-          error={acceptedQuery.isError}
-        />
-        <PendingRequests
-          bookings={requestsQuery.data?.items ?? []}
-          loading={requestsQuery.isLoading}
-          error={requestsQuery.isError}
-        />
+        {/* Both panels read the bookings inbox, so they follow the same
+            permission as the tiles that link to it. */}
+        {mayReadBookings ? (
+          <>
+            <UpcomingPickups
+              bookings={upcoming}
+              loading={acceptedQuery.isLoading}
+              error={acceptedQuery.isError}
+            />
+            <PendingRequests
+              bookings={requestsQuery.data?.items ?? []}
+              loading={requestsQuery.isLoading}
+              error={requestsQuery.isError}
+            />
+          </>
+        ) : null}
       </div>
     </div>
   );
@@ -108,6 +183,8 @@ export default function AgencyDashboardPage() {
 
 interface StatProps {
   label: string;
+  /** What the tile's own read needs — and what its destination requires. */
+  permission: AgencyPermission;
   value?: string;
   loading: boolean;
   error: boolean;

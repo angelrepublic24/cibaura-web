@@ -18,6 +18,14 @@ const apiPrefix =
   apiUrl.pathname.replace(/\/+$/, "").replace(/\/api$/, "") + "/api";
 const id = "11111111-1111-4111-8111-111111111111";
 const secondId = "22222222-2222-4222-8222-222222222222";
+// Future availability window relative to the run-day, so the strict past-date
+// validation (BUG-010) never turns a hard-coded fixture date "past" and reddens
+// CI for the calendar instead of the code. (A separate case keeps 2020-01-01 as
+// an unambiguously historical range on purpose.)
+const futureIso = (days) =>
+  new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+const FUTURE_FROM = futureIso(30);
+const FUTURE_TO = futureIso(32);
 const draftId = "55555555-5555-4555-8555-555555555555";
 const pausedId = "33333333-3333-4333-8333-333333333333";
 const photoId = "44444444-4444-4444-8444-444444444444";
@@ -329,7 +337,7 @@ async function runScenario(partial) {
         "Region scope reaches paginated API request",
       );
       await html(
-        "/cars/all?country=DO&region=fixture-region&from=2026-12-01&to=2026-12-03",
+        `/cars/all?country=DO&region=fixture-region&from=${FUTURE_FROM}&to=${FUTURE_TO}`,
       );
       check(
         requests.some(
@@ -337,9 +345,38 @@ async function runScenario(partial) {
             path.includes("/cars/search?") &&
             path.includes("country=DO") &&
             path.includes("region=fixture-region") &&
-            path.includes("start=2026-12-01"),
+            path.includes(`start=${FUTURE_FROM}`),
         ),
         "Availability preserves country and region",
+      );
+      /*
+       * BUG-010: a range that has already passed is not searched, and it is
+       * not quietly answered with the undated catalogue either — the page
+       * says the dates are the problem and lists nothing for them.
+       *
+       * The dates are hard-coded as unambiguously historical so the
+       * assertion does not depend on the day the suite runs.
+       */
+      const before = requests.length;
+      const pastRange = await html(
+        "/cars/fixture-city?country=DO&from=2020-01-01&to=2020-01-05",
+      );
+      const afterPast = requests.slice(before);
+      check(
+        !afterPast.some((path) => path.includes("/cars/search?")),
+        "A past range sends no availability search",
+      );
+      check(
+        !afterPast.some((path) => path.includes("/cars/catalog?")),
+        "A past range does not silently fall back to the catalogue",
+      );
+      check(
+        visible(pastRange).includes("already passed"),
+        "A past range says so on the page",
+      );
+      check(
+        !visible(pastRange).includes("Corolla"),
+        "A past range lists no cars",
       );
       const scopedCity = await html(
         "/cars/fixture-city?country=DO&region=fixture-region",
@@ -481,7 +518,7 @@ async function runScenario(partial) {
         "Date-free city never calls availability search",
       );
       const dated = await html(
-        "/cars/fixture-city?from=2026-12-01&to=2026-12-03&make=toyota&price_min=12",
+        `/cars/fixture-city?from=${FUTURE_FROM}&to=${FUTURE_TO}&make=toyota&price_min=12`,
       );
       check(
         text(dated).includes("Toyota Corolla"),
@@ -491,7 +528,7 @@ async function runScenario(partial) {
         requests.some(
           (path) =>
             path.includes("priceMinCents=1200") &&
-            path.includes("start=2026-12-01"),
+            path.includes(`start=${FUTURE_FROM}`),
         ),
         "SSR shares client filter mapping and cents conversion",
       );

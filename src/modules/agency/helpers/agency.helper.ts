@@ -1,5 +1,7 @@
 import type {
+  Agency,
   AgencyCar,
+  Branch,
   MediaKind,
   MediaLabel,
   OccupancyEntry,
@@ -86,6 +88,52 @@ export function permissionsForBundle(
 }
 
 export { AGENCY_PERMISSIONS };
+
+// ── Storefront visibility ───────────────────────────────────────────────────
+
+/**
+ * WHY A CAR THE HOST CAN SEE IS NOT ON THE PUBLIC STOREFRONT (BUG-006).
+ *
+ * MIRROR of the backend's single definition of public visibility
+ * (`modules/fleet/public-visibility.ts`), which ANDs three independent
+ * switches. The dashboard's fleet list applies NONE of them — it is the
+ * agency's own inventory, drafts and all — so a car can legitimately appear
+ * there and nowhere else, which is exactly what got reported as a missing
+ * car. Nothing was broken; the screen simply never said which switch was
+ * off, leaving the host to guess between four explanations.
+ *
+ * Returns EVERY blocker, not the first: fixing one of three and still not
+ * seeing the car is how a host concludes the platform is broken.
+ *
+ * `branch` and `agency` are optional because the caller may not have them
+ * (the fleet payload carries `branchId`, not the branch). An unknown switch
+ * is NOT reported as off — a guess here would be the same mistake in the
+ * other direction.
+ */
+export type StorefrontBlocker =
+  | "draft"
+  | "paused"
+  | "branch_inactive"
+  | "agency_unverified";
+
+export function storefrontBlockers(input: {
+  car: Pick<AgencyCar, "status">;
+  /** The car's own branch, when the caller has the list. */
+  branch?: Pick<Branch, "isActive"> | undefined;
+  /** The caller's agency, from the session. */
+  agency?: Pick<Agency, "verificationStatus"> | undefined;
+}): StorefrontBlocker[] {
+  const blockers: StorefrontBlocker[] = [];
+  if (input.car.status === "draft") blockers.push("draft");
+  if (input.car.status === "paused") blockers.push("paused");
+  if (input.branch && input.branch.isActive === false) {
+    blockers.push("branch_inactive");
+  }
+  if (input.agency && input.agency.verificationStatus !== "verified") {
+    blockers.push("agency_unverified");
+  }
+  return blockers;
+}
 
 // ── Branch scope ────────────────────────────────────────────────────────────
 

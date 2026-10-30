@@ -6,6 +6,10 @@ import {
   hasSearchDates,
   useCarListing,
 } from "@/modules/cars/hooks/cars.hook";
+import {
+  carSearchRangeProblem,
+  type CarSearchRangeProblem,
+} from "@/modules/cars/helpers/cars.helper";
 import { filtersToSearchParams } from "@/modules/cars/helpers/cars.helper";
 import type { CarSearchFilters } from "@/modules/cars/types/cars.types";
 import { CarFiltersPanel } from "@/modules/cars/components/car-filters-panel";
@@ -45,6 +49,16 @@ export function CarSearchResults({
   // range (`start`/`end`): with both, the hook searches; without, it falls
   // back to the published catalog without claiming availability.
   const hasDates = hasSearchDates(filters);
+  /*
+   * A RANGE THE URL ASKED FOR THAT CANNOT BE SEARCHED (BUG-010).
+   *
+   * Hand-edited addresses, stale links and shared itineraries all arrive here
+   * with dates that have since gone by. The hook refuses to fetch for one, so
+   * this is the screen saying which range it refused and why — the one thing
+   * the old behaviour never did: it dropped to the undated catalogue and
+   * showed cars, which reads as availability for days nobody can book.
+   */
+  const rangeProblem = carSearchRangeProblem(filters);
   const query = useCarListing(city, filters);
 
   function applyFilters(next: CarSearchFilters) {
@@ -88,14 +102,23 @@ export function CarSearchResults({
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            {hasDates ? "Available cars" : "Car catalog"}
+            {rangeProblem
+              ? "Check your dates"
+              : hasDates
+                ? "Available cars"
+                : "Car catalog"}
           </p>
           <h1 className="font-display mt-1 text-3xl capitalize text-foreground">
             {cityName ?? (city === "all" ? "All cities" : city)}
           </h1>
         </div>
         <div className="text-right">
-          {hasDates ? (
+          {rangeProblem ? (
+            <p className="text-sm font-medium text-foreground">
+              {formatIsoDate(filters.from) || "—"} →{" "}
+              {formatIsoDate(filters.to) || "—"}
+            </p>
+          ) : hasDates ? (
             <>
               <p className="text-sm font-medium text-foreground">
                 {formatIsoDate(filters.from)} → {formatIsoDate(filters.to)}
@@ -149,7 +172,18 @@ export function CarSearchResults({
             </Select>
           </div>
 
-          {query.isLoading ? (
+          {rangeProblem ? (
+            <RangeProblemNotice
+              problem={rangeProblem}
+              onBrowseUndated={() =>
+                applyTrip(city, {
+                  ...filters,
+                  from: undefined,
+                  to: undefined,
+                })
+              }
+            />
+          ) : query.isLoading ? (
             <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
                 <CarCardSkeleton key={i} />
@@ -243,6 +277,58 @@ function CarCardSkeleton() {
 }
 
 /**
+ * WHY THESE DATES RETURNED NOTHING — in place of the results (BUG-010).
+ *
+ * Deliberately NOT an empty state: "no cars match" would blame the inventory
+ * for a question that was never askable. And deliberately not a silent
+ * fallback to the catalogue either, which is what used to happen — the cars
+ * it listed were real, but presenting them under a past range implied they
+ * could be booked for it.
+ *
+ * The way out is right above (the date bar, which cannot submit a past day),
+ * plus one button for the reading that is always available: the same city
+ * without dates.
+ */
+function RangeProblemNotice({
+  problem,
+  onBrowseUndated,
+}: {
+  problem: CarSearchRangeProblem;
+  onBrowseUndated: () => void;
+}) {
+  const copy: Record<CarSearchRangeProblem, { title: string; description: string }> = {
+    past: {
+      title: "Those dates have already passed",
+      description:
+        "A car can only be picked up today or later, so there is nothing to show for that range. Choose new dates above.",
+    },
+    backwards: {
+      title: "The return date is not after the pickup date",
+      description:
+        "A rental needs at least one day. Set a return date later than the pickup and search again.",
+    },
+    incomplete: {
+      title: "That link is missing one of the dates",
+      description:
+        "Availability is checked for a whole range, so both the pickup and the return are needed. Add the missing one above.",
+    },
+  };
+  const { title, description } = copy[problem];
+  return (
+    <div
+      role="alert"
+      className="rounded-[var(--radius)] border border-amber-200 bg-amber-50 p-6"
+    >
+      <h2 className="font-medium text-amber-900">{title}</h2>
+      <p className="mt-1 text-sm text-amber-900/80">{description}</p>
+      <Button variant="outline" className="mt-4" onClick={onBrowseUndated}>
+        Browse this city without dates
+      </Button>
+    </div>
+  );
+}
+
+/**
  * Pickup/return date range for the results page. Dates are first-class: the
  * server only returns cars free for the whole window, so this bar stays at the
  * top and applying it re-runs the search. Preserves all other active facets.
@@ -281,15 +367,24 @@ function DateRangeBar({
     setTo(filters.to ?? "");
   }, [city, filters.country, filters.region, filters.from, filters.to]);
 
-  const validDates = (!from && !to) || (!!from && !!to && to > from);
-  const ready = !!selected.country && validDates;
+  /*
+   * The same rule the URL is held to (BUG-010), so the bar cannot put a range
+   * back that the results panel just refused — `min` on the inputs stops the
+   * picker, but a date can still be typed into them.
+   */
+  const dateProblem = carSearchRangeProblem({ from, to });
+  const ready = !!selected.country && dateProblem === null;
   const action = !selected.country
     ? "Choose a country"
-    : !validDates
-      ? !from
-        ? "Choose pickup date"
-        : "Choose return date"
-      : "Apply";
+    : dateProblem === "past"
+      ? "Choose a pickup date from today"
+      : dateProblem === "incomplete"
+        ? !from
+          ? "Choose pickup date"
+          : "Choose return date"
+        : dateProblem === "backwards"
+          ? "Choose a later return date"
+          : "Apply";
 
   return (
     <form
