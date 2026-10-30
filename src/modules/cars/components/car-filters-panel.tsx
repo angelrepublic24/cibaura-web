@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { SlidersHorizontal } from "lucide-react";
+import { businessTodayIso } from "@/shared/utils/dates";
 import {
   useCarMakes,
   useCarModels,
@@ -27,7 +28,21 @@ import { RATING_MINIMUMS } from "@/modules/cars/helpers/cars.helper";
  * navigation, this panel never talks to the router directly.
  */
 
-const CURRENT_YEAR = new Date().getFullYear();
+/*
+ * THE YEAR LIST IS BUILT FROM THE BUSINESS CALENDAR, NOT THE RUNTIME'S CLOCK
+ * (BUG-009).
+ *
+ * This is a `"use client"` module, so module scope is evaluated TWICE — once
+ * in the server bundle while the page is pre-rendered, once in the browser —
+ * and `new Date().getFullYear()` reads each runtime's LOCAL year. A container
+ * on UTC and a renter in UTC-4 disagree for four hours every 31 December, and
+ * the disagreement lands in rendered `<option>` text, which is precisely the
+ * hydration mismatch React reports as #418.
+ *
+ * `businessTodayIso()` pins the timezone on both sides (the same anchor the
+ * backend uses for date-only gates), so the two runtimes build the same list.
+ */
+const CURRENT_YEAR = Number(businessTodayIso().slice(0, 4));
 const YEARS = Array.from({ length: CURRENT_YEAR + 1 - 2005 + 1 }, (_, i) =>
   CURRENT_YEAR + 1 - i,
 );

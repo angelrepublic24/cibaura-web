@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import {
   useCities,
   useCountries,
@@ -37,8 +38,25 @@ export function DestinationFields({
   const citiesQuery = useCities();
   const countries = countriesQuery.data ?? [];
   const cities = citiesQuery.data ?? [];
-  const selectedCountry = countries.find((item) => item.code === country);
-  const regionsQuery = useRegions(country, !!country);
+
+  /*
+   * ONE COUNTRY IS A SELECTION, NOT A CAPTION (BUG-008).
+   *
+   * While the platform serves a single market the country field is a readOnly
+   * box with its name in it — but the SELECTION still has to exist, because
+   * the region and city fields are gated on it and the submitted URL carries
+   * it. Resolving it was left to each parent: the hero did it, the results bar
+   * did not, so `/cars/all` printed "Dominican Republic" above two disabled
+   * dropdowns AND an Apply button stuck on "Choose a country" — with no
+   * control anywhere on screen that could choose the country already being
+   * displayed. Resolved here instead, so the two parents cannot drift again.
+   */
+  const onlyCountry = countries.length === 1 ? countries[0] : undefined;
+  const effectiveCountry = country || onlyCountry?.code || "";
+  const selectedCountry = countries.find(
+    (item) => item.code === effectiveCountry,
+  );
+  const regionsQuery = useRegions(effectiveCountry, !!effectiveCountry);
   const regions = regionsQuery.data ?? [];
   const selectedRegion = regions.find((item) => item.slug === region);
   const kinds = [...new Set(regions.map((item) => item.kind))];
@@ -53,6 +71,31 @@ export function DestinationFields({
       (!region || item.regionId === selectedRegion?.id),
   );
   const failed = countriesQuery.isError || citiesQuery.isError;
+
+  /*
+   * Hand the resolved country UP, so what the parent submits matches what the
+   * fields are showing — a search run from `/cars/all` has to carry
+   * `country=DO` like any other. It ADDS the country and leaves region and
+   * city alone: this is not the user changing country (which does clear
+   * both), it is the form catching up with what it already displayed. The
+   * guard is false the moment the parent stores it, so this settles in one
+   * pass whether or not the callback identity is stable.
+   */
+  useEffect(() => {
+    if (country || !onlyCountry) return;
+    if (onDestinationChange) {
+      onDestinationChange({ country: onlyCountry.code, region, city });
+    } else {
+      onCountryChange?.(onlyCountry.code);
+    }
+  }, [
+    country,
+    onlyCountry,
+    region,
+    city,
+    onDestinationChange,
+    onCountryChange,
+  ]);
   return (
     <>
       <div className="min-w-0 space-y-1.5">
@@ -97,11 +140,13 @@ export function DestinationFields({
         <Select
           id={`${idPrefix}-region`}
           value={region}
-          disabled={!country || regionsQuery.isPending || regionsQuery.isError}
+          disabled={
+            !effectiveCountry || regionsQuery.isPending || regionsQuery.isError
+          }
           onChange={(event) => {
             if (onDestinationChange)
               onDestinationChange({
-                country,
+                country: effectiveCountry,
                 region: event.target.value,
                 city: "",
               });
@@ -109,7 +154,9 @@ export function DestinationFields({
           }}
         >
           <option value="">
-            {country && regionsQuery.isPending ? "Loading regions..." : "All"}
+            {effectiveCountry && regionsQuery.isPending
+              ? "Loading regions..."
+              : "All"}
           </option>
           {regions.map((item) => (
             <option key={item.id} value={item.slug}>
@@ -127,7 +174,7 @@ export function DestinationFields({
           onChange={(event) => {
             if (onDestinationChange)
               onDestinationChange({
-                country,
+                country: effectiveCountry,
                 region,
                 city: event.target.value,
               });

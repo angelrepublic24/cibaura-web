@@ -174,6 +174,37 @@ assert.equal(
   find(tree, (node) => node.props?.id === "hero-country").props.readOnly,
   true,
 );
+/*
+ * BUG-008: a single market is a SELECTION, not a caption. With one country
+ * and nothing chosen yet — which is what `/cars/all` hands the component —
+ * region and city must be usable, because the readOnly country box is not a
+ * control the user could operate to enable them.
+ */
+countryValue = "";
+regionValue = "";
+states = [];
+tree = render();
+assert.equal(
+  find(tree, (node) => node.props?.id === "hero-country").props.readOnly,
+  true,
+);
+// Falsy, not strictly `false`: the expression ORs the query flags, which the
+// fixtures leave undefined. Before the fix `!country` short-circuited it to a
+// hard `true`.
+assert(
+  !find(tree, (node) => node.props?.id === "hero-region").props.disabled,
+  "the region field follows the resolved country",
+);
+assert(
+  !find(tree, (node) => node.props?.id === "hero-city").props.disabled,
+  "the city field follows the resolved country",
+);
+assert(
+  nodes(tree).some(
+    (node) => node.type === "option" && node.props.value === "santo-domingo",
+  ),
+  "and its cities are listed, not an empty dropdown",
+);
 const params = carsHelper;
 const catalog = params.carCatalogParams("santo-domingo", {
   from: "2026-12-01",
@@ -667,4 +698,46 @@ for (const value of HOSTILE) {
 }
 console.log(
   `URL filter smoke: ${parserChecks} parses degraded safely; no input threw.`,
+);
+
+// ── Which ranges may be SEARCHED ───────────────────────────────────────────
+// BUG-010: the parser keeps the dates (degrading them would answer a
+// different question silently); this is the rule that decides whether they
+// can be acted on. `today` is passed explicitly so the assertions do not
+// depend on the day the suite runs.
+const TODAY = "2026-10-30";
+let rangeChecks = 0;
+const problem = (from, to) => {
+  rangeChecks++;
+  return carsHelper.carSearchRangeProblem({ from, to }, TODAY);
+};
+// No dates at all is a legitimate question: browse the catalogue.
+assert.equal(problem(undefined, undefined), null);
+assert.equal(problem("", ""), null);
+// Half a window is not a window.
+assert.equal(problem("2026-11-01", undefined), "incomplete");
+assert.equal(problem(undefined, "2026-11-05"), "incomplete");
+// Yesterday cannot be picked up, whatever the return says.
+assert.equal(problem("2026-10-29", "2026-11-05"), "past");
+assert.equal(problem("2020-01-01", "2020-01-05"), "past");
+// TODAY is allowed — a same-day pickup is a real booking.
+assert.equal(problem(TODAY, "2026-10-31"), null);
+// A return on or before the pickup is not a short rental.
+assert.equal(problem("2026-11-05", "2026-11-05"), "backwards");
+assert.equal(problem("2026-11-05", "2026-11-01"), "backwards");
+// The ordinary case.
+assert.equal(problem("2026-11-01", "2026-11-05"), null);
+// `canSearchDates` is the same rule, plus "both endpoints are present".
+assert.equal(carsHelper.canSearchDates({}, TODAY), false);
+assert.equal(
+  carsHelper.canSearchDates({ from: "2026-10-29", to: "2026-11-05" }, TODAY),
+  false,
+);
+assert.equal(
+  carsHelper.canSearchDates({ from: "2026-11-01", to: "2026-11-05" }, TODAY),
+  true,
+);
+rangeChecks += 3;
+console.log(
+  `Date range smoke: ${rangeChecks} ranges classified (past, backwards, incomplete and valid).`,
 );

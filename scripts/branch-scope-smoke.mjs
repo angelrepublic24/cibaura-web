@@ -62,6 +62,66 @@ for (const [scope, expectedCars, expectedEntries] of [
 }
 assert.equal(occupancyForScope(entries, [], restricted).length, 0);
 checks++;
+
+/*
+ * BUG-006: why a car in the agency's own fleet is not on its public page.
+ * Mirrors `backend/src/modules/fleet/public-visibility.ts`, which ANDs three
+ * switches — so this asserts each one alone, all of them together, and the
+ * "unknown is not off" rule for the relations the fleet payload lacks.
+ */
+/** Cross-realm arrays (the helper runs in a VM context): compare serialised. */
+const assertBlockers = (actual, expected, message) =>
+  assert.equal(JSON.stringify(actual), JSON.stringify(expected), message);
+
+const { storefrontBlockers } = scopeHelpers;
+const verified = { verificationStatus: "verified" };
+const activeBranch = { isActive: true };
+assertBlockers(
+  storefrontBlockers({
+    car: { status: "active" },
+    branch: activeBranch,
+    agency: verified,
+  }),
+  [],
+  "an active car on an active branch of a verified agency is public",
+);
+assertBlockers(
+  storefrontBlockers({ car: { status: "draft" }, branch: activeBranch, agency: verified }),
+  ["draft"],
+);
+assertBlockers(
+  storefrontBlockers({ car: { status: "paused" }, branch: activeBranch, agency: verified }),
+  ["paused"],
+);
+assertBlockers(
+  storefrontBlockers({
+    car: { status: "active" },
+    branch: { isActive: false },
+    agency: verified,
+  }),
+  ["branch_inactive"],
+);
+assertBlockers(
+  storefrontBlockers({
+    car: { status: "active" },
+    branch: activeBranch,
+    agency: { verificationStatus: "pending" },
+  }),
+  ["agency_unverified"],
+);
+// EVERY blocker, not the first: a host who fixes one of three and still sees
+// nothing concludes the platform is broken.
+assertBlockers(
+  storefrontBlockers({
+    car: { status: "draft" },
+    branch: { isActive: false },
+    agency: { verificationStatus: "suspended" },
+  }),
+  ["draft", "branch_inactive", "agency_unverified"],
+);
+// A relation the caller does not have is UNKNOWN, never reported as off.
+assertBlockers(storefrontBlockers({ car: { status: "active" } }), []);
+checks += 7;
 let session = {
   data: { agency: { id: "agency" }, membership: { branchScope: restricted } },
 };
@@ -281,24 +341,39 @@ assert.equal(calendarOptions.enabled, false);
 checks++;
 
 // A filtered-empty first page must still expose pagination, without an agency-wide count.
+let fleetPages = {
+  data: { pages: [{ items: [], total: 999 }] },
+  hasNextPage: true,
+};
+let fleetBranches = [];
+// A real `Agency` always carries its verification status; `{}` would read as
+// "present but not verified", which is a different fixture (asserted below).
+let fleetAgency = { verificationStatus: "verified" };
 const fleetPage = load(
   "src/app/agency/fleet/page.tsx",
   {
     "next/link": { default: stub },
     "lucide-react": ui,
     "@/modules/agency/hooks/agency.hook": {
-      useAgencySession: () => ({ data: { agency: {} } }),
-      useFleetPages: () => ({
-        data: { pages: [{ items: [], total: 999 }] },
-        hasNextPage: true,
-      }),
+      useAgencySession: () => ({ data: { agency: fleetAgency } }),
+      useFleetPages: () => fleetPages,
+      // Unrestricted for agency members; the fleet rows read it to say whether
+      // a car's branch is deactivated (BUG-006).
+      useAgencyBranches: () => ({ data: fleetBranches }),
       usePermission: () => ({ can: () => false, branchScope: restricted }),
     },
+    // The REAL helper: `storefrontBlockers` mirrors the backend predicate, so
+    // the stub would be the one thing worth exercising.
+    "@/modules/agency/helpers/agency.helper": scopeHelpers,
+    "@/shared/components/ui/input": ui,
+    "@/shared/components/ui/label": ui,
     "@/modules/agency/components/car-registration-document": ui,
     "@/modules/agency/components/permission-gate": gate,
-    "@/modules/cars/helpers/cars.helper": {},
+    // Rows render once there are cars loaded: the thumb falls back to the
+    // placeholder, and the rate just has to be a string.
+    "@/modules/cars/helpers/cars.helper": { carPhoto: () => null },
     "@/modules/cars/components/car-photo-placeholder": ui,
-    "@/shared/utils/money": {},
+    "@/shared/utils/money": { formatMoneyCents: (cents) => `$${cents / 100}` },
     "@/shared/components/states": states,
     "@/shared/components/ui/badge": ui,
     "@/shared/components/ui/button": ui,
@@ -313,6 +388,73 @@ assert(fleetHtml.includes("Load more"));
 checks++;
 assert(!fleetHtml.includes("999"));
 checks++;
+// With nothing loaded there is nothing to search: a filter over an empty list
+// is a control that cannot act (BUG-005).
+assert(!fleetHtml.includes("Find a car"));
+checks++;
+
+/*
+ * Rows loaded: the search box appears, and each row says whether the car is
+ * on the public page — naming the switch that is off (BUG-005 / BUG-006).
+ */
+fleetBranches = [
+  { id: "branch-live", isActive: true },
+  { id: "branch-off", isActive: false },
+];
+const fleetCar = (id, status, branchId) => ({
+  id,
+  status,
+  branchId,
+  year: 2024,
+  plate: `PLATE-${id}`,
+  color: "white",
+  transmission: "automatic",
+  seats: 5,
+  make: { id: "make", name: "Toyota" },
+  model: { id: "model", name: "Corolla" },
+  hostDailyRateCents: 4000,
+  registration: null,
+});
+fleetPages = {
+  data: {
+    pages: [
+      {
+        items: [
+          fleetCar("live", "active", "branch-live"),
+          fleetCar("draft", "draft", "branch-live"),
+          fleetCar("retired", "active", "branch-off"),
+        ],
+        total: 3,
+      },
+    ],
+  },
+  hasNextPage: false,
+};
+const loadedHtml = renderToStaticMarkup(
+  React.createElement(fleetPage.FleetList),
+);
+assert(loadedHtml.includes("Find a car"), "the fleet search box renders");
+checks++;
+assert(loadedHtml.includes("Live on your public page"));
+checks++;
+assert(loadedHtml.includes("still a draft"));
+checks++;
+assert(loadedHtml.includes("its branch is deactivated"));
+checks++;
+
+// A pending or suspended agency has NO storefront at all, so every row says
+// so — the fourth of the four reasons a host can hit.
+fleetAgency = { verificationStatus: "pending" };
+const unverifiedHtml = renderToStaticMarkup(
+  React.createElement(fleetPage.FleetList),
+);
+assert(!unverifiedHtml.includes("Live on your public page"));
+assert.equal(
+  (unverifiedHtml.match(/your agency is not verified yet/g) ?? []).length,
+  3,
+);
+checks++;
+fleetAgency = { verificationStatus: "verified" };
 console.log(
   `Branch scope: ${checks} checks passed (synthetic data; backend authorization remains mandatory).`,
 );

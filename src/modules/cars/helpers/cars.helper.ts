@@ -1,5 +1,6 @@
 import { API_URL } from "@/lib/config";
 import type { Car, CarDetail, City } from "@/shared/types/domain";
+import { businessTodayIso } from "@/shared/utils/dates";
 import { wholeUnitsToCents } from "@/shared/utils/money";
 import { carSearchFiltersSchema } from "@/modules/cars/schema/cars.schema";
 import type {
@@ -79,6 +80,62 @@ export function filtersToSearchParams(f: CarSearchFilters): URLSearchParams {
   set("sort", f.sort);
   set("page", f.page);
   return sp;
+}
+
+/**
+ * WHY A DATE RANGE CANNOT BE SEARCHED — or `null` when it can.
+ *
+ *  - `incomplete`: one endpoint without the other. Availability is an
+ *    anti-join over a window; half a window is not one.
+ *  - `past`: the pickup day has already gone. No car can be collected
+ *    yesterday, so every result would be a listing nobody can book.
+ *  - `backwards`: the return is on or before the pickup. A zero or negative
+ *    rental is not a short one.
+ *
+ * DELIBERATELY NOT IN THE PARSER (BUG-010). `carSearchFiltersSchema` is total
+ * by design — it degrades anything it cannot read to `undefined` and never
+ * throws, because this is the least trusted input in the app and a 500 on
+ * `?page=abc` would break URLs that work. But degrading a PAST range to
+ * `undefined` would silently answer a different question: the renter asked
+ * about last week and got the undated catalogue, with cars they cannot have.
+ * So the dates survive parsing and are CLASSIFIED here, at the two edges that
+ * have to act on them — the server page skips the prefetch, the client skips
+ * the fetch, and the screen says why.
+ *
+ * `today` is the BUSINESS day (the backend's timezone), not the device's, so
+ * the server and the browser agree on the boundary near midnight.
+ */
+export type CarSearchRangeProblem = "incomplete" | "past" | "backwards";
+
+export function carSearchRangeProblem(
+  filters: Pick<CarSearchFilters, "from" | "to">,
+  today: string = businessTodayIso(),
+): CarSearchRangeProblem | null {
+  const { from, to } = filters;
+  // Browsing without dates is a legitimate question (the published catalogue).
+  if (!from && !to) return null;
+  if (!from || !to) return "incomplete";
+  // Checked before the ordering: a range entirely in the past is better
+  // described as past than as whatever shape it has.
+  if (from < today) return "past";
+  if (to <= from) return "backwards";
+  return null;
+}
+
+/**
+ * Whether the URL asks for a DATED availability search that can actually be
+ * run. `false` for no dates (browse the catalogue) and for a range this
+ * function's sibling rejects.
+ */
+export function canSearchDates(
+  filters: Pick<CarSearchFilters, "from" | "to">,
+  today?: string,
+): boolean {
+  return (
+    !!filters.from &&
+    !!filters.to &&
+    carSearchRangeProblem(filters, today) === null
+  );
 }
 
 // ── Request params ──────────────────────────────────────────────────────────
