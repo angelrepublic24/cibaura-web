@@ -6,6 +6,8 @@ import {
   useBookingMessages,
   useSendBookingMessage,
 } from "@/modules/bookings/hooks/bookings.hook";
+import { ReportDialog } from "@/modules/moderation/components/report-dialog";
+import { ReportableMessage } from "@/modules/moderation/components/reportable-message";
 import type { Booking, Message } from "@/shared/types/domain";
 import { useAuthStore } from "@/shared/auth/store";
 import { EmptyState, LoadingState } from "@/shared/components/states";
@@ -68,6 +70,14 @@ function formatMessageTime(iso: string): string {
  */
 export function ChatPanel({ booking }: { booking: Booking }) {
   const [body, setBody] = useState("");
+  /**
+   * Which message the viewer held down to report, if any. ONE dialog for the
+   * whole thread: a dialog per bubble would mount a form and a query observer
+   * for every message on screen.
+   */
+  const [reportingMessageId, setReportingMessageId] = useState<string | null>(
+    null,
+  );
   const user = useAuthStore((s) => s.user);
   const scrollRef = useRef<HTMLDivElement>(null);
   // Whether the viewer is pinned to the bottom (so new messages should scroll).
@@ -163,6 +173,24 @@ export function ChatPanel({ booking }: { booking: Booking }) {
     return viewerIsAgency ? "Your team" : booking.agency.name;
   };
 
+  /**
+   * THE OTHER SIDE OF THE THREAD, BY NAME. The press-and-hold hint points at
+   * it, and a gesture advertised without naming its target reads as "hold any
+   * message" — which on our own bubbles is a refusal (see `mine` above).
+   * Falls back to the generic noun when the wire carries no customer.
+   */
+  const counterpartyName = viewerIsAgency
+    ? (booking.customer?.name ?? "the renter")
+    : booking.agency.name;
+
+  /**
+   * Whether the gesture has ANY target in this thread. In a thread where only
+   * we have written, every bubble is a self-report, so announcing the gesture
+   * would advertise a known failure.
+   */
+  const hasReportableMessage =
+    !viewerIsObserver && messages.some((m) => !isMine(m));
+
   const title = viewerIsObserver
     ? "Booking chat (admin view)"
     : viewerIsAgency
@@ -209,7 +237,17 @@ export function ChatPanel({ booking }: { booking: Booking }) {
                   <span className="px-1 text-[11px] text-muted-foreground">
                     {senderLabel(m)} · {formatMessageTime(m.createdAt)}
                   </span>
-                  <div
+                  {/* Press and hold to report (the hint below says so).
+                      NOT OFFERED ON OUR OWN SIDE OF THE THREAD: the backend
+                      resolves a message's owner to its sender (and, agency
+                      side, to the agency) and refuses a self-report with 400
+                      MODERATION_SELF_TARGET — so a dialog on a bubble of ours
+                      could only ever end in "there is nothing to report".
+                      `mine` is that same side. Never for the admin observer
+                      either: a non-party may not report at all. */}
+                  <ReportableMessage
+                    onLongPress={() => setReportingMessageId(m.id)}
+                    disabled={viewerIsObserver || mine}
                     className={cn(
                       "max-w-[85%] whitespace-pre-wrap break-words rounded-lg px-3 py-2 text-sm",
                       mine
@@ -218,7 +256,7 @@ export function ChatPanel({ booking }: { booking: Booking }) {
                     )}
                   >
                     {m.body}
-                  </div>
+                  </ReportableMessage>
                 </div>
               );
             })
@@ -234,6 +272,19 @@ export function ChatPanel({ booking }: { booking: Booking }) {
             {viewerIsAgency
               ? " — “You” marks only the messages you sent from this tab."
               : "."}
+          </p>
+        ) : null}
+
+        {/* THE GESTURE NEEDS A LABEL. A long press nobody is told about is
+            not a feature; this line is what makes it discoverable, and the
+            booking detail carries the same action for anyone who cannot
+            perform it. Printed only when the thread holds a bubble the
+            gesture would actually accept — not merely when it holds any
+            bubble — and it names whose, so nobody goes hunting on their own
+            messages. Hidden for the observer, who cannot report at all. */}
+        {hasReportableMessage ? (
+          <p className="text-xs text-muted-foreground">
+            Press and hold a message from {counterpartyName} to report it.
           </p>
         ) : null}
 
@@ -267,6 +318,19 @@ export function ChatPanel({ booking }: { booking: Booking }) {
           </form>
         )}
       </CardContent>
+
+      {/* One dialog for the thread, driven by whichever bubble was held.
+          `targetId` is the message id straight from the wire — the same id
+          `MessageDto` carries, which is what `POST /reports` expects. */}
+      {reportingMessageId ? (
+        <ReportDialog
+          open
+          onClose={() => setReportingMessageId(null)}
+          targetType="message"
+          targetId={reportingMessageId}
+          targetName="this message"
+        />
+      ) : null}
     </Card>
   );
 }

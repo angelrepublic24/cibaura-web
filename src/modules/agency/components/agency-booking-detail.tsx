@@ -31,8 +31,10 @@ import {
 import {
   RenterIdentityCard,
 } from "@/modules/agency/components/renter-identity-card";
+import { PersonModerationActions } from "@/modules/moderation/components/moderation-actions";
+import { useAuthStore } from "@/shared/auth/store";
 import { BookingStateBadge } from "@/shared/components/booking-state-badge";
-import type { BookingState } from "@/shared/types/domain";
+import type { BookingDetail, BookingState } from "@/shared/types/domain";
 import { formatIsoDate } from "@/shared/utils/dates";
 import { ErrorState, LoadingState } from "@/shared/components/states";
 import {
@@ -151,6 +153,8 @@ export function AgencyBookingDetail({ bookingId }: { bookingId: string }) {
 
           <RenterIdentityCard booking={booking} />
 
+          <RenterModerationSection booking={booking} />
+
           {/* Above the inspection: the host asks for the code first, and
               without it nothing below can move the booking anyway. */}
           <HandoverCodeEntry booking={booking} />
@@ -171,5 +175,66 @@ export function AgencyBookingDetail({ bookingId }: { bookingId: string }) {
         <ChatPanel booking={booking} />
       </div>
     </div>
+  );
+}
+
+/**
+ * Report or block THE RENTER — the host's side of moderation.
+ *
+ * GATED BY ROLE, not by permission. The backend authorises these routes with
+ * `@Auth(customer, agency_owner, agency_staff)`, so the role is the real
+ * gate; the `reports:view` permission that exists in this app is about
+ * BUSINESS reports (revenue, bookings) and has nothing to do with filing a
+ * moderation report. Using `PermissionGate` here would hide the action from
+ * staff the backend happily serves, and tie two unrelated concepts together.
+ *
+ * TWO ROLES, TWO GATES, because the backend has two: reporting is open to the
+ * whole agency side, while BLOCKING A PERSON is the OWNER's alone (403
+ * `MODERATION_BLOCK_OWNER_ONLY`). Refusing a customer binds the agency, and
+ * the booking gate can only see the owner's row — so a staff member's block
+ * would be a button that returns 201 and changes nothing. The Expo app gates
+ * the same action to the owner; these two clients must not disagree about
+ * what the API does.
+ *
+ * `booking.customer` only travels to the agency and admin viewers, and even
+ * then the wire type allows it to be absent — so this renders nothing rather
+ * than inventing a name or an id.
+ */
+function RenterModerationSection({ booking }: { booking: BookingDetail }) {
+  const user = useAuthStore((s) => s.user);
+  const isOwner = !!user && user.roles.includes("agency_owner");
+  const isHost = isOwner || (!!user && user.roles.includes("agency_staff"));
+
+  const customer = booking.customer;
+  if (!isHost || !customer) return null;
+
+  return (
+    <PersonModerationActions
+      userId={customer.id}
+      userName={customer.name}
+      canBlock={isOwner}
+      title={isOwner ? "Report or block this renter" : "Report this renter"}
+      description={
+        <>
+          For behaviour our team should see — anything said in the chat
+          included.{" "}
+          {isOwner ? (
+            <>
+              Blocking stops new bookings between you and {customer.name},
+              quietly:{" "}
+            </>
+          ) : (
+            <>
+              Reporting reaches our team, who can act on the account; only the
+              agency owner can block a renter. Either way,{" "}
+            </>
+          )}
+          <span className="font-medium text-foreground">
+            this booking is not affected
+          </span>{" "}
+          and nothing is cancelled or refunded.
+        </>
+      }
+    />
   );
 }

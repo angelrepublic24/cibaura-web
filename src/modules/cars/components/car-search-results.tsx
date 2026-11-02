@@ -27,6 +27,7 @@ import { Skeleton } from "@/shared/components/ui/skeleton";
 import { Select } from "@/shared/components/ui/select";
 import { CAR_SORTS } from "@/modules/cars/helpers/cars.helper";
 import type { CarSort } from "@/modules/cars/types/cars.types";
+import { cn } from "@/lib/utils";
 
 /**
  * Results grid for /cars/[city]. The URL is the single source of truth:
@@ -220,7 +221,19 @@ export function CarSearchResults({
             />
           ) : (
             <>
-              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+              {/* DIMMED, NOT REPLACED, while a new answer is in flight. The
+                  query key carries the filters, the page AND the viewer (the
+                  listing is per-user once a session resolves), so it changes
+                  often; the previous grid is held by `keepPreviousData` and
+                  marked as stale here instead of the page collapsing into
+                  skeletons under the reader. */}
+              <div
+                className={cn(
+                  "grid gap-5 sm:grid-cols-2 xl:grid-cols-3",
+                  query.isPlaceholderData && "opacity-60 transition-opacity",
+                )}
+                aria-busy={query.isPlaceholderData}
+              >
                 {(query.data?.items ?? []).map((car) => (
                   <CarCard
                     key={car.id}
@@ -236,7 +249,7 @@ export function CarSearchResults({
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={page <= 1}
+                    disabled={page <= 1 || query.isPlaceholderData}
                     onClick={() => goToPage(page - 1)}
                   >
                     Previous
@@ -247,7 +260,7 @@ export function CarSearchResults({
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={!hasNext}
+                    disabled={!hasNext || query.isPlaceholderData}
                     onClick={() => goToPage(page + 1)}
                   >
                     Next

@@ -9,7 +9,7 @@ import { BreadcrumbJsonLd } from "@/shared/seo/structured-data";
 import { getPublicCity } from "@/shared/seo/public-api";
 import Link from "next/link";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
-import { carKeys } from "@/modules/cars/hooks/cars.hook";
+import { ANONYMOUS_VIEWER, carKeys } from "@/modules/cars/hooks/cars.hook";
 import {
   getCarSearch,
   getCarCatalog,
@@ -82,15 +82,24 @@ export default async function CarsByCityPage({ params, searchParams }: Props) {
   const [, directory] = await Promise.all([
     Promise.all([
       prefetchCities(client),
+      /*
+       * SEEDED AS ANONYMOUS, explicitly. These two endpoints are now
+       * viewer-aware (a signed-in caller gets the cars of agencies they
+       * blocked removed), and this prefetch forwards NO session cookie — so
+       * what it fetches is the public answer and it must be stored under the
+       * public key. A signed-in visitor reads a different key and fetches
+       * their own copy on the client; the HTML a crawler receives is this
+       * unfiltered one, which is the right thing to index.
+       */
       rangeProblem
         ? Promise.resolve(null)
         : searchable
           ? client.fetchQuery({
-              queryKey: carKeys.search(city, filters),
+              queryKey: carKeys.search(city, filters, ANONYMOUS_VIEWER),
               queryFn: () => getCarSearch(city, filters),
             })
           : client.fetchQuery({
-              queryKey: carKeys.catalog(city, filters),
+              queryKey: carKeys.catalog(city, filters, ANONYMOUS_VIEWER),
               queryFn: () => getCarCatalog(city, filters),
             }),
     ]),
