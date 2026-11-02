@@ -8,6 +8,7 @@ import {
   ClipboardList,
   Wallet,
   ClipboardCheck,
+  Flag,
   UserCheck,
   Users,
   Banknote,
@@ -48,6 +49,9 @@ const NAV: NavGroup[] = [
       { href: "/admin", label: "Overview", icon: LayoutDashboard },
       { href: "/admin/orders", label: "Orders", icon: ClipboardList },
       { href: "/admin/claims", label: "Claims", icon: Gavel },
+      // The moderation queue sits with the other things an admin works
+      // through, not under People: a report is a job, not a person.
+      { href: "/admin/reports", label: "Reports", icon: Flag },
     ],
   },
   {
