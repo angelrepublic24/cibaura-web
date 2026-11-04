@@ -6,6 +6,7 @@ import QueryProvider from "@/shared/providers/query-provider";
 import { SiteHeader } from "@/shared/components/site-header";
 import { SiteFooterNav } from "@/shared/components/site-footer-nav";
 import { Logo } from "@/shared/components/logo";
+import { SUPPORT_PATH } from "@/shared/config/support";
 import { OG_IMAGE, SITE_URL } from "@/shared/seo/metadata";
 
 const geistSans = Geist({
@@ -69,10 +70,20 @@ export default function RootLayout({
                 </div>
                 <div className="flex flex-col gap-8 sm:flex-row sm:gap-16">
                   <SiteFooterNav />
+                  {/*
+                    Support leads this column, above the legal pages: it is
+                    the one link here somebody follows because they have a
+                    problem right now, and it is the URL the app stores point
+                    their mandatory Support field at — so the site has to
+                    carry it somewhere a person can find without being told.
+                  */}
                   <nav className="flex flex-col gap-2 text-sm text-cream/80">
                     <span className="text-xs font-semibold uppercase tracking-wide text-cream/50">
-                      Legal
+                      Help &amp; legal
                     </span>
+                    <Link href={SUPPORT_PATH} className="hover:text-cream">
+                      Support
+                    </Link>
                     <Link href="/legal/terms" className="hover:text-cream">
                       Terms of Service
                     </Link>

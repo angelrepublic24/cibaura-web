@@ -19,11 +19,19 @@ export const publicBranchWireSchema = z.object({
 
 export const agencyKindSchema = z.enum(["business", "individual"]);
 
+/**
+ * Closed on purpose, unlike the app's `z.string()`: four shapes consume this
+ * and the admin console renders a badge per value, so a status nobody decided
+ * what to do with should fail loudly here rather than silently draw itself as
+ * "Pending". `closed` is the terminal one — the owner retired the business
+ * when they deleted their account (backend `AgencyVerificationStatus.CLOSED`).
+ */
 export const agencyVerificationStatusSchema = z.enum([
   "pending",
   "verified",
   "rejected",
   "suspended",
+  "closed",
 ]);
 
 /** `GET /agencies/:slug`. */

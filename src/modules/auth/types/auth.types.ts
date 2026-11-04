@@ -1,6 +1,7 @@
 import type { z } from "zod";
 import type { User } from "@/shared/types/domain";
 import type {
+  agencyClosureBlockerSchema,
   authUserWireSchema,
   changePasswordInputSchema,
   changePasswordSchema,
@@ -31,6 +32,9 @@ export type DeleteAccountFormValues = z.infer<typeof deleteAccountSchema>;
 // ------------------------------------------------------------- wire contract
 
 export type AuthUserWire = z.infer<typeof authUserWireSchema>;
+
+/** One reason the caller's agency — and therefore their account — cannot go yet. */
+export type AgencyClosureBlocker = z.infer<typeof agencyClosureBlockerSchema>;
 
 // -------------------------------------------------------------- service input
 

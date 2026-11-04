@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { LegalVersion } from "@/modules/legal/components/legal-version";
 import { CancellationPolicySummary } from "@/modules/legal/components/cancellation-policy";
+import { ContentSection } from "@/shared/components/content-section";
 import { LEGAL } from "@/shared/config/legal";
 import { pageMetadata } from "@/shared/seo/metadata";
 import { BreadcrumbJsonLd } from "@/shared/seo/structured-data";
@@ -20,25 +21,6 @@ export function generateMetadata(): Metadata {
  * backend's `CURRENT_TERMS_VERSION`.
  */
 
-function Section({
-  id,
-  title,
-  children,
-}: {
-  id: string;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section id={id} className="scroll-mt-24 space-y-3">
-      <h2 className="text-xl font-semibold text-foreground">{title}</h2>
-      <div className="space-y-3 text-sm leading-relaxed text-muted-foreground">
-        {children}
-      </div>
-    </section>
-  );
-}
-
 export default function TermsPage() {
   const company = LEGAL.companyName;
 
@@ -52,7 +34,7 @@ export default function TermsPage() {
         <LegalVersion />
       </header>
 
-      <Section id="who-we-are" title="1. Who we are">
+      <ContentSection id="who-we-are" title="1. Who we are">
         <p>
           The Cibaura platform (&ldquo;Cibaura&rdquo;, &ldquo;we&rdquo;,
           &ldquo;us&rdquo;) is a rent-a-car marketplace operated by{" "}
@@ -76,9 +58,9 @@ export default function TermsPage() {
           date and time, and the network address it came from. If you do not
           agree, do not use the Platform.
         </p>
-      </Section>
+      </ContentSection>
 
-      <Section id="intermediary" title="2. Cibaura is an intermediary; agencies own the cars">
+      <ContentSection id="intermediary" title="2. Cibaura is an intermediary; agencies own the cars">
         <p>
           Cibaura connects customers with independent, verified rent-a-car
           agencies (&ldquo;Agencies&rdquo;). The vehicles listed on the
@@ -95,9 +77,9 @@ export default function TermsPage() {
           legal compliance of its vehicles (including insurance and
           registration), and the fulfilment of its bookings.
         </p>
-      </Section>
+      </ContentSection>
 
-      <Section id="accounts" title="3. Accounts, eligibility and identity verification">
+      <ContentSection id="accounts" title="3. Accounts, eligibility and identity verification">
         <p>
           You must be at least 18 years old to hold an account. Agencies may
           set a higher minimum driver age for their vehicles; it is displayed
@@ -120,9 +102,9 @@ export default function TermsPage() {
           we email is valid for 30 minutes and can be used once. Resetting a
           password signs out every other session.
         </p>
-      </Section>
+      </ContentSection>
 
-      <Section id="bookings" title="4. Bookings, prices and payment">
+      <ContentSection id="bookings" title="4. Bookings, prices and payment">
         <p>
           Bookings follow a request-to-book flow: you send a request for
           specific dates and a pickup option; the Agency accepts or declines
@@ -152,9 +134,9 @@ export default function TermsPage() {
           Platform (walk-in bookings recorded by the Agency) are paid to the
           Agency under its own terms.
         </p>
-      </Section>
+      </ContentSection>
 
-      <Section id="cancellation" title="5. Cancellations, early returns and refunds">
+      <ContentSection id="cancellation" title="5. Cancellations, early returns and refunds">
         <p>
           The following policy applies to every booking made through the
           Platform. The figures below are the ones currently in force and are
@@ -178,9 +160,9 @@ export default function TermsPage() {
           full refund regardless of timing, and the Agency may face penalties
           up to removal from the Platform.
         </p>
-      </Section>
+      </ContentSection>
 
-      <Section id="rental" title="6. Pickup, delivery and your obligations as renter">
+      <ContentSection id="rental" title="6. Pickup, delivery and your obligations as renter">
         <p>
           Vehicles are collected at the Agency&rsquo;s branch (its exact
           address, phone and opening hours are shared on your booking once it
@@ -198,9 +180,9 @@ export default function TermsPage() {
           set by each Agency in the rental conditions displayed on the car
           page and stored with your booking.
         </p>
-      </Section>
+      </ContentSection>
 
-      <Section id="disputes" title="7. Damage, fines and disputes">
+      <ContentSection id="disputes" title="7. Damage, fines and disputes">
         <p>
           Damage to the vehicle, traffic fines, tolls and related costs during
           your rental are matters between you and the Agency under your rental
@@ -209,9 +191,9 @@ export default function TermsPage() {
           may, where the parties cannot agree, mediate in good faith, but
           Cibaura does not adjudicate liability.
         </p>
-      </Section>
+      </ContentSection>
 
-      <Section id="agencies" title="8. Agency terms and payouts">
+      <ContentSection id="agencies" title="8. Agency terms and payouts">
         <p>
           Agencies must pass verification (business registration and owner
           identity) before their vehicles appear in public search, keep
@@ -241,9 +223,9 @@ export default function TermsPage() {
           an employment, agency (in the legal sense), partnership or joint
           venture between {company} and any Agency.
         </p>
-      </Section>
+      </ContentSection>
 
-      <Section id="conduct" title="9. Prohibited conduct">
+      <ContentSection id="conduct" title="9. Prohibited conduct">
         <p>
           You may not: circumvent the Platform to avoid fees after making
           contact through it; misrepresent your identity, age or documents;
@@ -254,9 +236,9 @@ export default function TermsPage() {
           that breach these Terms; a suspended account cannot log in until
           the suspension is lifted.
         </p>
-      </Section>
+      </ContentSection>
 
-      <Section id="liability" title="10. Disclaimers and limitation of liability">
+      <ContentSection id="liability" title="10. Disclaimers and limitation of liability">
         <p>
           The Platform is provided &ldquo;as is&rdquo;. To the maximum extent
           permitted by law, {company} disclaims all warranties regarding the
@@ -267,9 +249,9 @@ export default function TermsPage() {
           received for that booking. Nothing in these Terms limits liability
           that cannot be limited under the laws of {LEGAL.jurisdiction}.
         </p>
-      </Section>
+      </ContentSection>
 
-      <Section id="termination" title="11. Closing your account and termination">
+      <ContentSection id="termination" title="11. Closing your account and termination">
         <p>
           You may delete your account at any time from your profile page after
           confirming your password. Deletion is refused while you have a
@@ -284,9 +266,9 @@ export default function TermsPage() {
           fraud, safety risk or legal requirement. Accepted bookings at the
           time of termination are wound down under Section 5.
         </p>
-      </Section>
+      </ContentSection>
 
-      <Section id="changes" title="12. Changes to these Terms">
+      <ContentSection id="changes" title="12. Changes to these Terms">
         <p>
           We may update these Terms. Each revision carries a new version
           identifier (shown at the top of this page); when the version
@@ -294,9 +276,9 @@ export default function TermsPage() {
           your next registration, password reset or booking request. Material
           changes will be announced on the Platform with reasonable notice.
         </p>
-      </Section>
+      </ContentSection>
 
-      <Section id="law" title="13. Governing law and contact">
+      <ContentSection id="law" title="13. Governing law and contact">
         <p>
           These Terms are governed by the laws of the {LEGAL.jurisdiction}.
           Any dispute arising from these Terms or from the use of the
@@ -314,7 +296,7 @@ export default function TermsPage() {
           </a>
           . Postal address: {company}, {LEGAL.address}.
         </p>
-      </Section>
+      </ContentSection>
     </>
   );
 }

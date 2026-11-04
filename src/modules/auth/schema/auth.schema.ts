@@ -107,6 +107,49 @@ export const roleSchema = z.enum([
 export const userStatusSchema = z.enum(["active", "suspended", "deleted"]);
 
 /**
+ * One obligation the backend says still binds the agency the caller OWNS, out
+ * of the `ACCOUNT_OWNS_AGENCY` error body (backend
+ * `agencies/closure/agency-closure.ts`). It is what turns that refusal from a
+ * wall into a to-do list: a code to look up copy and a link for, plus the
+ * numbers to put in the sentence.
+ *
+ * `code` is a plain string, not an enum: a backend that grows a seventh
+ * obligation must not make the list unparseable here — an unknown code falls
+ * back to the server's own `message`.
+ */
+export const agencyClosureBlockerSchema = z.object({
+  code: z.string(),
+  message: z.string(),
+  /** Rows blocking (bookings, claims, payouts, deposits). */
+  count: z.number().optional(),
+  amountCents: z.number().optional(),
+  currency: z.string().optional(),
+  /** `YYYY-MM-DD` the last of them is expected to clear. */
+  clearsOn: z.string().optional(),
+});
+
+/**
+ * The `blockers` field of the 409 body, parsed leniently on two levels —
+ * because this runs INSIDE an error handler, where a thrown parse error would
+ * replace the explanation with a crash: the envelope `.catch`es (a body
+ * without the field is an empty list) and each ROW is parsed on its own, so
+ * one malformed obligation drops itself instead of taking the others with it.
+ */
+export const accountDeletionBlockersSchema = z
+  .object({
+    blockers: z
+      .array(z.unknown())
+      .optional()
+      .transform((rows) =>
+        (rows ?? []).flatMap((row) => {
+          const parsed = agencyClosureBlockerSchema.safeParse(row);
+          return parsed.success ? [parsed.data] : [];
+        }),
+      ),
+  })
+  .catch({ blockers: [] });
+
+/**
  * Raw backend user. `/users/me` returns the full serialized user; the auth
  * responses embed the same shape. `name` (not `fullName`) crosses the wire in
  * both directions; `status`/`createdAt` may be absent on older rows, and

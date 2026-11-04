@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ContentSection } from "@/shared/components/content-section";
 import { LEGAL } from "@/shared/config/legal";
 import { pageMetadata } from "@/shared/seo/metadata";
 import { BreadcrumbJsonLd } from "@/shared/seo/structured-data";
@@ -22,32 +23,20 @@ export function generateMetadata(): Metadata {
  * link-free of anything behind auth.
  *
  * Everything below mirrors what the server actually does
- * (`users.service.ts` → `USER_DELETED_EVENT`), including the parts that are
- * awkward: the row is anonymised rather than dropped, rentals and payments
- * survive because they are also the counterparty's records, and an agency
- * owner cannot complete deletion alone. Declaring "users can delete from the
- * app" without those caveats is the under-declaration this page exists to
- * avoid.
+ * (`users.service.ts` → `USER_DELETED_EVENT` / `AGENCY_CLOSED_EVENT`),
+ * including the parts that are awkward: the row is anonymised rather than
+ * dropped, rentals and payments survive because they are also the
+ * counterparty's records, and deletion can be REFUSED — for an open booking
+ * of the person's own, or for live business of an agency they own. Declaring
+ * "users can delete from the app" without those caveats is the
+ * under-declaration this page exists to avoid.
+ *
+ * Section 5 used to say an agency owner had to write to us. That stopped
+ * being true when deletion started closing the agency in the same
+ * transaction; it is also the pattern App Store guideline 5.1.1(v) forbids,
+ * so if this page ever drifts back to naming an email as an owner's only
+ * route, the app is out of compliance and this page is the evidence.
  */
-
-function Section({
-  id,
-  title,
-  children,
-}: {
-  id: string;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section id={id} className="scroll-mt-24 space-y-3">
-      <h2 className="text-xl font-semibold text-foreground">{title}</h2>
-      <div className="space-y-3 text-sm leading-relaxed text-muted-foreground">
-        {children}
-      </div>
-    </section>
-  );
-}
 
 export default function DeleteAccountPage() {
   const company = LEGAL.companyName;
@@ -73,7 +62,7 @@ export default function DeleteAccountPage() {
         </p>
       </header>
 
-      <Section id="in-app" title="1. From the app (fastest)">
+      <ContentSection id="in-app" title="1. From the app (fastest)">
         <p>
           Open the {company} app and go to{" "}
           <strong className="text-foreground">
@@ -83,12 +72,12 @@ export default function DeleteAccountPage() {
           runs immediately — there is no waiting period and no confirmation
           email to chase.
         </p>
-      </Section>
+      </ContentSection>
 
-      <Section id="by-email" title="2. By email">
+      <ContentSection id="by-email" title="2. By email">
         <p>
-          If you cannot reach the app — you have uninstalled it, lost access to
-          your sign-in, or you are an agency owner (see section 5) — write to{" "}
+          If you cannot reach the app — you have uninstalled it, or lost access
+          to your sign-in — write to{" "}
           <a
             href={mailto}
             className="text-primary underline underline-offset-2"
@@ -103,9 +92,9 @@ export default function DeleteAccountPage() {
           before acting: it is the only thing standing between your account and
           somebody who merely knows your email address.
         </p>
-      </Section>
+      </ContentSection>
 
-      <Section id="deleted" title="3. What is deleted">
+      <ContentSection id="deleted" title="3. What is deleted">
         <ul className="list-disc space-y-1.5 pl-5">
           <li>
             Your identity documents and driving-licence images, erased from
@@ -122,9 +111,9 @@ export default function DeleteAccountPage() {
             your password no longer works anywhere.
           </li>
         </ul>
-      </Section>
+      </ContentSection>
 
-      <Section id="kept" title="4. What is kept, and why">
+      <ContentSection id="kept" title="4. What is kept, and why">
         <p>
           Completed rentals, their payments and the accounting entries behind
           them are <strong className="text-foreground">not</strong> deleted.
@@ -137,9 +126,9 @@ export default function DeleteAccountPage() {
           amounts and the dates, but the person is already anonymised, so they
           can no longer be traced back to you through this platform.
         </p>
-      </Section>
+      </ContentSection>
 
-      <Section id="blocked" title="5. When deletion cannot run yet">
+      <ContentSection id="blocked" title="5. When deletion cannot run yet">
         <p>
           <strong className="text-foreground">
             You have a booking in progress.
@@ -150,22 +139,20 @@ export default function DeleteAccountPage() {
         </p>
         <p>
           <strong className="text-foreground">
-            You own an agency on {company}.
+            Your agency still has live business.
           </strong>{" "}
-          This one you cannot resolve from the app: an agency has cars, staff
-          and live bookings that belong to other people, so it has to be wound
-          down before the owner&rsquo;s account can go. Write to{" "}
-          <a
-            href={mailto}
-            className="text-primary underline underline-offset-2"
-          >
-            {LEGAL.contactEmail}
-          </a>{" "}
-          and we will handle it with you.
+          If you own an agency on {company}, deleting your account closes the
+          agency with it — one action, no request to file. It is refused only
+          while the agency still owes somebody a car or money: a booking that
+          is not settled, a damage claim still being decided, a security
+          deposit still held on a renter&rsquo;s card, money sitting in the
+          agency wallet or on its way to your bank, or an open card dispute.
+          The app and the dashboard list exactly which of those apply and link
+          you to the screen that clears each one.
         </p>
-      </Section>
+      </ContentSection>
 
-      <Section id="more" title="6. Related">
+      <ContentSection id="more" title="6. Related">
         <p>
           Our{" "}
           <Link
@@ -183,7 +170,7 @@ export default function DeleteAccountPage() {
           </Link>{" "}
           cover the rental agreements themselves.
         </p>
-      </Section>
+      </ContentSection>
     </>
   );
 }
