@@ -59,7 +59,11 @@ const mocks = {
   usePermission: () => ({ can: () => true }),
   useAgencyAccessRevokedWatcher: () => undefined,
   isAgencyAccessRevokedError: () => false,
-  isRevokedStatus: (status) => status === "rejected" || status === "suspended",
+  // Mirrors `access-revoked.tsx#isRevokedStatus`. `closed` is in it: the
+  // owner retired the business when they deleted their account, and the one
+  // staff member whose server-side unlink failed must not get a dashboard.
+  isRevokedStatus: (status) =>
+    status === "rejected" || status === "suspended" || status === "closed",
   applyKeys: {
     myDocuments: () => "documents",
     application: () => "application",
@@ -182,6 +186,9 @@ assert.match(
   /REVOKED:rejected:documents illegible/,
 );
 assert.match(layoutFor("suspended"), /REVOKED:suspended/);
+// An owner-closed agency takes the dashboard down too — otherwise the status
+// is neither pending nor revoked and falls through to the full workspace.
+assert.match(layoutFor("closed"), /REVOKED:closed/);
 
 // ── The review screen itself ────────────────────────────────────────────────
 

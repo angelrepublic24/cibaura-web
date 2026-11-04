@@ -44,6 +44,10 @@ const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
   { value: "pending", label: "Pending" },
   { value: "rejected", label: "Rejected" },
   { value: "suspended", label: "Suspended" },
+  // Supply that LEFT, not supply that was refused: the owner closed the
+  // business when they deleted their account. Filterable because the only way
+  // ops learns how much supply has walked is by being able to count it.
+  { value: "closed", label: "Closed by owner" },
 ];
 
 /** ISO datetime (createdAt) → "Aug 1, 2026". */
@@ -63,6 +67,9 @@ function StatusBadge({ status }: { status: AgencyVerificationStatus }) {
     return <Badge variant="destructive">Rejected</Badge>;
   if (status === "suspended")
     return <Badge variant="destructive">Suspended</Badge>;
+  // Not destructive: nobody did this TO them. Distinct from the two refusals
+  // because it is the one status no admin action can undo.
+  if (status === "closed") return <Badge variant="secondary">Closed</Badge>;
   return <Badge variant="warning">Pending</Badge>;
 }
 
@@ -296,7 +303,15 @@ function AgencyRow({ agency }: { agency: AdminAgencyRow }) {
             >
               Reactivate
             </Button>
-          ) : null}
+          ) : /*
+             * Pending and rejected belong to the applications queue, and a
+             * CLOSED agency has no action at all: its owner row is anonymized,
+             * so reactivating it would put a storefront and a wallet back on
+             * the platform with nobody behind them. The backend 409s both
+             * directions (`AgenciesService.assertNotClosed`) — this is just
+             * not offering a button that cannot work.
+             */
+          null}
         </div>
 
         <ReasonDialog
