@@ -128,6 +128,18 @@ export function getApiErrorCode(error: unknown): string | undefined {
   return typeof body?.code === "string" ? body.code : undefined;
 }
 
+/**
+ * The raw error body, for the few refusals that itemise themselves instead of
+ * fitting in one sentence: `ACCOUNT_OWNS_AGENCY` carries the list of
+ * obligations that still bind the caller's agency, each with its own numbers.
+ *
+ * Returns `unknown` on purpose — the caller PARSES it (zod, in the module that
+ * owns the shape). A typed return here would be a cast over a server payload.
+ */
+export function getApiErrorBody(error: unknown): unknown {
+  return error instanceof AxiosError ? error.response?.data : undefined;
+}
+
 /** True when the failed request carries exactly this backend code. */
 export function isApiErrorCode(error: unknown, code: ApiErrorCode): boolean {
   return getApiErrorCode(error) === code;

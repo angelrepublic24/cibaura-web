@@ -131,7 +131,9 @@ export type AgencyVerificationStatus =
   | "pending"
   | "verified"
   | "rejected"
-  | "suspended";
+  | "suspended"
+  /** Terminal: the owner retired the business when they deleted their account. */
+  | "closed";
 
 export interface Agency {
   id: string;
