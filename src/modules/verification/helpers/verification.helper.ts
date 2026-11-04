@@ -5,8 +5,13 @@ import { businessTodayIso } from "@/shared/utils/dates";
  * Pure verification helpers. No API or service calls here.
  */
 
-/** The platform floor. Agencies enforce their own, higher, minimum age. */
-export const MIN_AGE_YEARS = 16;
+/**
+ * The platform floor, mirroring the backend's `MIN_CUSTOMER_AGE_YEARS`. 18 is
+ * what the store listings target and what the published Terms and Privacy
+ * Policy promise, so it must not drift from them. Agencies enforce their own,
+ * equal or higher, minimum driver age on top of this.
+ */
+export const MIN_AGE_YEARS = 18;
 
 /** Latest acceptable date of birth (today minus MIN_AGE_YEARS, business tz). */
 export function maxDateOfBirthIso(): string {

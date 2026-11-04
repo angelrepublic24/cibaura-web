@@ -27,7 +27,7 @@ import type { SubmitVerificationInput } from "@/modules/verification/types/verif
  *  - GET   /verification/me        -> { verification, documents }
  *  - POST  /verification           -> CustomerVerification
  *      (an already-expired licence auto-REJECTS server-side; `dateOfBirth`
- *       is required and must be at least 16 years ago — agencies enforce
+ *       is required and must be at least 18 years ago — agencies enforce
  *       their own minimum driver age at request time via DRIVER_TOO_YOUNG)
  *  - PATCH /verification/me { dateOfBirth } -> CustomerVerification
  *      (ONLY while the stored date of birth is null; 409 otherwise. Does not
