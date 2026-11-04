@@ -4,6 +4,7 @@ import { unstable_cache } from "next/cache";
 import type { AgencyPublicProfile } from "@/modules/agencies/types/agencies.types";
 import type { Car, City, Country } from "@/shared/types/domain";
 import { API_URL } from "@/lib/config";
+import { SUPPORT_PATH } from "@/shared/config/support";
 import { AGENCY_SIGNUP_PATH, HOST_SIGNUP_PATH } from "@/shared/config/supply";
 import { absoluteUrl } from "@/shared/seo/metadata";
 import { allPublicPages, carPath, publicGet } from "@/shared/seo/public-api";
@@ -16,8 +17,12 @@ const getSitemap = unstable_cache(
       "/cars/all",
       HOST_SIGNUP_PATH,
       AGENCY_SIGNUP_PATH,
+      SUPPORT_PATH,
       "/legal/terms",
       "/legal/privacy",
+      // The stores require deletion to be requestable without installing the
+      // app; leaving it out of the sitemap made it a URL you had to be told.
+      "/legal/delete-account",
     ]);
     try {
       const cities = await publicGet<City[]>("/agencies/available-cities");

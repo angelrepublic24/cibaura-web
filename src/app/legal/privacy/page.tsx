@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { LegalVersion } from "@/modules/legal/components/legal-version";
+import { ContentSection } from "@/shared/components/content-section";
 import { LEGAL } from "@/shared/config/legal";
 import { pageMetadata } from "@/shared/seo/metadata";
 import { BreadcrumbJsonLd } from "@/shared/seo/structured-data";
@@ -18,25 +19,6 @@ export function generateMetadata(): Metadata {
  * deletion and retention.
  */
 
-function Section({
-  id,
-  title,
-  children,
-}: {
-  id: string;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section id={id} className="scroll-mt-24 space-y-3">
-      <h2 className="text-xl font-semibold text-foreground">{title}</h2>
-      <div className="space-y-3 text-sm leading-relaxed text-muted-foreground">
-        {children}
-      </div>
-    </section>
-  );
-}
-
 export default function PrivacyPage() {
   const company = LEGAL.companyName;
 
@@ -50,7 +32,7 @@ export default function PrivacyPage() {
         <LegalVersion />
       </header>
 
-      <Section id="controller" title="1. Who is responsible for your data">
+      <ContentSection id="controller" title="1. Who is responsible for your data">
         <p>
           The data controller for the Cibaura platform is{" "}
           <strong className="text-foreground">{company}</strong>
@@ -75,9 +57,9 @@ export default function PrivacyPage() {
           </Link>
           .
         </p>
-      </Section>
+      </ContentSection>
 
-      <Section id="data" title="2. What we collect">
+      <ContentSection id="data" title="2. What we collect">
         <p>
           <strong className="text-foreground">Account data</strong> — name,
           email address, phone number, password (stored only as a
@@ -126,9 +108,9 @@ export default function PrivacyPage() {
           push-notification tokens) used for security, fraud prevention and
           debugging, and the session cookies described in Section 8.
         </p>
-      </Section>
+      </ContentSection>
 
-      <Section id="purposes" title="3. Why we process it">
+      <ContentSection id="purposes" title="3. Why we process it">
         <p>
           We process personal data to: operate your account and bookings
           (performance of the contract); verify identity, age and license
@@ -141,9 +123,9 @@ export default function PrivacyPage() {
           sanctions). Marketing communications, if any, are sent only with
           your consent and can be opted out of at any time.
         </p>
-      </Section>
+      </ContentSection>
 
-      <Section id="sharing" title="4. Who we share it with">
+      <ContentSection id="sharing" title="4. Who we share it with">
         <p>
           <strong className="text-foreground">Agencies</strong> — the Agency
           fulfilling your booking sees your name, email and phone, the booking
@@ -169,9 +151,9 @@ export default function PrivacyPage() {
           required by law, court order or to protect safety and prevent
           fraud. We do not sell personal data.
         </p>
-      </Section>
+      </ContentSection>
 
-      <Section id="retention" title="5. Retention and deletion">
+      <ContentSection id="retention" title="5. Retention and deletion">
         <p>
           Account data is kept while your account is active. Identity
           verification data (license details, date of birth, document images)
@@ -197,9 +179,9 @@ export default function PrivacyPage() {
           profile. Deletion is not possible while you have an open booking or
           own a pending or verified Agency.
         </p>
-      </Section>
+      </ContentSection>
 
-      <Section id="security" title="6. Security">
+      <ContentSection id="security" title="6. Security">
         <p>
           Data in transit is encrypted (TLS); identity documents are stored in
           private, access-controlled storage and streamed only to authorized
@@ -209,9 +191,9 @@ export default function PrivacyPage() {
           deletion. No system is perfectly secure: if a breach affects you,
           we will notify you and the relevant authority as required by law.
         </p>
-      </Section>
+      </ContentSection>
 
-      <Section id="rights" title="7. Your rights">
+      <ContentSection id="rights" title="7. Your rights">
         <p>
           Subject to the laws of the {LEGAL.jurisdiction} (including Law
           172-13 on the protection of personal data), you may request access
@@ -230,9 +212,9 @@ export default function PrivacyPage() {
           example records of completed rentals) must be retained where the law
           requires it.
         </p>
-      </Section>
+      </ContentSection>
 
-      <Section id="cookies" title="8. Cookies and local storage">
+      <ContentSection id="cookies" title="8. Cookies and local storage">
         <p>
           The web platform uses strictly necessary httpOnly cookies to keep you
           signed in (an access cookie and a refresh cookie, both restricted to
@@ -243,23 +225,23 @@ export default function PrivacyPage() {
           when the payment form loads, for fraud prevention. Blocking
           essential cookies will prevent sign-in from working.
         </p>
-      </Section>
+      </ContentSection>
 
-      <Section id="children" title="9. Children">
+      <ContentSection id="children" title="9. Children">
         <p>
           The Platform is not directed at children. You must be at least 18 to
           hold an account, and we do not knowingly collect data from minors;
           if we learn we have, we delete it.
         </p>
-      </Section>
+      </ContentSection>
 
-      <Section id="changes" title="10. Changes to this policy">
+      <ContentSection id="changes" title="10. Changes to this policy">
         <p>
           We may update this policy; material changes will be announced on the
           Platform before they take effect. The version shown at the top of
           this page identifies the revision currently in force.
         </p>
-      </Section>
+      </ContentSection>
     </>
   );
 }

@@ -49,6 +49,28 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  /**
+   * THE SUPPORT URL AND ITS TWO GUESSES. `/support` is the page the App Store
+   * and Play listings point their mandatory Support field at; `/help` and
+   * `/contact` are what a person types when looking for it, and all three
+   * returned 404. This is a redirect, not the `rewrites()` proxy ruled out
+   * above: nothing is proxied and no cookie crosses a domain.
+   *
+   * 307, NOT 308. Neither path ever had content, so there is nothing for a
+   * crawler to consolidate — and a permanent redirect is cached by browsers
+   * and crawlers indefinitely, which would make a real help centre at `/help`
+   * unreachable later for everyone who had already followed this one.
+   *
+   * The destination is spelled out rather than imported from `SUPPORT_PATH`
+   * (`src/shared/config/support.ts`): this file is loaded without the `@/*`
+   * path aliases that module's own imports use. Keep the two in step.
+   */
+  async redirects() {
+    return [
+      { source: "/help", destination: "/support", permanent: false },
+      { source: "/contact", destination: "/support", permanent: false },
+    ];
+  },
   images: {
     // Only the public, immutable photo stream; never KYC, documents or arbitrary hosts.
     remotePatterns: [

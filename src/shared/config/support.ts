@@ -39,3 +39,15 @@ function resolveSupportEmail(): string {
 
 /** The address shown to customers, as text and in `mailto:` links. */
 export const SUPPORT_EMAIL = resolveSupportEmail();
+
+/**
+ * The public support page.
+ *
+ * Declared once because it is pointed at from the footer, the sitemap, the
+ * legal pages and — crucially — from the App Store and Play listings, where
+ * the Support URL is a required field. A hardcoded path that drifts to a 404
+ * is a metadata rejection, and this one cannot be fixed by editing a page:
+ * the stores hold their own copy of the URL. `/help` and `/contact` redirect
+ * here (`next.config.ts`) because those are the two URLs a person types.
+ */
+export const SUPPORT_PATH = "/support";
