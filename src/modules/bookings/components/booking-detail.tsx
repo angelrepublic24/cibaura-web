@@ -11,6 +11,7 @@ import { ChatPanel } from "@/modules/bookings/components/chat-panel";
 import { CancelBookingDialog } from "@/modules/bookings/components/cancel-booking-dialog";
 import { ClaimResponseCard } from "@/modules/bookings/components/claim-response-card";
 import { ReportProblemNotice } from "@/modules/bookings/components/report-problem-notice";
+import { AgencyModerationActions } from "@/modules/moderation/components/moderation-actions";
 import { DepositBanner } from "@/modules/bookings/components/deposit-banner";
 import { InspectionsSection } from "@/modules/bookings/components/inspections-section";
 import { SettlementCard } from "@/modules/bookings/components/settlement-card";
@@ -19,7 +20,7 @@ import {
   StateTimeline
 } from "@/modules/bookings/components/booking-summary";
 import { useRequestPayment } from "@/modules/bookings/hooks/request-payment.hook";
-import { isAwaitingHandover } from "@/modules/bookings/helpers/support-report.helper";
+import { showsReportProblemNotice } from "@/modules/bookings/helpers/support-report.helper";
 import {
   useCreateReview,
   useReviewForBooking
@@ -121,6 +122,44 @@ export function BookingDetail({ bookingId }: { bookingId: string }) {
         <ReviewSection booking={booking} />
 
         <CancelSection booking={booking} />
+
+        {/*
+          DELIBERATELY BELOW CancelSection, and worded to be unmistakable from
+          `<ReportProblemNotice/>` above it. That one is the mailto for a car
+          that was never handed over, and it ends in support cancelling the
+          booking with a FULL REFUND. This one goes to moderation and moves no
+          money at all. A customer standing in a car park must not read these
+          two as the same door.
+
+          It is also the accessible counterpart to the chat's press-and-hold:
+          anyone who cannot perform that gesture reports the host from here.
+
+          THE POINTER IS CONDITIONAL. The sentence sending the customer to
+          "Report a problem" is printed only while that notice is genuinely
+          above — `showsReportProblemNotice` is the same predicate that
+          renders it. On every other booking (completed, cancelled, active, or
+          accepted before the pickup day) there is no such button, and an
+          instruction to press one that does not exist is the worst possible
+          copy in exactly the case it was written for.
+        */}
+        <AgencyModerationActions
+          agencyId={booking.agency.id}
+          agencyName={booking.agency.name}
+          title="Report or block this agency"
+          description={
+            <>
+              For behaviour our team should see — anything said in the chat
+              included. This goes to moderation only:{" "}
+              <span className="font-medium text-foreground">
+                it does not cancel this booking and does not refund anything
+              </span>
+              .
+              {showsReportProblemNotice(booking)
+                ? " If nobody turned up to hand over the car, use “Report a problem” above instead — that is the route to a full refund."
+                : null}
+            </>
+          }
+        />
       </div>
 
       <ChatPanel booking={booking} />
@@ -633,7 +672,7 @@ function CancelSection({ booking }: { booking: BookingDetailData }) {
 
   return (
     <div className="space-y-3">
-      {isAwaitingHandover(booking) ? (
+      {showsReportProblemNotice(booking) ? (
         <ReportProblemNotice booking={booking} retentionPct={retentionPct} />
       ) : null}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-4">

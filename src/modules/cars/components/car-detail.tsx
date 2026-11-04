@@ -52,11 +52,14 @@ import {
 import { carGallery } from "@/modules/cars/helpers/cars.helper";
 import { CarPhotoPlaceholder } from "@/modules/cars/components/car-photo-placeholder";
 import { RentalPolicyCard } from "@/modules/cars/components/rental-policy-card";
+import { AgencyModerationActions } from "@/modules/moderation/components/moderation-actions";
+import { useMyBlocks } from "@/modules/moderation/hooks/moderation.hook";
 import { useAuthStore } from "@/shared/auth/store";
 import {
   API_ERROR_CODES,
   getApiErrorCode,
   getErrorMessage,
+  isApiErrorCode,
 } from "@/shared/api/errors";
 import type {
   CarDetail as CarDetailShape,
@@ -210,6 +213,24 @@ export function CarDetail({
           depositCents={car.depositCents}
           depositRequired={car.depositRequired}
           agencyName={car.agency.name}
+        />
+
+        {/* Last in the column on purpose: it is the exit for a listing that
+            is wrong, not part of deciding to rent it. Visible to guests. */}
+        <AgencyModerationActions
+          className="mt-6"
+          agencyId={car.agency.id}
+          agencyName={car.agency.name}
+          carId={car.id}
+          title="Something wrong here?"
+          description={
+            <>
+              Tell our moderation team about this listing or about{" "}
+              {car.agency.name}. Blocking them instead keeps their cars out of
+              your search results and stops new bookings between you — quietly,
+              and you can undo it.
+            </>
+          }
         />
       </div>
 
@@ -452,12 +473,44 @@ function ageOn(dateOfBirth: string, day: string): number {
  * Map the request-to-book gate errors (stable backend `code`s) to copy the
  * customer can act on. Anything unmapped falls back to the server message.
  */
-function describeRequestError(error: unknown): {
+function describeRequestError(
+  error: unknown,
+  /**
+   * Whether THIS VIEWER is the one who blocked the agency. Read from their own
+   * block list, so it reveals nothing about the other party: when it is false
+   * the message stays neutral and the renter cannot tell "they blocked me"
+   * from any other reason the car is unavailable.
+   */
+  viewerBlockedAgency = false,
+): {
   message: string;
   action?: { label: string; href: string };
 } {
   const code = getApiErrorCode(error);
   switch (code) {
+    case API_ERROR_CODES.MODERATION_BLOCKED:
+      /*
+       * A BLOCK IS PRIVATE. The backend refuses the booking when EITHER side
+       * blocked the other and deliberately does not say which — so neither
+       * branch here names the other party or implies they did anything.
+       * The blocker gets the one useful fact (it is their own block, and
+       * where to undo it); everybody else gets "not available", full stop.
+       */
+      /*
+       * Both strings OPEN WITH THE SAME SENTENCE on purpose. The blocker's
+       * extra clause depends on a list fetched only once this error happens,
+       * so the copy starts neutral and GAINS the clause a moment later —
+       * never replaces one claim with a different one.
+       */
+      return viewerBlockedAgency
+        ? {
+            message:
+              "This car cannot be booked because you blocked this agency. Unblock them if you want to rent from them again.",
+            action: { label: "Blocked list", href: "/account/blocked" },
+          }
+        : {
+            message: "This car cannot be booked.",
+          };
     case API_ERROR_CODES.TERMS_OUTDATED:
       return {
         message:
@@ -706,8 +759,23 @@ function BookingPanel({
     ageOn(verification.dateOfBirth, from) < car.agency.minDriverAge;
 
   const legalReady = legal.isSuccess && !!legal.data;
+
+  /*
+   * Only ONE of the two parties can be told why, and only about their OWN
+   * block — so the list is fetched lazily, the instant the refusal happens
+   * and never before. A blocked booking is rare; making every visitor to
+   * every car page pay a request for it would not be.
+   */
+  const bookingBlocked = isApiErrorCode(
+    requestMutation.error,
+    API_ERROR_CODES.MODERATION_BLOCKED,
+  );
+  const myBlocks = useMyBlocks(bookingBlocked);
+  const viewerBlockedAgency =
+    myBlocks.data?.agencies.some((a) => a.id === car.agency.id) ?? false;
+
   const requestError: SignStepError | null = requestMutation.isError
-    ? describeRequestError(requestMutation.error)
+    ? describeRequestError(requestMutation.error, viewerBlockedAgency)
     : null;
 
   function openSignStep() {

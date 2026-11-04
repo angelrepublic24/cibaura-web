@@ -12,6 +12,7 @@ import { PrivateHostBadge } from "@/modules/agencies/components/private-host-bad
 import { CarCard } from "@/modules/cars/components/car-card";
 import { CarFiltersPanel } from "@/modules/cars/components/car-filters-panel";
 import { StarRating } from "@/shared/components/star-rating";
+import { ReportAgencyButton } from "@/modules/moderation/components/report-agency-button";
 import { FavoriteButton } from "@/shared/components/favorite-button";
 import type {
   AgencyKind,
@@ -254,7 +255,11 @@ function AgencyHeader({
               )}
             </div>
           </div>
-          <FavoriteButton agencyId={agencyId} className="mb-1 ml-auto" />
+          <div className="mb-1 ml-auto flex items-center gap-2">
+            <FavoriteButton agencyId={agencyId} />
+            {/* Visible to guests too — see `ReportAgencyButton`. */}
+            <ReportAgencyButton agencyId={agencyId} agencyName={name} />
+          </div>
         </div>
 
         {description ? (

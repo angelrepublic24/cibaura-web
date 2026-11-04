@@ -70,6 +70,35 @@ export const API_ERROR_CODES = {
   RENTER_DOCUMENTS_REMINDER_TOO_SOON: "RENTER_DOCUMENTS_REMINDER_TOO_SOON",
   /** Nothing the renter uploads can revive a closed booking. */
   RENTER_DOCUMENTS_BOOKING_CLOSED: "RENTER_DOCUMENTS_BOOKING_CLOSED",
+  // ── Moderation: reports and blocks (backend `moderation/moderation-codes.ts`) ──
+  /** The reason sent does not belong to the reported object's kind. */
+  REPORT_REASON_NOT_ALLOWED: "REPORT_REASON_NOT_ALLOWED",
+  /** The reported object does not exist, or was never visible to the reporter. */
+  REPORT_TARGET_NOT_FOUND: "REPORT_TARGET_NOT_FOUND",
+  /** Reporting or blocking your own content — yourself, your agency, your fleet. */
+  MODERATION_SELF_TARGET: "MODERATION_SELF_TARGET",
+  /** This reporter already has an open/reviewing report on this exact object. */
+  REPORT_EXISTS: "REPORT_EXISTS",
+  /** The block already exists. `DELETE /blocks` has no counterpart: it is idempotent. */
+  BLOCK_EXISTS: "BLOCK_EXISTS",
+  /**
+   * Blocking a PERSON when you are not the agency's owner (403). The UI gates
+   * the action to owners, so this is the belt: the copy exists for the staff
+   * member who kept a stale tab open, and points them at reporting instead.
+   */
+  MODERATION_BLOCK_OWNER_ONLY: "MODERATION_BLOCK_OWNER_ONLY",
+  /**
+   * The transition is not allowed: a decided report is final, and `open` is
+   * never a destination. Also the race between two admins on one row.
+   */
+  REPORT_NOT_OPEN: "REPORT_NOT_OPEN",
+  /** Closing a report (`actioned`/`dismissed`) without saying why. */
+  REPORT_RESOLUTION_NOTE_REQUIRED: "REPORT_RESOLUTION_NOTE_REQUIRED",
+  /**
+   * One of the two parties blocked the other, so a NEW booking between them is
+   * refused. Says nothing about WHO blocked whom — a block is private.
+   */
+  MODERATION_BLOCKED: "MODERATION_BLOCKED",
 } as const;
 
 export type ApiErrorCode =

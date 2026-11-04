@@ -34,6 +34,28 @@ export function isAwaitingHandover(booking: BookingDetail): boolean {
 }
 
 /**
+ * Whether `<ReportProblemNotice/>` IS ACTUALLY ON THE PAGE for this booking.
+ *
+ * The notice is rendered by `CancelSection`, which bails out before reaching
+ * it on a `closed` tier (online cancellation has shut, so there is no cancel
+ * row to warn about) and never renders at all outside `requested`/`accepted`.
+ * `isAwaitingHandover` alone therefore does NOT answer "is the no-show route
+ * visible".
+ *
+ * It exists because other copy POINTS AT that notice by name ("use 'Report a
+ * problem' above"), and an imperative pointing at a button that is not on the
+ * page is worse than no pointer at all — it is the customer standing in the
+ * car park being sent to look for the refund door. One predicate, used by the
+ * renderer and by every sentence that references it, is what keeps the two
+ * from drifting.
+ */
+export function showsReportProblemNotice(booking: BookingDetail): boolean {
+  return (
+    isAwaitingHandover(booking) && booking.cancellationQuote?.tier !== "closed"
+  );
+}
+
+/**
  * A `mailto:` carrying everything an admin needs to act without a reply:
  * which booking, which agency, which dates, and where the customer was
  * supposed to collect the car. The admin console opens at
