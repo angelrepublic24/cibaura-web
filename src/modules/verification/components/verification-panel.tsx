@@ -60,7 +60,6 @@ import { businessTodayIso, formatIsoDate } from "@/shared/utils/dates";
  * expires-soon) so the customer can act before a booking is ever blocked.
  */
 
-/** Backend rule: the date of birth must be at least this many years ago. */
 const REQUIRED_DOCS: {
   type: CustomerDocumentType;
   label: string;
