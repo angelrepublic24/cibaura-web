@@ -139,8 +139,13 @@ export interface Agency {
   id: string;
   name: string;
   slug: string;
-  description?: string;
-  logoUrl?: string;
+  /* `| null` to match the backend contract, which declares both as
+     `string | null` (`AgencyDto` in `backend/src/common/serializers/
+     wire-contract.ts`). This mirror said `string | undefined`, so the compiler
+     never saw the null that the server has always sent for an agency with no
+     description and no logo — the state every agency is created in. */
+  description?: string | null;
+  logoUrl?: string | null;
   /** Storefront cover image (uploaded via branding or pasted); null = none. */
   bannerUrl?: string | null;
   verificationStatus: AgencyVerificationStatus;
