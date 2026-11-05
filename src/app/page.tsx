@@ -36,8 +36,16 @@ export default function HomePage() {
           Top padding came down from pt-20/md:pt-28 so the search sits higher
           in the fold and the page invites scrolling instead of filling the
           whole screen with the headline. */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 -z-10" aria-hidden>
+      {/* NO `overflow-hidden` on the section. It used to live here to contain
+          the decorative layers that bleed off the right edge — but it also
+          clipped the date picker, which is `absolute` inside this section and
+          opens BELOW the search card. Measured on production: the calendar is
+          429px tall and ended at y=878 while the section ended at y=616, so
+          262px of it — more than half, every row from the second week on —
+          was cut off. The clipping now sits on the two decorative wrappers
+          instead, which is all it was ever for. */}
+      <section className="relative">
+        <div className="absolute inset-0 -z-10 overflow-hidden" aria-hidden>
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,var(--accent-soft)_0%,transparent_55%),radial-gradient(ellipse_at_bottom_left,var(--olive-soft)_0%,transparent_50%),linear-gradient(180deg,var(--gold-soft)_0%,var(--background)_70%)]" />
           <div className="absolute inset-0 bg-gradient-to-r from-background via-background/70 to-transparent" />
           <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
@@ -55,7 +63,10 @@ export default function HomePage() {
             has to work on this page. */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-y-0 right-0 hidden w-[46%] lg:block"
+          /* `overflow-hidden` HERE, not on the section: the isotype below sits
+             at `-right-10` and would widen the page into a horizontal scroll
+             if nothing clipped it. */
+          className="pointer-events-none absolute inset-y-0 right-0 hidden w-[46%] overflow-hidden lg:block"
         >
           <div className="absolute inset-0 bg-[linear-gradient(130deg,var(--muted)_0%,var(--accent-soft)_60%,var(--surface)_100%)] bg-cover bg-center" />
           {/* Fades the image into the page on its left and bottom edges, so
