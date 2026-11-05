@@ -31,26 +31,49 @@ import { Card, CardContent } from "@/shared/components/ui/card";
  * to theirs (one supply entity per user).
  */
 
+/**
+ * Same discipline as /become-agency: this is copy a host decides on before
+ * handing over their own car, so each claim names the backend file that
+ * decides the rule. If the money or protection rules change, start there.
+ */
 const BENEFITS = [
   {
     icon: Banknote,
     title: "Earn from a car that sits idle",
-    body: "Set your own daily rate. Renters pay a service fee on top — it never comes out of what you earn.",
+    // Verified against backend pricing.service.ts: the commission is a markup
+    // added to the renter's price (`withCommissionCents`); the host is credited
+    // `hostSubtotalCents` to the cent.
+    body: "Set your own daily rate and get credited every cent of it. Cibaura's commission is added on top of your price for the renter, never deducted from it.",
   },
   {
     icon: CalendarDays,
     title: "You stay in control",
-    body: "Accept only the requests you like, block the dates you need the car, and hand it over at your address or deliver it.",
+    // Verified against the backend: reject a request (booking-state.service.ts),
+    // block your own dates (car_occupancy `manual_block`,
+    // car-occupancy.entity.ts), and deliver only inside the zones you define
+    // (agency.controller.ts branch zones / delivery cities).
+    body: "Accept only the requests you like, block the dates you need the car, and hand it over at your address or deliver it where you choose.",
   },
   {
     icon: ShieldCheck,
     title: "Protected every rental",
-    body: "A signed rental agreement, a security deposit held on the renter's card, and photo check-in / check-out on every booking.",
+    // Verified against the backend. The agreement and the photo check-in /
+    // check-out are enforced (inspection-gate.service.ts refuses a hand-over
+    // without a confirmed check-in; `inspection_min_photos` defaults to 4).
+    // THE DEPOSIT IS OPTIONAL: `default_deposit_cents` defaults to 0
+    // (platform-config.service.ts) and a deposit only exists if the host sets
+    // one on the car or on their profile (car.entity.ts `depositCents`), so it
+    // must not be advertised as happening on every booking.
+    body: "A signed rental agreement and photo check-in / check-out on every booking — plus the option to hold a security deposit on the renter's card.",
   },
   {
     icon: KeyRound,
     title: "Paid to your bank",
-    body: "Earnings land in your wallet after each rental and are paid out to your bank account.",
+    // Verified against the backend: credited at `settleBooking`
+    // (bookings.service.ts), then paid out by weekly-payout.job.ts (one run a
+    // week). payouts.service.ts `requestBankTransfer` returns null until the
+    // host has saved bank details, so the copy says to add them.
+    body: "Your earnings are credited to your wallet when a rental settles. Add your bank details and they go out in the weekly payout run.",
   },
 ];
 
@@ -72,10 +95,14 @@ function ValueProp() {
         Rent out your car on Cibaura
       </h1>
       <p className="mt-3 max-w-2xl text-base leading-relaxed text-muted-foreground">
+        {/* "a deposit" dropped: a deposit is opt-in per car, not universal —
+            see the "Protected every rental" note above. The identity check IS
+            universal (backend bookings.service.ts identity gate: verified
+            renter, licence valid through the rental end). */}
         Turn your own car into income without running a rental business.
-        Verified hosts only — renters are identity-checked, every rental is
-        covered by a signed agreement and a deposit, and you decide who drives
-        your car.
+        Verified hosts only — renters are identity-checked with a valid
+        driver&apos;s licence, every rental is covered by a signed agreement,
+        and you decide who drives your car.
       </p>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
@@ -96,8 +123,11 @@ function ValueProp() {
       </div>
 
       <div className="mt-8 rounded-[var(--radius)] border border-border bg-muted/40 p-5">
+        {/* "about ten minutes" dropped — no measurement backs it, and the
+            wizard's length depends on documents the host has to photograph.
+            The five steps themselves match host-wizard.tsx. */}
         <h2 className="font-display text-lg text-foreground">
-          Five steps, about ten minutes
+          Five steps, all online
         </h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-5">
           {STEPS.map((s) => (

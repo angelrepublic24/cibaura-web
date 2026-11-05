@@ -29,43 +29,81 @@ import { Card, CardContent } from "@/shared/components/ui/card";
  * application + document-upload flow.
  */
 
+/**
+ * THIS IS A RECRUITMENT PAGE: every sentence below is a promise made to an
+ * agency owner before they sign anything, so each one carries the backend file
+ * that DECIDES the rule it describes. When a money or lifecycle rule moves,
+ * that file is where the new truth lives — and this is the page that has to
+ * follow it.
+ */
 const BENEFITS = [
   {
     icon: Car,
     title: "Reach more renters",
-    body: "Customers search Cibaura by city and dates. The moment you're verified, your cars show up in front of people ready to book.",
+    // Verified against backend fleet.service.ts: activating a car needs a
+    // VERIFIED agency AND `assertListingEligible` (signed host agreement, and
+    // for an individual host the car's registration). Verification on its own
+    // publishes nothing — the agency still activates each car.
+    body: "Customers search Cibaura by city and dates. Once your agency is verified, every car you activate shows up in front of people ready to book.",
   },
   {
     icon: Wallet,
     title: "You set the price, keep your rate",
-    body: "You set your daily rate and keep it. The renter pays a small platform fee on top — it never comes out of your earnings.",
+    // Verified against backend pricing.service.ts: the commission is a MARKUP
+    // on the renter's side (`withCommissionCents`) and the host is credited
+    // `hostDailyRateCents × days` exactly — even the rounding remainders are
+    // absorbed by the platform, never by the agency.
+    body: "You set your daily rate and are credited every cent of it. Cibaura's commission is added on top of your price for the renter — it never comes out of your earnings.",
   },
   {
     icon: MapPin,
     title: "Earn on delivery too",
-    body: "Charge a fee to deliver a car to the airport, a hotel zone, or anywhere else — it's added to what you earn.",
+    // Verified against backend pricing.service.ts: `hostDeliveryFeeCents` is
+    // part of `hostSubtotalCents`, and the renter's delivery fee is that same
+    // figure marked up — the commission does not eat into the fee you set.
+    body: "Set a fee to deliver a car to the airport, a hotel zone or anywhere else you serve — you're credited that fee in full, just like your daily rate.",
   },
   {
     icon: ShieldCheck,
     title: "Get paid safely",
-    body: "The renter's card is held when they request and charged only when YOU accept. No shows, no surprises — track it all in your wallet.",
+    // Verified against backend booking-capture.job.ts (`findDue`): the card is
+    // charged when `free_cancellation_until` passes, NOT on acceptance —
+    // accepting leaves the hold in place. The wallet credit happens at
+    // `settleBooking` (bookings.service.ts).
+    body: "The renter's card is held when they request, and charged once their free-cancellation window closes — not the moment you accept. Your share is credited to your wallet when the rental settles, and you can follow every cent of it there.",
   },
   {
     icon: LayoutDashboard,
     title: "A full dashboard",
+    // Verified against backend agency.controller.ts / agency.service.ts:
+    // branches, manual blocks and walk-in bookings, and staff whose access is
+    // scoped per branch (`assertBranchInScope`).
     body: "Manage your fleet, calendar and offline bookings, review requests, and add staff with roles & per-branch permissions.",
   },
   {
     icon: CalendarClock,
     title: "No upfront cost",
-    body: "Listing is free. You only pay a commission when you actually get a booking — nothing before that.",
+    // Verified against the backend: there is no listing fee, subscription or
+    // plan key in `platform_config` (platform-config.service.ts). The
+    // commission in pricing.service.ts is the platform's only cut, and it only
+    // exists once a booking is priced.
+    body: "Listing is free: no monthly fee and nothing to pay to join. Cibaura earns its commission only when a booking actually happens.",
   },
 ];
 
 const STEPS = [
+  // Step 1 mirrors the real application: the form, then
+  // business_registration + owner_id, then the host agreement
+  // (modules/agencies/components/apply-form.tsx).
   { n: 1, title: "Apply", body: "Tell us about your agency, upload a couple of documents and sign the host agreement." },
-  { n: 2, title: "Get verified", body: "Our team reviews your application — usually within a few business days." },
-  { n: 3, title: "List & earn", body: "Add your cars, set your prices, and start receiving booking requests." },
+  // NO TURNAROUND TIME. Nothing in the backend defines a review SLA, so the
+  // old "usually within a few business days" was a promise no code could keep.
+  // What IS guaranteed: every verification decision notifies the owner
+  // (account-notifications.listener.ts, AGENCY_VERIFICATION_CHANGED_EVENT), and
+  // a pending applicant may already build their fleet as drafts
+  // (fleet.service.ts only gates ACTIVATION on verification).
+  { n: 2, title: "Get verified", body: "A Cibaura admin reviews your application and documents, and we let you know as soon as there's a decision. You can start preparing your fleet while you wait." },
+  { n: 3, title: "List & earn", body: "Activate your cars, set your prices, and start receiving booking requests." },
 ];
 
 function ValueProp() {
