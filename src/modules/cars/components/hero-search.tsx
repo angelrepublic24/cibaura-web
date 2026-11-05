@@ -107,10 +107,22 @@ export function HeroSearch() {
             Dates{" "}
             <span className="normal-case tracking-normal">(optional)</span>
           </Label>
+          {/* `relative z-50`: the two triggers have to sit ABOVE the click
+              catcher below, which is `fixed inset-0 z-40` and therefore covers
+              them while a calendar is open. Without this, going from Pickup to
+              Return took TWO clicks — the first one landed on the catcher and
+              only closed what was open, the second finally reached the button.
+              Verified with `document.elementFromPoint` over the Return button
+              on production: it returned the catcher div, not the button.
+              The buttons already toggle between endpoints on their own, so
+              once the click reaches them one is enough.
+              On `sm` and up the catcher is transparent, so nothing changes
+              visually; on a phone it is dimmed and these two buttons now stay
+              bright, which also shows which field is being edited. */}
           <div
             role="group"
             aria-labelledby="hero-dates-label"
-            className="flex h-10 rounded-[var(--radius-sm)] border border-border bg-surface"
+            className="relative z-50 flex h-10 rounded-[var(--radius-sm)] border border-border bg-surface"
           >
             {(["from", "to"] as const).map((endpoint) => {
               const date = endpoint === "from" ? from : to;
