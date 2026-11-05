@@ -189,8 +189,12 @@ function AgencyHeader({
 }: {
   name: string;
   kind: AgencyKind;
-  description?: string;
-  logoUrl?: string;
+  /* `| null`, like `bannerUrl` below: the server sends null for both whenever
+     an agency has no description or no logo, which is the normal state of
+     every agency the day it is created. Typing them as `string | undefined`
+     hid that from the compiler while zod rejected the null at runtime. */
+  description?: string | null;
+  logoUrl?: string | null;
   bannerUrl?: string | null;
   verificationStatus: AgencyVerificationStatus;
   cities: { id: string; name: string }[];

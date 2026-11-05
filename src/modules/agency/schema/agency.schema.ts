@@ -56,8 +56,15 @@ export const agencyWireSchema = z.object({
   id: z.string(),
   name: z.string(),
   slug: z.string(),
-  description: z.string().optional(),
-  logoUrl: z.string().optional(),
+  /* `.nullish()`, NOT `.optional()`: the server sends `string | null` for both
+     (see `AgencyDto` in the backend wire contract and `agency.serializer.ts`).
+     In zod 4 `.optional()` REJECTS null — "expected string, received null" —
+     and that parse failure took down the whole agency console for every new
+     agency, because a company agency is created with no logo and with a null
+     description, and an individual host gets `description: null` written by
+     the backend by hand. `bannerUrl` on the next line was already right. */
+  description: z.string().nullish(),
+  logoUrl: z.string().nullish(),
   bannerUrl: z.string().nullish(),
   verificationStatus: agencyVerificationStatusSchema,
   verificationReason: z.string().nullish(),

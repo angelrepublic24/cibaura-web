@@ -39,8 +39,15 @@ export const agencyPublicProfileWireSchema = z.object({
   id: z.string(),
   slug: z.string(),
   name: z.string(),
-  description: z.string().optional(),
-  logoUrl: z.string().optional(),
+  /* `.nullish()` for the same reason as in `modules/agency/schema`: the server
+     sends `string | null`, and `.optional()` rejects null in zod 4. This one is
+     the PUBLIC schema — `/agencies/:slug` and the `/agencies` directory — so
+     the failure was not limited to the owner's console: one verified agency
+     without a logo turned the directory into "Could not load agencies" for
+     every visitor on any client-side refetch (changing city, paging, or coming
+     back to the tab after the query went stale). */
+  description: z.string().nullish(),
+  logoUrl: z.string().nullish(),
   /** Storefront cover image; null/absent = gradient. */
   bannerUrl: z.string().nullish(),
   verificationStatus: agencyVerificationStatusSchema,

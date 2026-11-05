@@ -113,7 +113,15 @@ export function HostAgreementSigner({
   onSigned?: (document: ContractDocumentDto) => void;
   className?: string;
 }) {
-  const { role, isPending: roleLoading } = usePermission();
+  /* `isError` matters as much as `isPending`: a read that FAILED is not a
+     denial. Without it, any error on the permission query — the null-parse bug
+     in the agency schema was one — rendered "only the owner can sign" to the
+     owner themselves, on the step that gates publishing a car at all. */
+  const {
+    role,
+    isPending: rolePending,
+    isError: roleFailed,
+  } = usePermission();
   const fullName = useAuthStore((s) => s.user?.fullName ?? "");
 
   const query = useHostAgreement();
@@ -210,9 +218,9 @@ export function HostAgreementSigner({
         />
       </div>
 
-      {roleLoading ? (
+      {rolePending ? (
         <LoadingState label="Checking who can sign…" className="py-4" />
-      ) : !isOwner ? (
+      ) : !isOwner && !roleFailed ? (
         <p className="text-sm text-muted-foreground" role="status">
           Only the agency owner can sign this agreement. Ask them to sign it
           from Settings.
