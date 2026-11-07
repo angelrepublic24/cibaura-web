@@ -138,14 +138,15 @@ export const agencyApplicationWireSchema = z.object({
 // ------------------------------------------------------------ input schemas
 
 export const applyAgencyInputSchema = z.object({
-  name: z.string(),
-  description: z.string().optional(),
-  legalName: z.string(),
-  taxId: z.string(),
-  ownerName: z.string(),
-  ownerIdNumber: z.string(),
-  phone: z.string(),
-  address: z.string(),
+  name: z.string().trim().min(2).max(160),
+  description: z.string().trim().max(2000).optional(),
+  legalName: z.string().trim().min(2).max(200),
+  taxId: z.string().trim().min(3).max(40),
+  ownerName: z.string().trim().min(2).max(200),
+  ownerIdNumber: z.string().trim().min(3).max(40),
+  phone: z.string().trim().min(5).max(32),
+  address: z.string().trim().min(5).max(300),
+  cityId: z.uuid(),
 });
 
 /**
