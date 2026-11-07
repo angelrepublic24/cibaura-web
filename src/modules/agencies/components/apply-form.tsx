@@ -40,6 +40,10 @@ import {
 } from "@/shared/components/ui/card";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
+import { useCities, useCountries } from "@/modules/catalog/hooks/catalog.hook";
+import { applyAgencyInputSchema } from "@/modules/agencies/schema/agencies.schema";
+import { SUPPORT_EMAIL } from "@/shared/config/support";
+import { Select } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
 /**
  * The three-step "apply as an agency" flow for a signed-in customer.
@@ -64,24 +68,25 @@ const REQUIRED_DOCS: RequiredAgencyDocument[] = [
   {
     type: "business_registration",
     label: "Business registration",
-    hint: "Mercantile registry / incorporation document (or your RNC certificate)."
+    hint: "Mercantile registry / incorporation document (or your RNC certificate).",
   },
   {
     type: "owner_id",
     label: "Owner ID",
-    hint: "Government-issued ID of the owner named above."
+    hint: "Government-issued ID of the owner named above.",
   },
 ];
 
 function StatusBadge({ status }: { status: AgencyVerificationStatus }) {
   if (status === "verified") return <Badge variant="success">Verified</Badge>;
-  if (status === "rejected") return <Badge variant="destructive">Rejected</Badge>;
+  if (status === "rejected")
+    return <Badge variant="destructive">Rejected</Badge>;
   return <Badge variant="warning">Pending review</Badge>;
 }
 
 export function ApplyForm({
   alreadyApplied = false,
-  status
+  status,
 }: {
   /** The caller already owns a PENDING agency → skip the form, land straight
    *  on the documents step so they can (re)upload while under review.
@@ -94,7 +99,9 @@ export function ApplyForm({
   const qc = useQueryClient();
 
   const [step, setStep] = useState<Step>(alreadyApplied ? "documents" : "form");
-  const [application, setApplication] = useState<AgencyApplication | null>(null);
+  const [application, setApplication] = useState<AgencyApplication | null>(
+    null,
+  );
   const isMember = alreadyApplied || application !== null;
 
   // Application form fields (controlled — keeps validation simple).
@@ -106,6 +113,12 @@ export function ApplyForm({
   const [ownerIdNumber, setOwnerIdNumber] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+
+  const [submitted, setSubmitted] = useState(false);
+  const [countryCode, setCountryCode] = useState("DO");
+  const [cityId, setCityId] = useState("");
+  const countriesQuery = useCountries();
+  const citiesQuery = useCities(countryCode);
 
   const documentsQuery = useMyAgencyDocuments();
 
@@ -138,42 +151,32 @@ export function ApplyForm({
         setApplication(app);
         setStep("documents");
         qc.invalidateQueries({ queryKey: applyKeys.myDocuments() });
-      }
+      },
     });
   }
 
   const v = {
     name: name.trim(),
-    description: description.trim(),
+    description: description.trim() || undefined,
     legalName: legalName.trim(),
     taxId: taxId.trim(),
     ownerName: ownerName.trim(),
     ownerIdNumber: ownerIdNumber.trim(),
     phone: phone.trim(),
-    address: address.trim()
+    cityId,
+    address: address.trim(),
   };
+  const parsedApplication = applyAgencyInputSchema.safeParse(v);
   const ready =
-    v.name.length >= 2 &&
-    v.legalName.length >= 2 &&
-    v.taxId.length >= 3 &&
-    v.ownerName.length >= 2 &&
-    v.ownerIdNumber.length >= 3 &&
-    v.phone.length >= 5 &&
-    v.address.length >= 5;
+    parsedApplication.success &&
+    citiesQuery.isSuccess &&
+    citiesQuery.data.some((city) => city.id === cityId);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
+    setSubmitted(true);
     if (!ready || apply.isPending) return;
-    submitApplication({
-      name: v.name,
-      description: v.description || undefined,
-      legalName: v.legalName,
-      taxId: v.taxId,
-      ownerName: v.ownerName,
-      ownerIdNumber: v.ownerIdNumber,
-      phone: v.phone,
-      address: v.address
-    });
+    if (parsedApplication.success) submitApplication(parsedApplication.data);
   }
 
   const docs = documentsQuery.data ?? [];
@@ -252,6 +255,9 @@ export function ApplyForm({
                   <Label htmlFor="apply-name">Agency name</Label>
                   <Input
                     id="apply-name"
+                    required
+                    minLength={2}
+                    maxLength={160}
                     placeholder="e.g. Cibao Rentals"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -268,6 +274,7 @@ export function ApplyForm({
                   </Label>
                   <Textarea
                     id="apply-description"
+                    maxLength={2000}
                     placeholder="A sentence or two about your agency and where you operate."
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
@@ -283,6 +290,9 @@ export function ApplyForm({
                   <Label htmlFor="apply-legal-name">Legal name</Label>
                   <Input
                     id="apply-legal-name"
+                    required
+                    minLength={2}
+                    maxLength={200}
                     placeholder="Registered company name"
                     value={legalName}
                     onChange={(e) => setLegalName(e.target.value)}
@@ -293,6 +303,9 @@ export function ApplyForm({
                   <Label htmlFor="apply-tax-id">Tax ID (RNC / NIT)</Label>
                   <Input
                     id="apply-tax-id"
+                    required
+                    minLength={3}
+                    maxLength={40}
                     placeholder="e.g. 1-01-12345-6"
                     value={taxId}
                     onChange={(e) => setTaxId(e.target.value)}
@@ -303,6 +316,9 @@ export function ApplyForm({
                   <Label htmlFor="apply-owner-name">Owner name</Label>
                   <Input
                     id="apply-owner-name"
+                    required
+                    minLength={2}
+                    maxLength={200}
                     placeholder="Full legal name of the owner"
                     value={ownerName}
                     onChange={(e) => setOwnerName(e.target.value)}
@@ -314,6 +330,9 @@ export function ApplyForm({
                   <Label htmlFor="apply-owner-id">Owner ID number</Label>
                   <Input
                     id="apply-owner-id"
+                    required
+                    minLength={3}
+                    maxLength={40}
                     placeholder="Cédula / passport number"
                     value={ownerIdNumber}
                     onChange={(e) => setOwnerIdNumber(e.target.value)}
@@ -324,6 +343,9 @@ export function ApplyForm({
                   <Label htmlFor="apply-phone">Phone</Label>
                   <Input
                     id="apply-phone"
+                    required
+                    minLength={5}
+                    maxLength={32}
                     type="tel"
                     placeholder="e.g. +1 809 555 0100"
                     value={phone}
@@ -332,11 +354,90 @@ export function ApplyForm({
                   />
                 </div>
 
+                <div className="space-y-1.5">
+                  <Label htmlFor="apply-country">Country</Label>
+                  <Select
+                    id="apply-country"
+                    value={countryCode}
+                    onChange={(event) => {
+                      setCountryCode(event.target.value);
+                      setCityId("");
+                    }}
+                  >
+                    <option value="DO">Dominican Republic</option>
+                    {(countriesQuery.data ?? [])
+                      .filter((country) => country.code !== "DO")
+                      .map((country) => (
+                        <option key={country.id} value={country.code}>
+                          {country.name}
+                        </option>
+                      ))}
+                  </Select>
+                  {countriesQuery.isError ? (
+                    <button
+                      type="button"
+                      className="text-sm text-primary underline"
+                      onClick={() => countriesQuery.refetch()}
+                    >
+                      Could not load other countries. Try again
+                    </button>
+                  ) : null}
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="apply-city">City</Label>
+                  <Select
+                    id="apply-city"
+                    value={cityId}
+                    required
+                    disabled={citiesQuery.isLoading || citiesQuery.isError}
+                    onChange={(event) => setCityId(event.target.value)}
+                  >
+                    <option value="">
+                      {citiesQuery.isLoading
+                        ? "Loading cities..."
+                        : citiesQuery.isError
+                          ? "Cities unavailable"
+                          : "Select your city"}
+                    </option>
+                    {(citiesQuery.data ?? []).map((city) => (
+                      <option key={city.id} value={city.id}>
+                        {city.name}
+                      </option>
+                    ))}
+                  </Select>
+                  {citiesQuery.isError ? (
+                    <button
+                      type="button"
+                      className="text-sm text-primary underline"
+                      onClick={() => citiesQuery.refetch()}
+                    >
+                      Could not load cities. Try again
+                    </button>
+                  ) : null}
+                  {citiesQuery.isSuccess && citiesQuery.data.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No cities available in this country yet.
+                    </p>
+                  ) : null}
+                  <p className="text-xs text-muted-foreground">
+                    Can&apos;t find your city? Write to{" "}
+                    <a
+                      className="text-primary underline"
+                      href={`mailto:${SUPPORT_EMAIL}`}
+                    >
+                      {SUPPORT_EMAIL}
+                    </a>{" "}
+                    with your city and country so we can help.
+                  </p>
+                </div>
                 <div className="space-y-1.5 sm:col-span-2">
                   <Label htmlFor="apply-address">Business address</Label>
                   <Input
                     id="apply-address"
-                    placeholder="Street, city, province"
+                    required
+                    minLength={5}
+                    maxLength={300}
+                    placeholder="Street and building number"
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                     autoComplete="street-address"
@@ -344,6 +445,18 @@ export function ApplyForm({
                 </div>
               </div>
 
+              <p className="text-sm text-muted-foreground">
+                We will create your main pickup branch at this address. You can
+                edit it in Branches.
+              </p>
+
+              {submitted && !parsedApplication.success ? (
+                <p role="alert" className="text-sm text-destructive">
+                  Check the required details and select your city. Names need at
+                  least 2 characters; tax and ID numbers 3; phone and address 5.
+                  Phone numbers can have up to 32 characters.
+                </p>
+              ) : null}
               {apply.isError ? (
                 <p className="text-sm text-destructive">
                   {(apply.error as Error).message}
@@ -351,7 +464,7 @@ export function ApplyForm({
               ) : null}
 
               <div className="flex items-center gap-3">
-                <Button type="submit" disabled={!ready || apply.isPending}>
+                <Button type="submit" disabled={apply.isPending}>
                   {apply.isPending ? "Submitting…" : "Submit application"}
                 </Button>
                 <p className="text-xs text-muted-foreground">
@@ -393,7 +506,10 @@ export function ApplyForm({
               </p>
             </CardHeader>
             <CardContent>
-              <AgencyDocumentUploader required={REQUIRED_DOCS} existing={docs} />
+              <AgencyDocumentUploader
+                required={REQUIRED_DOCS}
+                existing={docs}
+              />
             </CardContent>
           </Card>
 
@@ -481,14 +597,16 @@ export function ApplyForm({
                 Host agreement
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                The association agreement between you and the platform: what
-                you commit to as a host, how bookings, deposits, cancellations
-                and payouts work. Read it, type your name and sign.
+                The association agreement between you and the platform: what you
+                commit to as a host, how bookings, deposits, cancellations and
+                payouts work. Read it, type your name and sign.
               </p>
             </CardHeader>
             <CardContent>
               {agreementSigned && agreementQuery.data?.signed ? (
-                <HostAgreementSignedSummary document={agreementQuery.data.signed} />
+                <HostAgreementSignedSummary
+                  document={agreementQuery.data.signed}
+                />
               ) : (
                 <HostAgreementSigner />
               )}
