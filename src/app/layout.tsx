@@ -57,7 +57,7 @@ export default function RootLayout({
       >
         <QueryProvider>
           <SiteHeader />
-          <main className="min-h-[calc(100vh-4rem)]">{children}</main>
+          <main className="min-h-[calc(100vh-var(--header-h))]">{children}</main>
           {/* Not inside a console: there the shell already fills the screen,
               and hanging this underneath gave every admin and agency page a
               second scrollbar. See `MarketplaceOnly`. */}
