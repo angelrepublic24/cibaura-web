@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -136,7 +137,9 @@ function defaultsFor(
 }
 
 /** Which of the three states the stored override represents. */
-function depositModeOf(car: AgencyCar | undefined): CarFormValues["depositMode"] {
+function depositModeOf(
+  car: AgencyCar | undefined,
+): CarFormValues["depositMode"] {
   if (!car || car.depositOverrideCents === null) return "inherit";
   return car.depositOverrideCents === 0 ? "none" : "custom";
 }
@@ -353,8 +356,29 @@ export function CarForm(props: CarFormProps) {
               </option>
             ))}
           </Select>
+          {branchesQuery.isSuccess && branchesQuery.data.length === 0 ? (
+            <p role="status" className="text-sm text-muted-foreground">
+              Create a pickup branch before adding your first car.{" "}
+              <Link className="text-primary underline" href="/agency/branches">
+                Go to Branches
+              </Link>{" "}
+              to add its address and city. If you cannot manage branches, ask
+              your agency owner.
+            </p>
+          ) : null}
+          {branchesQuery.isError ? (
+            <button
+              type="button"
+              className="text-sm text-primary underline"
+              onClick={() => branchesQuery.refetch()}
+            >
+              Could not load branches. Try again
+            </button>
+          ) : null}
           {errors.branchId ? (
-            <p className="text-sm text-destructive">{errors.branchId.message}</p>
+            <p className="text-sm text-destructive">
+              {errors.branchId.message}
+            </p>
           ) : null}
         </div>
       ) : null}
@@ -408,7 +432,12 @@ export function CarForm(props: CarFormProps) {
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="space-y-1.5">
           <Label htmlFor="car-year">Year</Label>
-          <Input id="car-year" inputMode="numeric" placeholder="2024" {...form.register("year")} />
+          <Input
+            id="car-year"
+            inputMode="numeric"
+            placeholder="2024"
+            {...form.register("year")}
+          />
           {errors.year ? (
             <p className="text-sm text-destructive">{errors.year.message}</p>
           ) : null}
@@ -462,7 +491,11 @@ export function CarForm(props: CarFormProps) {
 
         <div className="space-y-1.5">
           <Label htmlFor="car-seats">Seats</Label>
-          <Input id="car-seats" inputMode="numeric" {...form.register("seats")} />
+          <Input
+            id="car-seats"
+            inputMode="numeric"
+            {...form.register("seats")}
+          />
           {errors.seats ? (
             <p className="text-sm text-destructive">{errors.seats.message}</p>
           ) : null}
@@ -472,7 +505,11 @@ export function CarForm(props: CarFormProps) {
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="car-plate">Plate (private)</Label>
-          <Input id="car-plate" placeholder="A123456" {...form.register("plate")} />
+          <Input
+            id="car-plate"
+            placeholder="A123456"
+            {...form.register("plate")}
+          />
           {errors.plate ? (
             <p className="text-sm text-destructive">{errors.plate.message}</p>
           ) : null}
@@ -490,7 +527,9 @@ export function CarForm(props: CarFormProps) {
             {...form.register("pricePerDay")}
           />
           {errors.pricePerDay ? (
-            <p className="text-sm text-destructive">{errors.pricePerDay.message}</p>
+            <p className="text-sm text-destructive">
+              {errors.pricePerDay.message}
+            </p>
           ) : (
             <p className="text-xs text-muted-foreground">
               What you are paid per day. Customers see this plus the Cibaura
@@ -535,8 +574,8 @@ export function CarForm(props: CarFormProps) {
               </p>
             ) : (
               <p className="text-xs text-muted-foreground">
-                Held on the renter&apos;s card at check-in — never charged —
-                and released after the return.
+                Held on the renter&apos;s card at check-in — never charged — and
+                released after the return.
               </p>
             )}
           </div>
@@ -606,7 +645,9 @@ export function CarForm(props: CarFormProps) {
           <button
             type="button"
             onClick={() => photoInputRef.current?.click()}
-            disabled={mutation.isPending || photoFiles.length >= MAX_PHOTOS_PER_CAR}
+            disabled={
+              mutation.isPending || photoFiles.length >= MAX_PHOTOS_PER_CAR
+            }
             className="flex w-full flex-col items-center gap-1 rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground transition-colors hover:border-border-strong hover:text-foreground disabled:opacity-60"
           >
             <ImagePlus className="h-5 w-5" />
