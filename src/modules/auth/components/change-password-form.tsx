@@ -30,8 +30,8 @@ import { cn } from "@/lib/utils";
  * password comes back as 401 `PASSWORD_INCORRECT` with the session
  * preserved (the axios client never refresh-retries a coded 401, nor
  * `/auth/change-password` at all) and lands on the field itself; any other
- * failure shows the generic banner. Other sessions are revoked server-side
- * on success.
+ * failure shows the generic banner. Success ends every session, including
+ * this one, and returns to login.
  */
 export function ChangePasswordForm({ className }: { className?: string }) {
   const mutation = useChangePassword();
@@ -54,8 +54,8 @@ export function ChangePasswordForm({ className }: { className?: string }) {
           Change password
         </CardTitle>
         <CardDescription>
-          Enter your current password, then a new one (8–72 characters). Other
-          devices will be signed out.
+          Enter your current password, then a new one (8–72 characters). All
+          devices will be signed out, and you will need to log in again.
         </CardDescription>
       </CardHeader>
       <CardContent>

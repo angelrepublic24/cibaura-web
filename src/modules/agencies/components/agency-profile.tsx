@@ -95,7 +95,7 @@ export function AgencyProfile({
         agencyId={agency.id}
       />
 
-      <div className="mt-10 grid gap-6 lg:grid-cols-[280px_1fr]">
+      <div className="marketplace-sidebar-layout mt-10">
         <aside>
           {/* The SAME faceted filter panel as the car search. Branch + sort are
               separate axes, not vehicle facets — preserve them across the
@@ -189,12 +189,8 @@ function AgencyHeader({
 }: {
   name: string;
   kind: AgencyKind;
-  /* `| null`, like `bannerUrl` below: the server sends null for both whenever
-     an agency has no description or no logo, which is the normal state of
-     every agency the day it is created. Typing them as `string | undefined`
-     hid that from the compiler while zod rejected the null at runtime. */
-  description?: string | null;
-  logoUrl?: string | null;
+  description: string | null;
+  logoUrl: string | null;
   bannerUrl?: string | null;
   verificationStatus: AgencyVerificationStatus;
   cities: { id: string; name: string }[];
@@ -387,7 +383,7 @@ function AgencyCarsGrid({
       </div>
 
       {query.isLoading ? (
-        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="marketplace-card-grid">
           {Array.from({ length: 6 }).map((_, i) => (
             <div
               key={i}
@@ -420,7 +416,7 @@ function AgencyCarsGrid({
         />
       ) : (
         <>
-          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="marketplace-card-grid">
             {(query.data?.items ?? []).map((car) => (
               <CarCard
                 key={car.id}

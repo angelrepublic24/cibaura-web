@@ -119,7 +119,7 @@ const UNCONFIRMED_CONFIG =
  * module that talks to the backend. Hooks call these, components call hooks.
  *
  * Config & catalog:
- *  - GET   /admin/config          -> the flat 15-setting PlatformConfig
+ *  - GET   /admin/config          -> the flat 24-setting PlatformConfig
  *  - PATCH /admin/config          -> the DIFF in, the COMPLETE config out
  *      (commission is SNAPSHOTTED into each booking at request time —
  *       changing it never rewrites existing bookings; the policy figures are
@@ -183,7 +183,7 @@ class AdminService {
   }
 
   /**
-   * `PATCH /admin/config` — ONE write for all fifteen settings.
+   * `PATCH /admin/config` — ONE write for all twenty-four settings.
    *
    * The body is the DIFF the form computed, never the whole object: an absent
    * field keeps its stored value, so a setting the console cannot currently

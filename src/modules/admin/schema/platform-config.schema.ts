@@ -4,7 +4,7 @@ import { wholeUnitsToCents } from "@/shared/utils/money";
 /**
  * The flat admin configuration contract — `GET` / `PATCH /admin/config`.
  *
- * ONE object, fifteen settings, camelCase, no nesting. Internally the backend
+ * ONE object, twenty-four settings, camelCase, no nesting. Internally the backend
  * keeps them in three different shapes (a scalar commission row, a
  * cancellation-policy JSONB object and per-key `platform_config` rows); that
  * split is storage and never reaches the wire.
@@ -24,16 +24,25 @@ import { wholeUnitsToCents } from "@/shared/utils/money";
 export const PLATFORM_CONFIG_LIMITS = {
   commissionPct: { min: 0, max: 100, decimals: 2 },
   freeCancellationHours: { min: 0, max: 720 },
+  freeCancellationCapHoursBeforePickup: { min: 0, max: 720 },
+  freeCancellationMinHours: { min: 0, max: 720 },
+  maxCarChanges: { min: 0, max: 10 },
   lateCancellationRetentionPct: { min: 0, max: 100 },
   earlyReturnPenaltyDays: { min: 0, max: 30 },
   disputeWindowHours: { min: 0, max: 168 },
   claimResponseHours: { min: 12, max: 168 },
   defaultDepositCents: { min: 0, max: 500_000 },
   taxRatePct: { min: 0, max: 50, decimals: 2 },
-  checkinAdvancePct: { min: 0, max: 80 },
+  acceptanceAdvancePct: { min: 0, max: 80 },
   depositReauthLeadHours: { min: 6, max: 72 },
   inspectionMinPhotos: { min: 0, max: 30 },
   inspectionMediaRetentionMonths: { min: 3, max: 60 },
+  agencyFailurePenaltyPct: { min: 0, max: 100 },
+  agencyFailureLatePenaltyPct: { min: 0, max: 100 },
+  agencyFailureLateHours: { min: 0, max: 336 },
+  agencyFailurePenaltyFloorCents: { min: 0, max: 100_000 },
+  gatewayFeeEstimatePct: { min: 0, max: 10, decimals: 2 },
+  gatewayFeeEstimateFixedCents: { min: 0, max: 1_000 },
 } as const satisfies Record<
   string,
   { min: number; max: number; decimals?: number }
@@ -65,6 +74,9 @@ export const taxBaseSchema = z.enum(TAX_BASES);
 export const platformConfigSchema = z.object({
   commissionPct: z.number(),
   freeCancellationHours: z.number(),
+  freeCancellationCapHoursBeforePickup: z.number(),
+  freeCancellationMinHours: z.number(),
+  maxCarChanges: z.number(),
   lateCancellationRetentionPct: z.number(),
   earlyReturnPenaltyDays: z.number(),
   disputeWindowHours: z.number(),
@@ -72,18 +84,24 @@ export const platformConfigSchema = z.object({
   defaultDepositCents: z.number(),
   taxRatePct: z.number(),
   taxBase: taxBaseSchema,
-  checkinAdvancePct: z.number(),
+  acceptanceAdvancePct: z.number(),
   depositReauthLeadHours: z.number(),
   inspectionsRequired: z.boolean(),
   inspectionMinPhotos: z.number(),
   inspectionMediaRetentionMonths: z.number(),
+  agencyFailurePenaltyPct: z.number(),
+  agencyFailureLatePenaltyPct: z.number(),
+  agencyFailureLateHours: z.number(),
+  agencyFailurePenaltyFloorCents: z.number(),
+  gatewayFeeEstimatePct: z.number(),
+  gatewayFeeEstimateFixedCents: z.number(),
   stripePayoutsEnabled: z.boolean(),
 });
 
 /**
  * The body of `PATCH /admin/config`: the DIFF the console computed. An absent
  * field keeps its stored value, so only dirty fields travel — which is also
- * what lets an admin save the other fourteen while one holds a value this
+ * what lets an admin save the other settings while one holds a value this
  * console cannot express.
  */
 export const platformConfigPatchSchema = platformConfigSchema.partial();
@@ -112,7 +130,7 @@ function integerField(field: NumericField) {
     }, rangeMessage(field));
 }
 
-function decimalField(field: "commissionPct" | "taxRatePct") {
+function decimalField(field: "commissionPct" | "taxRatePct" | "gatewayFeeEstimatePct") {
   const { min, max, decimals } = PLATFORM_CONFIG_LIMITS[field];
   return z
     .string()
@@ -158,6 +176,9 @@ const depositField = z
 export const platformConfigFormSchema = z.object({
   commissionPct: decimalField("commissionPct"),
   freeCancellationHours: integerField("freeCancellationHours"),
+  freeCancellationCapHoursBeforePickup: integerField("freeCancellationCapHoursBeforePickup"),
+  freeCancellationMinHours: integerField("freeCancellationMinHours"),
+  maxCarChanges: integerField("maxCarChanges"),
   lateCancellationRetentionPct: integerField("lateCancellationRetentionPct"),
   earlyReturnPenaltyDays: integerField("earlyReturnPenaltyDays"),
   disputeWindowHours: integerField("disputeWindowHours"),
@@ -165,7 +186,7 @@ export const platformConfigFormSchema = z.object({
   defaultDepositUnits: depositField,
   taxRatePct: decimalField("taxRatePct"),
   taxBase: taxBaseSchema,
-  checkinAdvancePct: integerField("checkinAdvancePct"),
+  acceptanceAdvancePct: integerField("acceptanceAdvancePct"),
   depositReauthLeadHours: integerField("depositReauthLeadHours"),
   inspectionsRequired: z.boolean(),
   inspectionMinPhotos: integerField("inspectionMinPhotos"),
@@ -173,4 +194,10 @@ export const platformConfigFormSchema = z.object({
     "inspectionMediaRetentionMonths",
   ),
   stripePayoutsEnabled: z.boolean(),
+  agencyFailurePenaltyPct: integerField("agencyFailurePenaltyPct"),
+  agencyFailureLatePenaltyPct: integerField("agencyFailureLatePenaltyPct"),
+  agencyFailureLateHours: integerField("agencyFailureLateHours"),
+  agencyFailurePenaltyFloorCents: integerField("agencyFailurePenaltyFloorCents"),
+  gatewayFeeEstimatePct: decimalField("gatewayFeeEstimatePct"),
+  gatewayFeeEstimateFixedCents: integerField("gatewayFeeEstimateFixedCents"),
 });

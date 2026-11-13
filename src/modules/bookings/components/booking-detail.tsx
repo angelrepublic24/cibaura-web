@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getErrorMessage } from "@/shared/api/errors";
 import { CheckCircle2, Clock, KeyRound, MapPin, Phone, XCircle } from "lucide-react";
 import {
   useBookingDetail,
@@ -564,6 +565,12 @@ function ReviewSection({ booking }: { booking: Booking }) {
               Thanks for rating {booking.agency.name}.
             </p>
           </div>
+        ) : reviewQuery.isError ? (
+          <ErrorState
+            title="Could not load your review"
+            message={getErrorMessage(reviewQuery.error, "Please try again before submitting a review.")}
+            onRetry={() => reviewQuery.refetch()}
+          />
         ) : (
           <form
             className="space-y-3"

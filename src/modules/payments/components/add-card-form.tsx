@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   CardElement,
   Elements,
@@ -13,6 +13,7 @@ import {
 } from "@/modules/payments/helpers/payments.helper";
 import { useAddPaymentMethod } from "@/modules/payments/hooks/payments.hook";
 import { Button } from "@/shared/components/ui/button";
+import { getErrorMessage } from "@/shared/api/errors";
 
 const stripePromise = getStripe();
 
@@ -22,34 +23,50 @@ const stripePromise = getStripe();
  * only ever sees the resulting `pm_...` id, which we exchange for a saved card
  * (brand/last4/exp) on the backend. No card number ever reaches our servers.
  */
-function CardForm({ onDone }: { onDone: () => void }) {
+type AddCardFormProps = {
+  onDone: () => void;
+  onBusyChange?: (busy: boolean) => void;
+};
+
+function CardForm({ onDone, onBusyChange }: AddCardFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const [cardError, setCardError] = useState<string | null>(null);
   const [tokenizing, setTokenizing] = useState(false);
+  const submitting = useRef(false);
 
   // The hook refreshes the card list; closing the form is this caller's job.
   const save = useAddPaymentMethod();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setCardError(null);
-    if (!stripe || !elements) return;
+    if (submitting.current || !stripe || !elements) return;
     const card = elements.getElement(CardElement);
     if (!card) return;
 
+    submitting.current = true;
+    onBusyChange?.(true);
+    setCardError(null);
+    save.reset();
     setTokenizing(true);
-    const { paymentMethod, error } = await stripe.createPaymentMethod({
-      type: "card",
-      card,
-    });
-    setTokenizing(false);
-
-    if (error) {
-      setCardError(error.message ?? "We couldn't read that card.");
-      return;
+    try {
+      const { paymentMethod, error } = await stripe.createPaymentMethod({
+        type: "card",
+        card,
+      });
+      if (error || !paymentMethod) {
+        setCardError(error?.message ?? "We couldn't read that card.");
+        return;
+      }
+      await save.mutateAsync(paymentMethod.id);
+      onDone();
+    } catch (error) {
+      setCardError(getErrorMessage(error, "Could not save this card. Please try again."));
+    } finally {
+      submitting.current = false;
+      setTokenizing(false);
+      onBusyChange?.(false);
     }
-    save.mutate(paymentMethod.id, { onSuccess: onDone });
   }
 
   const busy = tokenizing || save.isPending;
@@ -75,16 +92,11 @@ function CardForm({ onDone }: { onDone: () => void }) {
       </div>
 
       {cardError ? (
-        <p className="text-sm text-destructive">{cardError}</p>
-      ) : null}
-      {save.isError ? (
-        <p className="text-sm text-destructive">
-          {(save.error as Error).message}
-        </p>
+        <p className="text-sm text-destructive" role="alert">{cardError}</p>
       ) : null}
 
       <div className="flex items-center gap-2">
-        <Button type="submit" disabled={!stripe || busy}>
+        <Button type="submit" disabled={!stripe || !elements || busy}>
           {busy ? "Saving…" : "Save card"}
         </Button>
         <Button type="button" variant="outline" onClick={onDone} disabled={busy}>
@@ -102,7 +114,7 @@ function CardForm({ onDone }: { onDone: () => void }) {
   );
 }
 
-export function AddCardForm({ onDone }: { onDone: () => void }) {
+export function AddCardForm({ onDone, onBusyChange }: AddCardFormProps) {
   // `getStripe()` resolves the Stripe.js instance, or `null` when the script
   // cannot load (ad-blocker, CSP, offline) — in which case `useStripe()` would
   // stay null forever and the form would render a dead, empty box with a
@@ -156,7 +168,7 @@ export function AddCardForm({ onDone }: { onDone: () => void }) {
 
   return (
     <Elements stripe={stripePromise}>
-      <CardForm onDone={onDone} />
+      <CardForm onDone={onDone} onBusyChange={onBusyChange} />
     </Elements>
   );
 }

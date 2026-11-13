@@ -31,7 +31,7 @@ import {
  * INTEGER CENTS, dates are ISO strings and ranges are half-open — the
  * console renders the server's figures and never recomputes one.
  *
- * The flat 15-setting platform configuration has its own contract in
+ * The flat platform configuration has its own contract in
  * `schema/platform-config.schema.ts`, where the schema and the
  * server-owned ranges live together.
  */

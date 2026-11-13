@@ -30,7 +30,7 @@ export default async function LoginPage({ searchParams }: Props) {
           Reservations and rentals, all in one place.
         </p>
       </div>
-      <RedirectIfAuthenticated>
+      <RedirectIfAuthenticated next={next}>
         <LoginForm next={next} />
       </RedirectIfAuthenticated>
     </div>

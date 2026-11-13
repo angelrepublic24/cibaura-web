@@ -80,6 +80,11 @@ export const carWireSchema = z.object({
   hostDailyRateCents: z.number(),
   /** The per-day rate a renter is shown, integer cents (commission included). */
   renterDailyRateCents: z.number(),
+  engine: z.object({
+    displacementCc: z.number(),
+    displacementL: z.number(),
+    powerHp: z.number(),
+  }).nullable(),
   primaryPhoto: z.string().nullable(),
   /**
    * ORDERED gallery URLs. Uploaded photos arrive as API paths
