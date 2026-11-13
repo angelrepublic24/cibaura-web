@@ -2,7 +2,7 @@
 
 import { PriceBreakdown } from "@/shared/components/price-breakdown";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { isOptimizableImage } from "@/shared/config/media";
 import Link from "next/link";
@@ -28,12 +28,20 @@ import {
   useBookingQuote,
   useRequestBooking,
 } from "@/modules/bookings/hooks/bookings.hook";
-import type { QuoteInput, SignatureInput } from "@/modules/bookings/types/bookings.types";
+import type {
+  QuoteInput,
+  SignatureInput,
+} from "@/modules/bookings/types/bookings.types";
 import {
   RentalAgreementSignDialog,
   type SignStepError,
 } from "@/modules/bookings/components/rental-agreement-sign-dialog";
 import { useRequestPayment } from "@/modules/bookings/hooks/request-payment.hook";
+import { useCheckoutConsent } from "@/modules/bookings/hooks/checkout-consent.hook";
+import {
+  BookingOutcomeUnknownError,
+  unexpired,
+} from "@/modules/bookings/helpers/checkout-consent";
 import { useLegalCurrent } from "@/modules/legal/hooks/legal.hook";
 import { CancellationPolicySummary } from "@/modules/legal/components/cancellation-policy";
 import { PrivateHostBadge } from "@/modules/agencies/components/private-host-badge";
@@ -137,8 +145,8 @@ export function CarDetail({
   ];
 
   return (
-    <div className="grid gap-10 lg:grid-cols-[1fr_380px]">
-      <div>
+    <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="min-w-0">
         <PhotoGallery
           photos={gallery}
           alt={`${car.make.name} ${car.model.name}`}
@@ -276,7 +284,7 @@ function PhotoGallery({ photos, alt }: { photos: string[]; alt: string }) {
             unoptimized={!isOptimizableImage(lead)}
             alt={alt}
             fill
-            sizes="(max-width: 1024px) 100vw, 60vw"
+            sizes="(max-width: 1023px) calc(100vw - 32px), calc(92vw - 420px)"
             className="object-cover"
             priority
           />
@@ -304,7 +312,7 @@ function PhotoGallery({ photos, alt }: { photos: string[]; alt: string }) {
                 unoptimized={!isOptimizableImage(src)}
                 alt={`${alt} photo ${i + 1}`}
                 fill
-                sizes="20vw"
+                sizes="(max-width: 1023px) calc((100vw - 68px) / 4), calc((92vw - 456px) / 4)"
                 className="object-cover"
               />
             </button>
@@ -506,7 +514,10 @@ function describeRequestError(
         ? {
             message:
               "This car cannot be booked because you blocked this agency. Unblock them if you want to rent from them again.",
-            action: { label: "Blocked list", href: "/account/blocked" },
+            action: {
+              label: "Blocked list",
+              href: "/account/settings/blocked",
+            },
           }
         : {
             message: "This car cannot be booked.",
@@ -525,13 +536,19 @@ function describeRequestError(
       return {
         message:
           "Your identity is not verified yet. Complete the one-time verification to book.",
-        action: { label: "Verify identity", href: "/account/verification" },
+        action: {
+          label: "Verify identity",
+          href: "/account/settings/documents",
+        },
       };
     case API_ERROR_CODES.VERIFICATION_INCOMPLETE:
       return {
         message:
           "Your verification is missing your date of birth, which agencies need to check their minimum driver age.",
-        action: { label: "Add date of birth", href: "/account/verification" },
+        action: {
+          label: "Add date of birth",
+          href: "/account/settings/documents",
+        },
       };
     case API_ERROR_CODES.DRIVER_TOO_YOUNG:
       return {
@@ -542,7 +559,10 @@ function describeRequestError(
       return {
         message:
           "Your driver's license expires before this rental ends. Renew it or choose an earlier return date.",
-        action: { label: "Update license", href: "/account/verification" },
+        action: {
+          label: "Update license",
+          href: "/account/settings/documents",
+        },
       };
     case API_ERROR_CODES.RENTAL_TOO_LONG:
       return {
@@ -599,6 +619,7 @@ function BookingPanel({
 }) {
   const router = useRouter();
   const status = useAuthStore((s) => s.status);
+  const user = useAuthStore((s) => s.user);
   const legal = useLegalCurrent();
 
   // A card is required to book (the request places a hold on it). Gate the
@@ -633,7 +654,6 @@ function BookingPanel({
   const [zoneId, setZoneId] = useState<string>("");
   const [deliveryAddr, setDeliveryAddr] = useState<PickedAddress | null>(null);
   const [deliveryReference, setDeliveryReference] = useState("");
-  const [acceptTerms, setAcceptTerms] = useState(false);
   const [termsError, setTermsError] = useState<string | null>(null);
 
   const isDayBlocked = useMemo(() => blockedDayPredicate(occupied), [occupied]);
@@ -688,7 +708,37 @@ function BookingPanel({
 
   // The sign step: opened once the panel's own gates pass; the request is
   // sent from inside it with the signature.
-  const [signOpen, setSignOpen] = useState(false);
+  const consent = useCheckoutConsent(
+    {
+      input: quoteInput,
+      userId: status === "authenticated" ? (user?.id ?? null) : null,
+      card: selectedCard,
+      legalVersion: legal.data?.termsVersion ?? null,
+      materialIdentity: JSON.stringify([
+        user?.fullName,
+        verification?.status,
+        verification?.dateOfBirth,
+        verification?.licenseExpiry,
+        car.agency.name,
+        car.make.name,
+        car.model.name,
+        car.year,
+        car.agency.rentalConditions,
+        car.agency.depositNote,
+        legal.data?.cancellationPolicy,
+      ]),
+    },
+    quoteQuery.data,
+    () => quoteQuery.refetch(),
+  );
+  const [submittedBooking, setSubmittedBooking] = useState<{
+    userId: string;
+    id: string;
+  } | null>(null);
+  const submittedBookingId =
+    submittedBooking?.userId === user?.id
+      ? (submittedBooking?.id ?? null)
+      : null;
 
   // Payment outcome state machine: `authorized` → redirect; `requires_action`
   // → Stripe 3DS challenge + "Verifying…" poll; `failed` → honest error.
@@ -697,35 +747,68 @@ function BookingPanel({
   });
 
   const requestMutation = useRequestBooking();
+  const requestInFlight = useRef(false);
 
   function sendRequest(input: {
     signature: SignatureInput;
-    // The version the customer just accepted — read from the server.
-    termsVersion: string;
+    agreementConsentToken: string;
+    consentExpiresAt: string;
   }) {
+    if (requestInFlight.current) return;
+    const frozen = consent.snapshot;
+    if (
+      !frozen ||
+      !consent.isCurrent(frozen) ||
+      !unexpired(input.consentExpiresAt)
+    ) {
+      consent.invalidate(
+        "Your quote or agreement changed or expired. Review a fresh quote and agreement before signing again.",
+      );
+      return;
+    }
+    requestInFlight.current = true;
     requestMutation.mutate(
       {
-        ...quoteInput,
+        ...frozen.input,
+        quoteToken: frozen.quote.token,
+        agreementConsentToken: input.agreementConsentToken,
         // Always send the card the customer sees selected — even the default —
         // so what's displayed is exactly what gets the hold.
-        paymentMethodId: selectedCard?.id,
-        termsVersion: input.termsVersion,
+        paymentMethodId: frozen.card.id,
+        termsVersion: frozen.termsVersion,
         // The click-to-sign collected in the agreement step.
         signature: input.signature,
       },
       {
         onSuccess: (booking) => {
-          setSignOpen(false);
+          consent.close();
+          if (!consent.isOwner(frozen)) return;
+          setSubmittedBooking({ userId: frozen.userId, id: booking.id });
           payment.start(booking);
         },
         onError: async (error) => {
-          if (getApiErrorCode(error) === API_ERROR_CODES.TERMS_OUTDATED) {
+          const code = getApiErrorCode(error);
+          if (error instanceof BookingOutcomeUnknownError) {
+            consent.markUncertain(frozen, error.bookingId);
+            return;
+          }
+          if (
+            [
+              API_ERROR_CODES.TERMS_OUTDATED,
+              API_ERROR_CODES.QUOTE_CONFIRMATION_REQUIRED,
+              API_ERROR_CODES.AGREEMENT_CONFIRMATION_REQUIRED,
+            ].some((value) => value === code)
+          ) {
             // Ask for a fresh consent against the new version (the agreement
             // must be re-read too, so the sign step closes).
-            setSignOpen(false);
-            setAcceptTerms(false);
+            consent.invalidate(
+              "The quote, terms or agreement changed. Review the refreshed quote and accept again before sending a new request.",
+            );
             await legal.refetch();
           }
+        },
+        onSettled: () => {
+          requestInFlight.current = false;
         },
       },
     );
@@ -734,7 +817,9 @@ function BookingPanel({
   const paymentBusy =
     payment.phase.step === "challenge" || payment.phase.step === "verifying";
 
-  const quote = quoteQuery.data;
+  const quote =
+    consent.snapshot?.quote ??
+    (consent.refreshing ? undefined : quoteQuery.data);
 
   // A verified customer whose license expires before the chosen return date is
   // blocked server-side (assertCanRent). Warn + disable proactively.
@@ -779,14 +864,14 @@ function BookingPanel({
     : null;
 
   function openSignStep() {
-    if (!acceptTerms) {
+    if (!consent.acceptedTerms) {
       setTermsError("Accept the Terms of Service to continue.");
       return;
     }
     setTermsError(null);
     payment.reset(); // clear a previous failed attempt, if any
     requestMutation.reset();
-    setSignOpen(true);
+    consent.open();
   }
 
   return (
@@ -794,7 +879,9 @@ function BookingPanel({
       <CardHeader className="border-b border-border">
         <CardTitle className="flex items-baseline gap-1.5">
           <span className="text-2xl font-bold">
-            {formatMoneyCents(car.renterDailyRateCents)}
+            {formatMoneyCents(
+              quote?.pricing.renterDailyRateCents ?? car.renterDailyRateCents,
+            )}
           </span>
           <span className="text-sm font-normal text-muted-foreground">
             / day
@@ -942,9 +1029,9 @@ function BookingPanel({
 
         {/* Server-side quote — rendered verbatim, never computed here. */}
         {quoteReady ? (
-          quoteQuery.isLoading ? (
+          !consent.snapshot && (quoteQuery.isLoading || consent.refreshing) ? (
             <LoadingState label="Getting your quote…" className="py-4" />
-          ) : quoteQuery.isError ? (
+          ) : !consent.snapshot && quoteQuery.isError ? (
             <ErrorState
               title="Quote unavailable"
               message={describeRequestError(quoteQuery.error).message}
@@ -959,12 +1046,12 @@ function BookingPanel({
                 deposit={{
                   cents: quote.depositCents,
                   required: quote.depositRequired,
-                  estimate: true,
                 }}
               />
               {quote.depositRequired ? (
                 <p className="mt-2 text-xs text-muted-foreground">
-                  The deposit is confirmed when the booking is created.
+                  The security deposit is a separate hold at check-in, as stated
+                  in the agreement.
                 </p>
               ) : null}
             </div>
@@ -1034,7 +1121,7 @@ function BookingPanel({
             <span>
               Agencies check a minimum driver age.{" "}
               <Link
-                href="/account/verification"
+                href="/account/settings/documents"
                 className="font-medium underline underline-offset-2"
               >
                 Add your date of birth
@@ -1048,13 +1135,19 @@ function BookingPanel({
           <TermsCheckbox
             id="bp-terms"
             inputProps={{
-              checked: acceptTerms,
+              checked: consent.acceptedTerms,
               onChange: (e) => {
-                setAcceptTerms(e.target.checked);
+                consent.setTermsChecked(e.target.checked);
                 if (e.target.checked) setTermsError(null);
               },
             }}
-            disabled={!legalReady}
+            disabled={
+              !legalReady || quoteQuery.isError ||
+              consent.refreshing ||
+              requestMutation.isPending ||
+              Boolean(consent.uncertain) ||
+              Boolean(submittedBookingId)
+            }
             error={termsError ?? undefined}
             label={
               <>
@@ -1131,7 +1224,7 @@ function BookingPanel({
           <Button
             className="w-full"
             variant="outline"
-            onClick={() => router.push("/account/verification")}
+            onClick={() => router.push("/account/settings/documents")}
           >
             Verify your identity to book
           </Button>
@@ -1139,7 +1232,7 @@ function BookingPanel({
           <Button
             className="w-full"
             variant="outline"
-            onClick={() => router.push("/account/payment-methods")}
+            onClick={() => router.push("/account/settings/payment-methods")}
           >
             Add a payment method to book
           </Button>
@@ -1148,14 +1241,17 @@ function BookingPanel({
             className="w-full"
             disabled={
               !quoteReady ||
-              quoteQuery.isLoading ||
+              quoteQuery.isFetching ||
+              consent.refreshing ||
               quoteQuery.isError ||
               licenseExpiryBeforeReturn !== null ||
               tooYoung ||
               dobMissing ||
               !legalReady ||
               requestMutation.isPending ||
-              paymentBusy
+              paymentBusy ||
+              Boolean(consent.uncertain) ||
+              Boolean(submittedBookingId)
             }
             onClick={openSignStep}
           >
@@ -1169,21 +1265,60 @@ function BookingPanel({
           </Button>
         )}
 
-        <RentalAgreementSignDialog
-          open={signOpen}
-          onClose={() => setSignOpen(false)}
-          quoteInput={quoteInput}
-          agencyName={car.agency.name}
-          carLabel={`${car.make.name} ${car.model.name} ${car.year}`}
-          onSign={(signature) => {
-            const termsVersion = legal.data?.termsVersion;
-            // The request button stays disabled until the terms load.
-            if (termsVersion === undefined) return;
-            sendRequest({ signature, termsVersion });
-          }}
-          signing={requestMutation.isPending}
-          error={requestError}
-        />
+        {consent.snapshot && (
+          <RentalAgreementSignDialog
+            key={consent.snapshot.quote.token}
+            onClose={consent.close}
+            snapshot={consent.snapshot}
+            isCheckoutCurrent={() =>
+              Boolean(consent.snapshot && consent.isCurrent(consent.snapshot))
+            }
+            onInvalidated={(message) => {
+              consent.invalidate(message);
+              void legal.refetch();
+            }}
+            agencyName={car.agency.name}
+            carLabel={`${car.make.name} ${car.model.name} ${car.year}`}
+            onSign={(signature, preview) => {
+              sendRequest({
+                signature,
+                agreementConsentToken: preview.agreementConsentToken,
+                consentExpiresAt: preview.consentExpiresAt,
+              });
+            }}
+            signing={requestMutation.isPending}
+            error={requestError}
+          />
+        )}
+
+        {consent.notice && (
+          <p role="alert" className="text-sm text-destructive">
+            {consent.notice}
+          </p>
+        )}
+        {consent.uncertain && (
+          <div
+            role="alert"
+            className="space-y-2 rounded-lg border border-border p-3 text-sm"
+          >
+            <p>
+              We could not confirm the result of your request. Check your
+              rentals and payment status before submitting another request.
+            </p>
+            <Link
+              className="font-medium text-primary underline"
+              href={
+                consent.uncertain.bookingId
+                  ? `/account/bookings/${consent.uncertain.bookingId}`
+                  : "/account"
+              }
+            >
+              {consent.uncertain.bookingId
+                ? "Check this booking"
+                : "Check my rentals"}
+            </Link>
+          </div>
+        )}
 
         {/* 3DS in flight: the bank challenge is open in Stripe's window. */}
         {payment.phase.step === "challenge" ? (
@@ -1203,18 +1338,27 @@ function BookingPanel({
           </p>
         ) : null}
 
-        {/* Payment failed / could not be verified — honest, no charge made. */}
+        {/* Verification could not be confirmed; the current server status wins. */}
         {payment.phase.step === "failed" ? (
           <div className="space-y-2 rounded-[var(--radius-sm)] border border-red-200 bg-red-50 p-3">
             <p className="text-xs text-red-700">{payment.phase.message}</p>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => payment.reset()}
-            >
-              Try again
-            </Button>
+            {submittedBookingId ? (
+              <Link
+                className="text-sm font-medium text-primary underline"
+                href={`/account/bookings/${submittedBookingId}`}
+              >
+                Check this booking before trying again
+              </Link>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => payment.reset()}
+              >
+                Try again
+              </Button>
+            )}
           </div>
         ) : null}
 
@@ -1225,7 +1369,7 @@ function BookingPanel({
           </p>
         ) : null}
 
-        {requestError && !signOpen ? (
+        {requestError && !consent.snapshot && !consent.uncertain ? (
           <div
             className="space-y-2 rounded-[var(--radius-sm)] border border-red-200 bg-red-50 p-3"
             role="alert"
@@ -1243,12 +1387,12 @@ function BookingPanel({
         ) : null}
 
         <p className="flex items-start gap-2 text-xs text-muted-foreground">
-          <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
-          You will not be charged until the agency accepts. Your card is
-          authorized at request and captured on acceptance; the agency has 24
-          hours to answer, after which the request expires and the hold is
-          released. You review and sign the rental agreement before the request
-          is sent.
+          <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />A
+          temporary card hold is placed when you request. Your card is charged
+          after the agency accepts and the free-cancellation period ends. The
+          agency has 24 hours to answer, after which an unanswered request
+          expires and the hold is released. You review and sign the rental
+          agreement before the request is sent.
         </p>
 
         <CancellationPolicySummary variant="inline" className="text-xs" />

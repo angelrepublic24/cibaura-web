@@ -14,6 +14,7 @@ import {
 } from "@/shared/api/errors";
 import type {
   QuoteInput,
+  AgreementPreviewInput,
   RequestBookingInput,
   RespondClaimInput,
 } from "@/modules/bookings/types/bookings.types";
@@ -28,8 +29,8 @@ export const bookingKeys = {
   cancellationQuote: (bookingId: string) =>
     ["bookings", "cancellation-quote", bookingId] as const,
   quote: (input: QuoteInput) => ["bookings", "quote", input] as const,
-  agreementPreview: (input: QuoteInput) =>
-    ["bookings", "agreement-preview", input] as const,
+  agreementPreview: (input: AgreementPreviewInput, userId: string) =>
+    ["bookings", "agreement-preview", userId, input] as const,
   inspections: (bookingId: string) =>
     ["bookings", "inspections", bookingId] as const,
   messages: (bookingId: string) => ["bookings", "messages", bookingId] as const,
@@ -119,13 +120,16 @@ export function useBookingQuote(input: QuoteInput, enabled: boolean) {
  * time the sign step opens (the published template or the customer's own
  * data may have changed since the last preview).
  */
-export function useAgreementPreview(input: QuoteInput, enabled: boolean) {
+export function useAgreementPreview(input: AgreementPreviewInput, userId: string, enabled: boolean) {
   return useQuery({
-    queryKey: bookingKeys.agreementPreview(input),
+    queryKey: bookingKeys.agreementPreview(input, userId),
     queryFn: () => bookingsService.agreementPreview(input),
     enabled,
     staleTime: 0,
     gcTime: 0,
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 }
 
@@ -188,6 +192,7 @@ export function useBookingMessages(
 export function useRequestBooking() {
   return useMutation({
     mutationFn: (input: RequestBookingInput) => bookingsService.request(input),
+    retry: false,
   });
 }
 

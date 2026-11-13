@@ -40,7 +40,7 @@ export default async function AgenciesPage({ searchParams }: Props) {
     prefetchCities(client),
   ]);
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
+    <div className="marketplace-shell py-8">
       <BreadcrumbJsonLd
         items={[
           { name: "Home", path: "/" },

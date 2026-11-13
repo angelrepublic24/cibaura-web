@@ -570,7 +570,7 @@ export function ApplyForm({
                 <p className="mt-1 text-sm text-muted-foreground">
                   {agreementSigned
                     ? "Signed — nothing else to do here."
-                    : "Sign the platform's host agreement now so your cars can go live the moment you are verified."}
+                    : "Sign the platform's host agreement now. Once verified, you can finish preparing and activate each eligible car."}
                 </p>
               </div>
               {agreementSigned ? (

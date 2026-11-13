@@ -88,7 +88,7 @@ export function BlockDialog({
           <p className="text-sm text-muted-foreground">
             Done. You can undo this whenever you want from{" "}
             <Link
-              href="/account/blocked"
+              href="/account/settings/blocked"
               className="text-primary underline underline-offset-2"
             >
               your blocked list

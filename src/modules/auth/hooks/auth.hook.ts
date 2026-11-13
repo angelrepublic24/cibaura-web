@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { CancelledError, useMutation, useQuery } from "@tanstack/react-query";
 import { AxiosError } from "axios";
 import { authService } from "@/modules/auth/services/auth.service";
 import type {
@@ -11,7 +11,7 @@ import type {
   UpdateMeInput,
 } from "@/modules/auth/types/auth.types";
 import { useAuthStore } from "@/shared/auth/store";
-import { hasUserMarker } from "@/shared/auth/token";
+import { getSessionGeneration, hasUserMarker } from "@/shared/auth/token";
 
 /** Query keys for the auth module (the only cache this module owns). */
 export const authKeys = {
@@ -67,23 +67,40 @@ function hardNavigateHome(): void {
 export function useMe() {
   const setUser = useAuthStore((s) => s.setUser);
   const marker = hasUserMarker();
+  const renderGeneration = getSessionGeneration();
 
   const query = useQuery({
     queryKey: authKeys.me(),
-    queryFn: () => authService.me(),
+    queryFn: async ({ signal }) => {
+      const generation = getSessionGeneration();
+      const user = await authService.me(signal);
+      if (generation !== getSessionGeneration()) {
+        throw new CancelledError({ silent: true });
+      }
+      return user;
+    },
     enabled: marker,
     retry: false,
     staleTime: 60_000,
   });
 
   useEffect(() => {
-    if (!marker) {
+    if (renderGeneration !== getSessionGeneration()) return;
+    if (!marker || !hasUserMarker()) {
       setUser(null); // no prior session -> guest immediately
       return;
     }
     if (query.isSuccess) setUser(query.data);
     else if (query.isError && isUnauthorized(query.error)) setUser(null);
-  }, [marker, query.isSuccess, query.isError, query.error, query.data, setUser]);
+  }, [
+    marker,
+    renderGeneration,
+    query.isSuccess,
+    query.isError,
+    query.error,
+    query.data,
+    setUser,
+  ]);
 
   return query;
 }
@@ -111,10 +128,11 @@ export function useRegister() {
 
 /**
  * Full logout: `POST /auth/logout` FIRST — it revokes the refresh token and
- * clears the httpOnly session cookies (something local JS cannot do) — then
+ * clears the httpOnly session cookies on success (something local JS cannot do) — then
  * the local state/marker/caches. Best-effort on the server call: an already
  * dead session (or offline API) must never trap the user signed-in, and the
- * interceptor's refresh-retry covers an expired access cookie.
+ * an already-running refresh is drained before logout. If logout itself fails
+ * (including expired access), local cleanup does not prove server revocation.
  *
  * From a guarded route (/account, /agency, /admin) the local sign-out would
  * flip the guard to "guest" and race it to `/auth/login?next=…`; there the
@@ -144,22 +162,30 @@ export function useForgotPassword() {
 
 /** `POST /auth/reset-password` — the caller maps RESET_TOKEN_INVALID / TERMS_OUTDATED. */
 export function useResetPassword() {
+  const signOut = useAuthStore((s) => s.signOut);
   return useMutation({
     mutationFn: (input: ResetPasswordInput) =>
       authService.resetPassword(input),
+    onSuccess: () => signOut(),
   });
 }
 
 /** `PATCH /auth/change-password` — 401 PASSWORD_INCORRECT = wrong current password (session kept). */
 export function useChangePassword() {
+  const signOut = useAuthStore((s) => s.signOut);
   return useMutation({
     mutationFn: (input: ChangePasswordInput) =>
       authService.changePassword(input),
+    onSuccess: () => {
+      // The 204 revokes this session too; never refresh or reuse it.
+      signOut();
+      window.location.replace("/auth/login");
+    },
   });
 }
 
 /**
- * `PATCH /users/me` — update the SAFE profile fields (name/phone). The caller
+ * `PATCH /users/me` — partially update the caller's profile/preferences. The caller
  * passes `onSuccess` to mirror the updated user into the store and refresh
  * the `/users/me` cache.
  */
@@ -167,6 +193,10 @@ export function useUpdateMe() {
   return useMutation({
     mutationFn: (input: UpdateMeInput) => authService.updateMe(input),
   });
+}
+
+export function useExportMyData() {
+  return useMutation({ mutationFn: () => authService.exportMyData() });
 }
 
 /**

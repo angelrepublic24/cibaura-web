@@ -240,7 +240,7 @@ assert.doesNotMatch(
 );
 for (const markup of [file, refused]) {
   assert.match(markup, /Browse cars/, "the customer keeps a way to rent");
-  assert.match(markup, /My rentals/);
+  assert.match(markup, /Rentals/);
 }
 
 // ── Header: the logo never locks a supplier out of the storefront ───────────

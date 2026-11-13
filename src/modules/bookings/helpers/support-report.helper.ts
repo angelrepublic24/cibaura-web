@@ -5,8 +5,8 @@ import { businessTodayIso } from "@/shared/utils/dates";
 /**
  * The customer's way to reach a human about a booking.
  *
- * WHY THIS EXISTS: an `accepted` booking is already charged and holds the
- * car. If the agency never turns up, the only control the customer can see is
+ * WHY THIS EXISTS: an `accepted` booking holds the car and may be charged once
+ * its free-cancellation window closes. If the agency never turns up, the only control the customer can see is
  * Cancel — and cancelling past the free window retains
  * `lateCancellationRetentionPct` of the subtotal FOR THE AGENCY. So the
  * person who was left waiting pays for it. An admin cancelling the same
@@ -17,8 +17,8 @@ import { businessTodayIso } from "@/shared/utils/dates";
  */
 
 /**
- * The window where the warning belongs: the agency accepted (so the card was
- * captured and the car is held) and the pickup day has arrived or gone by.
+ * The window where the warning belongs: the agency accepted (so the car is
+ * held) and the pickup day has arrived or gone by.
  *
  * `accepted` IS "not picked up": `pickedUpAt` is stamped only by the
  * `accepted → active` transition, so the state alone carries it. The booking

@@ -28,9 +28,8 @@ import type { BookingDetail, BookingPayment } from "@/shared/types/domain";
  * Resolution while polling (per purpose):
  *  - booking: the payment-failure listener moves the booking to `rejected`
  *    (webhook-driven), so a terminal state during the verify window means
- *    the payment died. A booking still `requested` after the webhook grace
- *    window is the success signal — the challenge already succeeded
- *    client-side at that point.
+ *    the payment died. Only an explicit `authorized` or `captured` payment
+ *    confirms success; a delayed webhook keeps polling until the timeout.
  *  - deposit: the `amount_capturable_updated` webhook flips the deposit to
  *    `held` (success); `failed`/`lapsed` is the failure signal; anything
  *    else keeps polling until the timeout.
@@ -66,8 +65,6 @@ export interface PendingChallenge {
   clientSecret: string;
 }
 
-/** Give the failure webhook a moment to auto-reject before declaring success. */
-const WEBHOOK_GRACE_MS = 5_000;
 /** Hard cap on the verify window — after this we stop and tell the truth. */
 const VERIFY_TIMEOUT_MS = 45_000;
 /** Booking detail poll cadence while verifying. */
@@ -84,51 +81,50 @@ interface PurposeCopy {
 const COPY: Record<PaymentPurpose, PurposeCopy> = {
   booking: {
     failed:
-      "Your card could not be authorized, so the booking request was not " +
-      "completed. You have not been charged — any temporary hold is released " +
-      "automatically. You can try again or use a different card.",
+      "Card authorization could not be confirmed. Check your reservation and " +
+      "payment status before trying again or choosing another card.",
     timeout:
-      "We could not confirm your payment in time. If the request does not " +
-      "appear under My bookings as “requested”, it was not completed and you " +
-      "have not been charged.",
+      "We could not confirm your payment in time. Check your reservation and " +
+      "payment status before trying again.",
     unavailable:
       "Payment verification is unavailable right now (payments are not " +
-      "configured in this environment). The request was not completed and " +
-      "you have not been charged.",
+      "configured in this environment). Check your reservation and payment " +
+      "status before trying again.",
     afterBankError:
-      "The booking request was not completed and you have not been charged.",
+      "Check your reservation and payment status before trying again.",
   },
   deposit: {
     failed:
-      "The security-deposit hold could not be verified. Nothing was charged " +
-      "— you can place the hold again, on this or another saved card, so the " +
-      "host can complete the check-in.",
+      "The security-deposit hold could not be verified. Check its current " +
+      "status before trying again or choosing another card.",
     timeout:
       "We could not confirm the deposit hold in time. Refresh this page in a " +
-      "moment — if it still shows as needing verification, try again.",
+      "moment and check its current status before trying again.",
     unavailable:
       "Card verification is unavailable right now (payments are not " +
-      "configured in this environment). The deposit hold was not completed.",
+      "configured in this environment). Check the deposit's current status " +
+      "before trying again.",
     afterBankError:
-      "The deposit hold was not completed; you can try again below.",
+      "Check the deposit's current status before trying again.",
   },
 };
 
 type Verdict = "pending" | "authorized" | "failed";
 
-function resolveBooking(polled: BookingDetail, elapsed: number): Verdict {
-  if (polled.state !== "requested") {
-    // `rejected` (payment-failure listener) or another terminal state.
-    return polled.state === "rejected" ||
-      polled.state === "expired" ||
-      polled.state === "cancelled"
-      ? "failed"
-      : // Promoted AND accepted already — success beyond doubt.
-        "authorized";
+function resolveBooking(polled: BookingDetail): Verdict {
+  if (["rejected", "expired", "cancelled"].includes(polled.state)) return "failed";
+  switch (polled.payment?.status) {
+    case "authorized":
+    case "captured":
+      return "authorized";
+    case "failed":
+    case "capture_failed":
+    case "voided":
+    case "refunded":
+      return "failed";
+    default:
+      return "pending";
   }
-  // Still `requested` after the webhook grace window: the challenge
-  // succeeded client-side and nothing rejected it — the hold is live.
-  return elapsed >= WEBHOOK_GRACE_MS ? "authorized" : "pending";
 }
 
 function resolveDeposit(polled: BookingDetail): Verdict {
@@ -180,32 +176,40 @@ export function useRequestPayment({
     ({ bookingId, clientSecret }: PendingChallenge) => {
       setPhase({ step: "challenge" });
       void (async () => {
-        const stripe = await getStripe();
-        if (!stripe) {
-          // Missing publishable key / Stripe.js blocked — degrade honestly
-          // instead of crashing. Without the challenge the hold never
-          // completes (no charge was made).
-          setPhase({ step: "failed", message: copy.unavailable });
-          return;
-        }
+        try {
+          const stripe = await getStripe();
+          if (!stripe) {
+            // Missing publishable key / Stripe.js blocked — degrade honestly
+            // instead of crashing. This local failure cannot establish the
+            // current gateway outcome; the server status remains authoritative.
+            setPhase({ step: "failed", message: copy.unavailable });
+            return;
+          }
 
-        // The PaymentIntent is already confirmed server-side — run only the
-        // pending next-action (3DS). Stripe opens its own modal/redirect UI.
-        const { error } = await stripe.handleNextAction({ clientSecret });
-        if (error) {
-          // Challenge failed or was dismissed → the gateway reports the
-          // intent failed and the backend records it (hold voided).
+          // The PaymentIntent is already confirmed server-side — run only the
+          // pending next-action (3DS). Stripe opens its own modal/redirect UI.
+          const { error } = await stripe.handleNextAction({ clientSecret });
+          if (error) {
+            // A failed or dismissed challenge needs a server status check;
+            // the client cannot establish whether the gateway released a hold.
+            setPhase({
+              step: "failed",
+              message: error.message
+                ? `${error.message} ${copy.afterBankError}`
+                : copy.failed,
+            });
+            return;
+          }
+
+          verifyStartedAt.current = Date.now();
+          setPhase({ step: "verifying", bookingId });
+        } catch {
           setPhase({
             step: "failed",
-            message: error.message
-              ? `${error.message} ${copy.afterBankError}`
-              : copy.failed,
+            message:
+              "We could not complete card verification. Refresh the booking to check its current status before trying again.",
           });
-          return;
         }
-
-        verifyStartedAt.current = Date.now();
-        setPhase({ step: "verifying", bookingId });
       })();
     },
     [copy],
@@ -258,7 +262,7 @@ export function useRequestPayment({
       const verdict =
         purpose === "deposit"
           ? resolveDeposit(polled)
-          : resolveBooking(polled, elapsed);
+          : resolveBooking(polled);
       if (verdict === "failed") {
         setPhase({ step: "failed", message: copy.failed });
         return;

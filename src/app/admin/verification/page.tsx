@@ -1,6 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { AdditionalDocumentsAdmin } from "@/modules/verification/components/additional-documents-admin";
+
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { getApiErrorStatus } from "@/shared/api/errors";
 import {
   useDownloadVerificationDocument,
   useRejectCustomer,
@@ -40,13 +44,13 @@ import { cn } from "@/lib/utils";
 
 type StatusFilter = CustomerVerificationStatus;
 
-// Only PERSISTED statuses are filterable. "unverified" is a synthetic
-// /verification/me state for customers who never submitted (no row exists), so
-// it can never match a server query — offering it would be a dead filter.
+// Profile date-of-birth persistence can now create an unverified row before
+// license submission. Additional requests remain independent of these filters.
 const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
   { value: "pending", label: "Pending" },
   { value: "verified", label: "Verified" },
   { value: "rejected", label: "Rejected" },
+  { value: "unverified", label: "Unverified" },
 ];
 
 const DOC_TYPE_LABELS: Record<string, string> = {
@@ -77,8 +81,42 @@ function StatusBadge({ status }: { status: CustomerVerificationStatus }) {
 }
 
 export default function AdminVerificationPage() {
+  return (
+    <Suspense
+      fallback={<LoadingState label="Loading customer verification…" />}
+    >
+      <AdminVerificationLink />
+    </Suspense>
+  );
+}
+
+function AdminVerificationLink() {
+  const params = useSearchParams();
+  const candidate = params.get("customerId");
+  const customerId =
+    candidate &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      candidate,
+    )
+      ? candidate
+      : null;
+  return (
+    <AdminVerificationWorkspace
+      key={customerId ?? "queue"}
+      initialSelectedId={customerId}
+    />
+  );
+}
+
+function AdminVerificationWorkspace({
+  initialSelectedId,
+}: {
+  initialSelectedId: string | null;
+}) {
   const [status, setStatus] = useState<StatusFilter>("pending");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    initialSelectedId,
+  );
 
   const listQuery = useVerificationQueue(status);
 
@@ -170,7 +208,9 @@ export default function AdminVerificationPage() {
                             {c.documentCount}{" "}
                             {c.documentCount === 1 ? "photo" : "photos"}
                             {c.licenseExpired ? (
-                              <Badge variant="destructive">License expired</Badge>
+                              <Badge variant="destructive">
+                                License expired
+                              </Badge>
                             ) : null}
                           </span>
                           <span>{fmtDate(c.createdAt)}</span>
@@ -186,7 +226,17 @@ export default function AdminVerificationPage() {
           {/* ── Detail ────────────────────────────────────────────────── */}
           <div>
             {selectedId ? (
-              <CustomerDetail key={selectedId} userId={selectedId} />
+              <div className="space-y-6">
+                <CustomerDetail key={selectedId} userId={selectedId} />
+                <Card>
+                  <CardContent className="p-5">
+                    <p className="mb-4 break-all text-xs text-muted-foreground">
+                      Customer {selectedId}
+                    </p>
+                    <AdditionalDocumentsAdmin customerId={selectedId} />
+                  </CardContent>
+                </Card>
+              </div>
             ) : (
               <Card>
                 <CardContent className="py-16">
@@ -226,6 +276,19 @@ function CustomerDetail({ userId }: { userId: string }) {
     );
   }
   if (detailQuery.isError) {
+    if (getApiErrorStatus(detailQuery.error) === 404) {
+      return (
+        <Card>
+          <CardContent className="p-5">
+            <h2 className="font-medium">No license submission yet</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              This customer has not submitted a driver&apos;s license.
+              Additional document requests below are managed independently.
+            </p>
+          </CardContent>
+        </Card>
+      );
+    }
     return (
       <ErrorState
         title="Could not load customer"
@@ -237,6 +300,9 @@ function CustomerDetail({ userId }: { userId: string }) {
 
   const c = detailQuery.data as CustomerVerificationAdmin;
   const busy = verify.isPending || reject.isPending;
+  const licenseReady =
+    Boolean(c.licenseNumber && c.licenseExpiry && c.dateOfBirth) &&
+    !c.licenseExpired;
 
   const rows: { label: string; value: string | null; alert?: boolean }[] = [
     { label: "Name", value: c.name },
@@ -338,7 +404,10 @@ function CustomerDetail({ userId }: { userId: string }) {
                             onSuccess: (blob) => {
                               const url = URL.createObjectURL(blob);
                               window.open(url, "_blank", "noopener");
-                              setTimeout(() => URL.revokeObjectURL(url), 60_000);
+                              setTimeout(
+                                () => URL.revokeObjectURL(url),
+                                60_000,
+                              );
                             },
                           })
                         }
@@ -374,7 +443,7 @@ function CustomerDetail({ userId }: { userId: string }) {
                 <div className="flex flex-wrap gap-2">
                   <Button
                     onClick={() => verify.mutate()}
-                    disabled={busy || c.licenseExpired}
+                    disabled={busy || !licenseReady}
                   >
                     {verify.isPending ? "Verifying…" : "Verify customer"}
                   </Button>
@@ -400,7 +469,8 @@ function CustomerDetail({ userId }: { userId: string }) {
                       placeholder="Explain what is missing or invalid (blurry photo, name mismatch, expired license…) so the customer can fix and re-submit."
                     />
                     <p className="text-xs text-muted-foreground">
-                      This reason is shown to the customer. A reason is required.
+                      This reason is shown to the customer. A reason is
+                      required.
                     </p>
                   </div>
                   <div className="flex gap-2">
@@ -438,6 +508,12 @@ function CustomerDetail({ userId }: { userId: string }) {
                   {(verify.error as Error).message}
                 </p>
               ) : null}
+              {!licenseReady && (
+                <p className="text-xs text-muted-foreground">
+                  The customer must supply a valid license number, expiration
+                  date and date of birth before license verification.
+                </p>
+              )}
               {reject.isError ? (
                 <p className="text-sm text-destructive">
                   {(reject.error as Error).message}
@@ -448,7 +524,9 @@ function CustomerDetail({ userId }: { userId: string }) {
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <span>This customer is</span>
               <StatusBadge status={c.status} />
-              <span>— they are eligible to rent.</span>
+              <span>
+                — rental eligibility is checked again for each booking.
+              </span>
             </div>
           )}
         </section>

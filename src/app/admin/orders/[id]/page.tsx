@@ -240,7 +240,7 @@ function OrderDetail({ booking }: { booking: AdminBookingDetail }) {
                 {booking.pickup.branchPhone ? ` · ${booking.pickup.branchPhone}` : ""}
               </p>
             ) : null}
-            {booking.pickup.type === "delivery" && booking.pickup.deliveryFeeCents > 0 ? (
+            {booking.pickup.type === "delivery" && booking.pickup.hostDeliveryFeeCents > 0 ? (
               <p className="mt-1 text-xs text-muted-foreground">
                 <Badge variant="secondary">Delivery</Badge>{" "}
                 {booking.pickup.deliveryDistanceKm

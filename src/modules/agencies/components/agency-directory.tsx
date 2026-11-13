@@ -81,7 +81,7 @@ export function AgencyDirectory({
         ) : null}
       </header>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]">
+      <div className="marketplace-sidebar-layout mt-6">
         <aside className="space-y-4">
           <SearchModeToggle mode="agencies" city={filters.city} />
           {/* Same faceted-panel language as the car search filters. */}
@@ -211,7 +211,7 @@ export function AgencyDirectory({
             />
           ) : (
             <>
-              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="marketplace-card-grid">
                 {agencies.map((a) => (
                   <AgencyPublicCard key={a.id} agency={a} />
                 ))}

@@ -16,6 +16,10 @@ export interface User {
   email: string;
   phone?: string;
   fullName: string;
+  dateOfBirth?: string | null;
+  countryId?: string | null;
+  cityId?: string | null;
+  marketingOptIn?: boolean;
   roles: Role[];
   /** Present when the user owns/works for an agency. */
   agencyId?: string;
@@ -139,13 +143,8 @@ export interface Agency {
   id: string;
   name: string;
   slug: string;
-  /* `| null` to match the backend contract, which declares both as
-     `string | null` (`AgencyDto` in `backend/src/common/serializers/
-     wire-contract.ts`). This mirror said `string | undefined`, so the compiler
-     never saw the null that the server has always sent for an agency with no
-     description and no logo — the state every agency is created in. */
-  description?: string | null;
-  logoUrl?: string | null;
+  description: string | null;
+  logoUrl: string | null;
   /** Storefront cover image (uploaded via branding or pasted); null = none. */
   bannerUrl?: string | null;
   verificationStatus: AgencyVerificationStatus;
@@ -289,6 +288,7 @@ export const CAR_CATEGORIES = [
   "convertible",
   "minivan",
   "luxury",
+  "exotic",
 ] as const;
 export type CarCategory = (typeof CAR_CATEGORIES)[number];
 
@@ -346,6 +346,13 @@ export interface CarDocumentAdminDto extends CarDocumentDto {
  * commission line in a renter's breakdown — the markup lives inside the
  * rate. Both are server-computed: never derive one from the other here.
  */
+export interface CarEngine {
+  displacementCc: number;
+  /** Server-rendered litre figure; do not derive it separately in clients. */
+  displacementL: number;
+  powerHp: number;
+}
+
 export interface Car {
   location: {
     city: { id: string; name: string; slug: string };
@@ -368,6 +375,8 @@ export interface Car {
   hostDailyRateCents: number;
   /** The per-day rate a renter is shown, integer cents (commission included). */
   renterDailyRateCents: number;
+  /** Both declared engine figures, or null when the host has not supplied them. */
+  engine: CarEngine | null;
   /** First photo URL, or null when the car has none. */
   primaryPhoto: string | null;
   /**
@@ -474,7 +483,7 @@ export const BOOKING_TERMINAL_STATES: readonly BookingState[] = [
 export type PickupType = "branch_pickup" | "delivery";
 
 /**
- * Booking pickup block (contract). `deliveryFeeCents` is always present
+ * Booking pickup block (contract). `hostDeliveryFeeCents` is always present
  * (0 for branch pickup); the zone id/name are present only for delivery.
  */
 export interface BookingPickup {
@@ -488,7 +497,7 @@ export interface BookingPickup {
   deliveryReference?: string;
   deliveryDistanceKm?: number;
   /** 0 for branch pickup. */
-  deliveryFeeCents: number;
+  hostDeliveryFeeCents: number;
   /** Branch's exact address — present only once paid AND branch pickup. */
   branchAddress?: string;
   /** Same gate as `branchAddress` (paid + branch pickup). */
@@ -710,6 +719,7 @@ export interface BookingPayment {
 
 /** `POST /bookings` response: the booking + its real payment outcome. */
 export interface BookingWithPayment extends Booking {
+  quote: "honored";
   payment: BookingPayment;
 }
 

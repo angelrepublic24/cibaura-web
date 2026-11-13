@@ -15,6 +15,16 @@ const USER_MARKER_KEY = "cibaura:lastUserId";
 
 /** Pre-migration localStorage key that held the raw access JWT. */
 const LEGACY_TOKEN_KEY = "cibaura:accessToken";
+let sessionGeneration = 0;
+
+/** In-memory boundary for work started before a login or local sign-out. */
+export function getSessionGeneration(): number {
+  return sessionGeneration;
+}
+
+export function advanceSessionGeneration(): void {
+  sessionGeneration++;
+}
 
 /**
  * One-time boot cleanup: drop the JWT the pre-cookie web client persisted in
@@ -27,11 +37,13 @@ export function purgeLegacyTokenStorage(): void {
 }
 
 export function setUserMarker(userId: string): void {
+  advanceSessionGeneration();
   if (typeof window === "undefined") return;
   window.localStorage.setItem(USER_MARKER_KEY, userId);
 }
 
 export function clearUserMarker(): void {
+  advanceSessionGeneration();
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(USER_MARKER_KEY);
 }

@@ -9,6 +9,7 @@ import {
   SETTLEMENT_CASES,
 } from "@/shared/types/domain";
 import { namedRefWireSchema } from "@/shared/api/wire";
+import { contractTemplatePublicWireSchema } from "@/modules/legal/schema/legal.schema";
 
 /**
  * Booking wire schemas (zod v4) — the customer side of a booking's whole
@@ -79,7 +80,7 @@ export const pricingWireSchema = z.object({
   currency: z.string(),
 });
 
-/** `deliveryFeeCents` is always present (0 for a branch pickup). */
+/** Host delivery fee snapshot (0 for a branch pickup); pricing carries renter totals. */
 export const bookingPickupWireSchema = z.object({
   type: pickupTypeSchema,
   deliveryZoneId: z.string().optional(),
@@ -87,7 +88,7 @@ export const bookingPickupWireSchema = z.object({
   deliveryAddress: z.string().optional(),
   deliveryReference: z.string().optional(),
   deliveryDistanceKm: z.number().optional(),
-  deliveryFeeCents: z.number(),
+  hostDeliveryFeeCents: z.number(),
   /** Branch's exact address — present only once paid AND branch pickup. */
   branchAddress: z.string().optional(),
   branchPhone: z.string().optional(),
@@ -308,6 +309,7 @@ export const bookingDetailWireSchema = bookingWireSchema.extend({
 });
 
 export const bookingWithPaymentWireSchema = bookingWireSchema.extend({
+  quote: z.literal("honored"),
   payment: z.object({
     status: bookingPaymentStatusSchema,
     clientSecret: z.string().nullable(),
@@ -320,8 +322,8 @@ export const quoteWireSchema = z.object({
   depositCents: z.number(),
   /** `depositCents > 0`. A hold that is returned — never part of the total. */
   depositRequired: z.boolean(),
-  expiresAt: z.string(),
-  token: z.string(),
+  expiresAt: z.iso.datetime(),
+  token: z.string().min(1),
 });
 
 export const signedUrlWireSchema = z.object({
@@ -372,12 +374,24 @@ export const quoteInputSchema = z.object({
   deliveryReference: z.string().optional(),
 });
 
+export const agreementPreviewInputSchema = quoteInputSchema.extend({
+  quoteToken: z.string().min(1),
+  termsVersion: z.string().min(1),
+});
+export const rentalAgreementPreviewWireSchema = contractTemplatePublicWireSchema.extend({
+  kind: z.literal("rental_agreement"),
+  agreementConsentToken: z.string().min(1),
+  consentExpiresAt: z.iso.datetime(),
+});
+
 /** Backend `SignatureDto`: the typed full name of the click-to-sign. */
 export const signatureInputSchema = z.object({
   typedName: z.string(),
 });
 
 export const requestBookingInputSchema = quoteInputSchema.extend({
+  quoteToken: z.string().min(1),
+  agreementConsentToken: z.string().min(1),
   /** The saved card the hold goes on; absent → the backend's default. */
   paymentMethodId: z.string().optional(),
   /** The version from `GET /legal/current` the customer just accepted. */

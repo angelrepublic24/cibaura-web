@@ -8,6 +8,7 @@ import type {
   agencyPublicProfileWireSchema,
   applyAgencyInputSchema,
   applyIndividualHostInputSchema,
+  availableAgencyCityWireSchema,
   createReviewInputSchema,
   publicBranchWireSchema,
   reviewWireSchema,
@@ -27,6 +28,7 @@ import type {
 // ------------------------------------------------------------- wire contract
 
 export type PublicBranch = z.infer<typeof publicBranchWireSchema>;
+export type AvailableAgencyCity = z.infer<typeof availableAgencyCityWireSchema>;
 export type AgencyPublicProfile = z.infer<
   typeof agencyPublicProfileWireSchema
 >;

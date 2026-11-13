@@ -81,7 +81,7 @@ export default function HomePage() {
           />
         </div>
 
-        <div className="relative z-10 mx-auto max-w-6xl px-4 pb-12 pt-10 md:pb-16 md:pt-14">
+        <div className="marketplace-shell relative z-10 pb-12 pt-10 md:pb-16 md:pt-14">
           <div className="max-w-2xl">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface/70 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur">
               <ShieldCheck className="h-3.5 w-3.5 text-primary" />
@@ -104,7 +104,7 @@ export default function HomePage() {
       </section>
 
       {/* How it works — quiet, generous, three clear steps. */}
-      <section className="mx-auto max-w-6xl px-4 py-16">
+      <section className="marketplace-shell py-16">
         <h2 className="font-display text-2xl text-foreground md:text-3xl">
           How Cibaura works
         </h2>
@@ -113,7 +113,7 @@ export default function HomePage() {
             {
               icon: KeyRound,
               title: "Request to book",
-              body: "Your booking is confirmed by the agency. Your card is only charged when they accept — never before.",
+              body: "A temporary card hold is placed when you request. Your card is charged after the agency accepts and the free-cancellation period ends.",
               accent: "bg-accent-soft text-primary",
             },
             {

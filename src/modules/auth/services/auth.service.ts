@@ -1,8 +1,9 @@
-import { Api } from "@/shared/api/client";
+import { Api, withSessionBoundary } from "@/shared/api/client";
 import type { User } from "@/shared/types/domain";
 import {
   authResultWireSchema,
-  authUserWireSchema,
+  customerProfileWireSchema,
+  updateMeInputSchema,
 } from "@/modules/auth/schema/auth.schema";
 import type {
   AuthResponse,
@@ -47,28 +48,32 @@ import { toUser } from "@/modules/auth/helpers/auth.helper";
  */
 class AuthService {
   async register(input: RegisterInput): Promise<AuthResponse> {
-    const res = await Api.post<unknown>("/auth/register", {
-      email: input.email,
-      password: input.password,
-      name: input.fullName,
-      phone: input.phone,
-      acceptTerms: true,
-      termsVersion: input.termsVersion,
-    });
+    const res = await withSessionBoundary(() =>
+      Api.post<unknown>("/auth/register", {
+        email: input.email,
+        password: input.password,
+        name: input.fullName,
+        phone: input.phone,
+        acceptTerms: true,
+        termsVersion: input.termsVersion,
+      }),
+    );
     // Session = httpOnly cookies set by this response; body tokens ignored.
     const { user } = authResultWireSchema.parse(res.data);
     return { user: toUser(user) };
   }
 
   async login(input: LoginInput): Promise<AuthResponse> {
-    const res = await Api.post<unknown>("/auth/login", input);
+    const res = await withSessionBoundary(() =>
+      Api.post<unknown>("/auth/login", input),
+    );
     // Session = httpOnly cookies set by this response; body tokens ignored.
     const { user } = authResultWireSchema.parse(res.data);
     return { user: toUser(user) };
   }
 
   async logout(): Promise<void> {
-    await Api.post("/auth/logout", {});
+    await withSessionBoundary(() => Api.post("/auth/logout", {}));
   }
 
   /**
@@ -81,12 +86,14 @@ class AuthService {
 
   /** 204 on success; the server revokes every session of the user. */
   async resetPassword(input: ResetPasswordInput): Promise<void> {
-    await Api.post("/auth/reset-password", {
-      token: input.token,
-      password: input.password,
-      acceptTerms: true,
-      termsVersion: input.termsVersion,
-    });
+    await withSessionBoundary(() =>
+      Api.post("/auth/reset-password", {
+        token: input.token,
+        password: input.password,
+        acceptTerms: true,
+        termsVersion: input.termsVersion,
+      }),
+    );
   }
 
   /**
@@ -95,31 +102,39 @@ class AuthService {
    * A wrong current password returns 401 while the session itself is still
    * valid. The shared axios interceptor knows this: `/auth/change-password`
    * is on its no-refresh list, so that 401 just surfaces as an error here,
-   * with no refresh attempt and no forced sign-out. Other sessions are
-   * revoked server-side; the current cookie pair stays valid.
+   * with no refresh attempt and no forced sign-out. Success revokes every
+   * access/refresh session and clears the current browser's auth cookies.
    */
   async changePassword(input: ChangePasswordInput): Promise<void> {
-    await Api.patch("/auth/change-password", input);
+    await withSessionBoundary(() => Api.patch("/auth/change-password", input));
   }
 
-  async me(): Promise<User> {
+  async me(signal?: AbortSignal): Promise<User> {
     // `/users/me` returns the serialized user (name/phone/status/
     // termsVersion/createdAt); mapped to the web `User` shape.
-    const res = await Api.get<unknown>("/users/me");
-    return toUser(authUserWireSchema.parse(res.data));
+    const res = await Api.get<unknown>("/users/me", { signal });
+    const profile = customerProfileWireSchema.parse(res.data);
+    return { ...toUser(profile), dateOfBirth: profile.dateOfBirth, countryId: profile.countryId, cityId: profile.cityId, marketingOptIn: profile.marketingOptIn };
   }
 
   /**
-   * Update the caller's own profile, the SAFE fields only (name/phone; the
-   * backend rejects anything else). `phone: null` clears it. Returns the
-   * updated user, already mapped to the web shape.
+   * Partial own-profile update: contact details, fill-once canonical DOB,
+   * optional residence and marketing preference. Omitted fields stay unchanged;
+   * explicit null clears nullable contact/residence fields.
    */
   async updateMe(input: UpdateMeInput): Promise<User> {
+    const { fullName, ...fields } = updateMeInputSchema.parse(input);
     const res = await Api.patch<unknown>("/users/me", {
-      name: input.fullName,
-      phone: input.phone ?? null,
+      ...fields,
+      ...(fullName === undefined ? {} : { name: fullName }),
     });
-    return toUser(authUserWireSchema.parse(res.data));
+    const profile = customerProfileWireSchema.parse(res.data);
+    return { ...toUser(profile), dateOfBirth: profile.dateOfBirth, countryId: profile.countryId, cityId: profile.cityId, marketingOptIn: profile.marketingOptIn };
+  }
+
+  async exportMyData(): Promise<Blob> {
+    const res = await Api.get<Blob>("/users/me/export", { responseType: "blob" });
+    return res.data;
   }
 
   /**
