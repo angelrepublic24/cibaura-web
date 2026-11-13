@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import QueryProvider from "@/shared/providers/query-provider";
 import { SiteHeader } from "@/shared/components/site-header";
+import { MarketplaceOnly } from "@/shared/components/marketplace-chrome";
 import { SiteFooterNav } from "@/shared/components/site-footer-nav";
 import { Logo } from "@/shared/components/logo";
 import { SUPPORT_PATH } from "@/shared/config/support";
@@ -57,6 +58,10 @@ export default function RootLayout({
         <QueryProvider>
           <SiteHeader />
           <main className="min-h-[calc(100vh-4rem)]">{children}</main>
+          {/* Not inside a console: there the shell already fills the screen,
+              and hanging this underneath gave every admin and agency page a
+              second scrollbar. See `MarketplaceOnly`. */}
+          <MarketplaceOnly>
           <footer className="mt-20 bg-navy text-navy-foreground">
             <div className="marketplace-shell py-12">
               <div className="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
@@ -111,6 +116,7 @@ export default function RootLayout({
               </div>
             </div>
           </footer>
+          </MarketplaceOnly>
         </QueryProvider>
       </body>
     </html>
