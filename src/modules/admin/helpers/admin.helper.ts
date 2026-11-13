@@ -29,6 +29,9 @@ export function configToFormValues(
   return {
     commissionPct: String(config.commissionPct),
     freeCancellationHours: String(config.freeCancellationHours),
+    freeCancellationCapHoursBeforePickup: String(config.freeCancellationCapHoursBeforePickup),
+    freeCancellationMinHours: String(config.freeCancellationMinHours),
+    maxCarChanges: String(config.maxCarChanges),
     lateCancellationRetentionPct: String(config.lateCancellationRetentionPct),
     earlyReturnPenaltyDays: String(config.earlyReturnPenaltyDays),
     disputeWindowHours: String(config.disputeWindowHours),
@@ -36,7 +39,7 @@ export function configToFormValues(
     defaultDepositUnits: String(config.defaultDepositCents / 100),
     taxRatePct: String(config.taxRatePct),
     taxBase: config.taxBase,
-    checkinAdvancePct: String(config.checkinAdvancePct),
+    acceptanceAdvancePct: String(config.acceptanceAdvancePct),
     depositReauthLeadHours: String(config.depositReauthLeadHours),
     inspectionsRequired: config.inspectionsRequired,
     inspectionMinPhotos: String(config.inspectionMinPhotos),
@@ -44,6 +47,12 @@ export function configToFormValues(
       config.inspectionMediaRetentionMonths,
     ),
     stripePayoutsEnabled: config.stripePayoutsEnabled,
+    agencyFailurePenaltyPct: String(config.agencyFailurePenaltyPct),
+    agencyFailureLatePenaltyPct: String(config.agencyFailureLatePenaltyPct),
+    agencyFailureLateHours: String(config.agencyFailureLateHours),
+    agencyFailurePenaltyFloorCents: String(config.agencyFailurePenaltyFloorCents),
+    gatewayFeeEstimatePct: String(config.gatewayFeeEstimatePct),
+    gatewayFeeEstimateFixedCents: String(config.gatewayFeeEstimateFixedCents),
   };
 }
 
@@ -62,6 +71,11 @@ export function formValuesToPatch(
   if (dirty.commissionPct) patch.commissionPct = Number(values.commissionPct);
   if (dirty.freeCancellationHours)
     patch.freeCancellationHours = Number(values.freeCancellationHours);
+  if (dirty.freeCancellationCapHoursBeforePickup)
+    patch.freeCancellationCapHoursBeforePickup = Number(values.freeCancellationCapHoursBeforePickup);
+  if (dirty.freeCancellationMinHours)
+    patch.freeCancellationMinHours = Number(values.freeCancellationMinHours);
+  if (dirty.maxCarChanges) patch.maxCarChanges = Number(values.maxCarChanges);
   if (dirty.lateCancellationRetentionPct)
     patch.lateCancellationRetentionPct = Number(
       values.lateCancellationRetentionPct,
@@ -78,8 +92,8 @@ export function formValuesToPatch(
     );
   if (dirty.taxRatePct) patch.taxRatePct = Number(values.taxRatePct);
   if (dirty.taxBase) patch.taxBase = values.taxBase;
-  if (dirty.checkinAdvancePct)
-    patch.checkinAdvancePct = Number(values.checkinAdvancePct);
+  if (dirty.acceptanceAdvancePct)
+    patch.acceptanceAdvancePct = Number(values.acceptanceAdvancePct);
   if (dirty.depositReauthLeadHours)
     patch.depositReauthLeadHours = Number(values.depositReauthLeadHours);
   if (dirty.inspectionsRequired)
@@ -92,6 +106,18 @@ export function formValuesToPatch(
     );
   if (dirty.stripePayoutsEnabled)
     patch.stripePayoutsEnabled = values.stripePayoutsEnabled;
+  if (dirty.agencyFailurePenaltyPct)
+    patch.agencyFailurePenaltyPct = Number(values.agencyFailurePenaltyPct);
+  if (dirty.agencyFailureLatePenaltyPct)
+    patch.agencyFailureLatePenaltyPct = Number(values.agencyFailureLatePenaltyPct);
+  if (dirty.agencyFailureLateHours)
+    patch.agencyFailureLateHours = Number(values.agencyFailureLateHours);
+  if (dirty.agencyFailurePenaltyFloorCents)
+    patch.agencyFailurePenaltyFloorCents = Number(values.agencyFailurePenaltyFloorCents);
+  if (dirty.gatewayFeeEstimatePct)
+    patch.gatewayFeeEstimatePct = Number(values.gatewayFeeEstimatePct);
+  if (dirty.gatewayFeeEstimateFixedCents)
+    patch.gatewayFeeEstimateFixedCents = Number(values.gatewayFeeEstimateFixedCents);
   return patch;
 }
 
