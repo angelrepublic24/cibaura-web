@@ -22,10 +22,12 @@ export type ConsoleNavGroup = {
  *
  * ── WHAT IT IS ───────────────────────────────────────────────────────────
  *
- * An APP, not a page. It fills exactly what the site header leaves (`h-16`)
- * and the two columns scroll INDEPENDENTLY: reading a long table used to
- * carry the navigation off the top of the screen, so changing section meant
- * scrolling back up first.
+ * An APP, not a page. It fills exactly what the site header leaves
+ * (`--header-h`, which is the header's 4rem PLUS its 1px border — subtracting
+ * a bare 4rem left the document one pixel taller than the viewport and put a
+ * second, full-height scrollbar on every console screen) and the two columns
+ * scroll INDEPENDENTLY: reading a long table used to carry the navigation off
+ * the top of the screen, so changing section meant scrolling back up first.
  *
  * `min-h-0` on the flex children is what makes that work — without it a flex
  * child refuses to shrink below its content and neither side ever scrolls.
@@ -65,7 +67,7 @@ export function ConsoleShell({
   const flat = groups.flatMap((group) => group.items);
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col overflow-hidden md:flex-row">
+    <div className="flex h-[calc(100vh-var(--header-h))] flex-col overflow-hidden md:flex-row">
       <aside className="flex w-56 flex-none flex-col bg-muted/50 max-md:hidden">
         {header ? <div className="flex-none px-4 pb-2 pt-4">{header}</div> : null}
 

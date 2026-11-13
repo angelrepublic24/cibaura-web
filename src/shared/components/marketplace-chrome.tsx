@@ -31,7 +31,7 @@ function inConsole(pathname: string): boolean {
  * ── THE BUG THIS EXISTS FOR ──────────────────────────────────────────────
  *
  * `ConsoleShell` is an APP: it claims exactly the height the site header
- * leaves (`h-[calc(100vh-4rem)]`) and scrolls its two columns independently.
+ * leaves (`--header-h`) and scrolls its two columns independently.
  * The root layout then hung the marketing footer — logo, Terms, Privacy,
  * Support — underneath it, with `mt-20` on top.
  *

@@ -71,6 +71,22 @@
   --shadow-md: 0 4px 12px rgba(10, 14, 46, 0.06), 0 2px 4px rgba(10, 14, 46, 0.05);
   --shadow-lg: 0 12px 32px rgba(10, 14, 46, 0.10), 0 4px 8px rgba(10, 14, 46, 0.06);
 
+  /*
+   * THE SITE HEADER'S TOTAL HEIGHT, border included.
+   *
+   * `SiteHeader` is `h-16` (4rem) PLUS a 1px `border-b`, so it occupies 65px,
+   * not 64. Anything that fills "the rest of the screen" has to subtract this
+   * number and not `4rem` — the console shell subtracted 4rem, which made the
+   * document exactly ONE PIXEL taller than the viewport, and one pixel is all
+   * Chrome needs to paint a full-height page scrollbar beside the panel's own.
+   * Two scrollbars on every admin and agency screen, for a border.
+   *
+   * It lives here so the header and the things sized against it cannot drift
+   * apart again: change the header's height or its border, change this, and
+   * every consumer follows.
+   */
+  --header-h: calc(4rem + 1px);
+
   /* Radius scale — generous, modern */
   --radius: 0.875rem; /* 14px — default card/control roundness */
   --radius-sm: 0.5rem;
