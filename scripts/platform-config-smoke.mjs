@@ -41,10 +41,13 @@ const contract = {
   }),
 };
 
-/** Every one of the fifteen settings, at its backend default. */
+/** Every one of the twenty-four settings, at its backend default. */
 const DEFAULTS = {
   commissionPct: 15,
   freeCancellationHours: 48,
+  freeCancellationCapHoursBeforePickup: 24,
+  freeCancellationMinHours: 2,
+  maxCarChanges: 1,
   lateCancellationRetentionPct: 20,
   earlyReturnPenaltyDays: 1,
   disputeWindowHours: 48,
@@ -52,12 +55,18 @@ const DEFAULTS = {
   defaultDepositCents: 20_000,
   taxRatePct: 0,
   taxBase: "commission",
-  checkinAdvancePct: 0,
+  acceptanceAdvancePct: 10,
   depositReauthLeadHours: 24,
   inspectionsRequired: true,
   inspectionMinPhotos: 4,
   inspectionMediaRetentionMonths: 12,
   stripePayoutsEnabled: false,
+  agencyFailurePenaltyPct: 5,
+  agencyFailureLatePenaltyPct: 10,
+  agencyFailureLateHours: 72,
+  agencyFailurePenaltyFloorCents: 1000,
+  gatewayFeeEstimatePct: 2.9,
+  gatewayFeeEstimateFixedCents: 30,
 };
 
 let stored = { ...DEFAULTS };
@@ -108,9 +117,9 @@ async function test(name, run) {
   console.log(`PASS ${name}`);
 }
 
-await test("Reads the flat fifteen-setting config", async () => {
+await test("Reads the flat twenty-four-setting config", async () => {
   assert.deepEqual(plain(await api.getConfig()), DEFAULTS);
-  assert.equal(Object.keys(DEFAULTS).length, 15);
+  assert.equal(Object.keys(DEFAULTS).length, 24);
 });
 
 await test("Rejects a config missing any setting, or with a wrong type", () => {
@@ -177,8 +186,8 @@ await test("Form bounds mirror the server, not the old console", () => {
   assert.equal(accepts("taxRatePct", "50.01"), false);
   assert.equal(accepts("disputeWindowHours", "168"), true);
   assert.equal(accepts("disputeWindowHours", "169"), false);
-  assert.equal(accepts("checkinAdvancePct", "80"), true);
-  assert.equal(accepts("checkinAdvancePct", "81"), false);
+  assert.equal(accepts("acceptanceAdvancePct", "80"), true);
+  assert.equal(accepts("acceptanceAdvancePct", "81"), false);
   assert.equal(accepts("inspectionMinPhotos", "30"), true);
   assert.equal(accepts("inspectionMinPhotos", "31"), false);
   assert.equal(accepts("freeCancellationHours", "720"), true);
@@ -200,16 +209,25 @@ await test("Every limit matches the backend table", () => {
   assert.deepEqual(plain(contract.PLATFORM_CONFIG_LIMITS), {
     commissionPct: { min: 0, max: 100, decimals: 2 },
     freeCancellationHours: { min: 0, max: 720 },
+    freeCancellationCapHoursBeforePickup: { min: 0, max: 720 },
+    freeCancellationMinHours: { min: 0, max: 720 },
+    maxCarChanges: { min: 0, max: 10 },
     lateCancellationRetentionPct: { min: 0, max: 100 },
     earlyReturnPenaltyDays: { min: 0, max: 30 },
     disputeWindowHours: { min: 0, max: 168 },
     claimResponseHours: { min: 12, max: 168 },
     defaultDepositCents: { min: 0, max: 500000 },
     taxRatePct: { min: 0, max: 50, decimals: 2 },
-    checkinAdvancePct: { min: 0, max: 80 },
+    acceptanceAdvancePct: { min: 0, max: 80 },
     depositReauthLeadHours: { min: 6, max: 72 },
     inspectionMinPhotos: { min: 0, max: 30 },
     inspectionMediaRetentionMonths: { min: 3, max: 60 },
+    agencyFailurePenaltyPct: { min: 0, max: 100 },
+    agencyFailureLatePenaltyPct: { min: 0, max: 100 },
+    agencyFailureLateHours: { min: 0, max: 336 },
+    agencyFailurePenaltyFloorCents: { min: 0, max: 100000 },
+    gatewayFeeEstimatePct: { min: 0, max: 10, decimals: 2 },
+    gatewayFeeEstimateFixedCents: { min: 0, max: 1000 },
   });
 });
 
@@ -268,7 +286,7 @@ await test("One PATCH carries the whole diff to /admin/config", async () => {
     },
   });
   // The response is the complete config, and untouched settings are intact.
-  assert.equal(Object.keys(next).length, 15);
+  assert.equal(Object.keys(next).length, 24);
   assert.equal(next.commissionPct, DEFAULTS.commissionPct);
   assert.equal(next.disputeWindowHours, 72);
   assert.equal(next.stripePayoutsEnabled, true);
@@ -310,7 +328,7 @@ await test("No request targets the superseded single-purpose routes", () => {
   );
 });
 
-await test("The console renders an input for every one of the fifteen", () => {
+await test("The console renders an input for every one of the twenty-four", () => {
   // The regression this guards: the form used to expose four settings while
   // the contract described more, and nothing failed when they diverged.
   const cn = (...values) =>
@@ -362,7 +380,7 @@ await test("The console renders an input for every one of the fifteen", () => {
     [...html.matchAll(/name="([^"]+)"/g)].map((match) => match[1]),
   );
   const fields = Object.keys(contract.platformConfigFormSchema.shape);
-  assert.equal(fields.length, 15);
+  assert.equal(fields.length, 24);
   for (const field of fields) {
     assert.ok(rendered.has(field), `${field} has no input in the console`);
   }

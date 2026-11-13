@@ -33,19 +33,13 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
 /**
- * The platform settings console: all fifteen settings, ONE save.
- *
- * It used to edit four of them through the two single-purpose routes that
- * predate `PATCH /admin/config`; the other eleven — the dispute window, the
- * early-return penalty, the late-cancellation retention, the check-in advance
- * among them — could only be changed with a psql session. One endpoint now
- * takes the whole set.
+ * The platform settings console: all twenty-four settings, ONE save.
  *
  * ONE form, one submit, because the endpoint is atomic: the server
  * range-checks every supplied field before it writes any of them, so a
  * rejected value never leaves the rest half-applied. Only DIRTY fields are
  * sent, which is what keeps a field the console cannot express — a commission
- * booted from env with three decimals — from blocking the other fourteen.
+ * booted from env with three decimals — from blocking unrelated changes.
  */
 
 /** The fields backed by a text input (everything except the enum and the two flags). */
@@ -87,6 +81,21 @@ const POLICY_FIELDS: FieldSpec[] = [
     name: "freeCancellationHours",
     label: "Free cancellation (hours)",
     hint: `Hours from the acceptance. ${range("freeCancellationHours")}.`,
+  },
+  {
+    name: "freeCancellationCapHoursBeforePickup",
+    label: "Free cancellation cutoff before pickup (hours)",
+    hint: `The free window ends at least this far before pickup, subject to the minimum window. ${range("freeCancellationCapHoursBeforePickup")}.`,
+  },
+  {
+    name: "freeCancellationMinHours",
+    label: "Minimum free cancellation window (hours)",
+    hint: `Minimum free window after acceptance, including last-minute bookings. ${range("freeCancellationMinHours")}.`,
+  },
+  {
+    name: "maxCarChanges",
+    label: "Maximum vehicle changes per booking",
+    hint: `Changes must stay within the same agency. ${range("maxCarChanges")}.`,
   },
   {
     name: "lateCancellationRetentionPct",
@@ -142,10 +151,19 @@ const INSPECTION_FIELDS: FieldSpec[] = [
 
 const PAYOUT_FIELDS: FieldSpec[] = [
   {
-    name: "checkinAdvancePct",
-    label: "Advance at check-in (%)",
-    hint: `Share of the subtotal advanced to the host when check-in is confirmed. ${range("checkinAdvancePct")}; 0 disables it.`,
+    name: "acceptanceAdvancePct",
+    label: "Advance at acceptance (%)",
+    hint: `Share of the subtotal advanced to the host when the agency accepts the booking. ${range("acceptanceAdvancePct")}; 0 disables it.`,
   },
+];
+
+const AGENCY_FAILURE_FIELDS: FieldSpec[] = [
+  { name: "agencyFailurePenaltyPct", label: "Agency cancellation penalty (%)", hint: `Share of the total charged when an agency abandons an accepted booking. ${range("agencyFailurePenaltyPct")}.` },
+  { name: "agencyFailureLatePenaltyPct", label: "Late agency cancellation penalty (%)", hint: `Must be at least the standard penalty. ${range("agencyFailureLatePenaltyPct")}.` },
+  { name: "agencyFailureLateHours", label: "Late agency cancellation window (hours)", hint: `The late penalty applies this close to pickup. ${range("agencyFailureLateHours")}.` },
+  { name: "agencyFailurePenaltyFloorCents", label: "Minimum agency penalty (USD cents)", hint: `${range("agencyFailurePenaltyFloorCents")}; 100 cents = USD 1.` },
+  { name: "gatewayFeeEstimatePct", label: "Estimated gateway fee (%)", hint: `Used to split a penalty between processing costs and renter credit. ${range("gatewayFeeEstimatePct")}, up to two decimals.`, inputMode: "decimal" },
+  { name: "gatewayFeeEstimateFixedCents", label: "Estimated fixed gateway fee (USD cents)", hint: `${range("gatewayFeeEstimateFixedCents")}; 100 cents = USD 1.` },
 ];
 
 const TAX_BASE_LABELS: Record<(typeof TAX_BASES)[number], string> = {
@@ -219,6 +237,17 @@ export function PlatformConfigForm({ config }: { config: PlatformConfig }) {
         >
           <FieldGrid>
             {POLICY_FIELDS.map((field) => (
+              <TextInput key={field.name} field={field} form={form} />
+            ))}
+          </FieldGrid>
+        </Section>
+
+        <Section
+          title="Agency cancellations"
+          description="Penalties when a host abandons a confirmed booking, and the processing-fee estimate used for their split."
+        >
+          <FieldGrid>
+            {AGENCY_FAILURE_FIELDS.map((field) => (
               <TextInput key={field.name} field={field} form={form} />
             ))}
           </FieldGrid>
