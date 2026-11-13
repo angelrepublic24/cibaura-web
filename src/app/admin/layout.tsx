@@ -41,6 +41,22 @@ type NavGroup = ConsoleNavGroup;
  * The grouping follows what the admin is DOING, not which module the code
  * lives in — "Applications" sits with Agencies because reviewing one is part
  * of running supply, even though it is a different screen.
+ *
+ * ── WHAT EARNS A SLOT HERE ───────────────────────────────────────────────
+ *
+ * The rail is for what you WORK: queues, cases, money, people — things with
+ * a backlog that changes while you are away. What you CONFIGURE and then do
+ * not touch for weeks lives in Settings instead, reached from the account
+ * menu.
+ *
+ * That line moved Catalog, Geo and Contracts out. Catalog is a dictionary of
+ * makes and models, extended when a new car shows up; Geo is countries,
+ * cities and the per-country tax rate; Contracts is the legal templates
+ * renters and hosts sign. None of the three is a queue, and the first two
+ * sat under "Supply" next to the real agencies, which read as if they were
+ * the same kind of work.
+ *
+ * The routes did not change, so saved links still resolve.
  */
 const NAV: NavGroup[] = [
   {
@@ -63,8 +79,6 @@ const NAV: NavGroup[] = [
         label: "Applications",
         icon: ClipboardCheck,
       },
-      { href: "/admin/catalog", label: "Catalog", icon: Library },
-      { href: "/admin/geo", label: "Geo", icon: MapPin },
     ],
   },
   {
@@ -87,41 +101,66 @@ const NAV: NavGroup[] = [
       { href: "/admin/roots", label: "Admins", icon: ShieldCheck },
     ],
   },
-  {
-    // Settings and Profile are deliberately ABSENT: both live in the account
-    // menu now. Neither is a place you work — you go, change one thing and
-    // leave — so a permanent slot in the rail next to the queues an admin
-    // actually works through was weight they had not earned.
-    label: "System",
-    items: [
-      { href: "/admin/contracts", label: "Contracts", icon: ScrollText },
-    ],
-  },
 ];
 
 /**
  * Settings sub-navigation. When the admin enters the Settings section the whole
  * sidebar SWAPS to this focused set (with a "Back to console" affordance at the
  * top) instead of stacking a second sidebar next to the main one.
+ *
+ * Grouped, because six destinations answer three different questions: how the
+ * platform behaves, what the reference data says, and who you are.
  */
 const SETTINGS_NAV: NavGroup[] = [
   {
-    label: "Settings",
+    // What the platform DOES: the commission, the deposit, the cancellation
+    // policy, the documents those rules are written into, and the third
+    // parties they run through.
+    label: "Platform",
     items: [
       { href: "/admin/settings", label: "General", icon: SlidersHorizontal },
+      { href: "/admin/contracts", label: "Contracts", icon: ScrollText },
       {
         href: "/admin/settings/integrations",
         label: "Integrations",
         icon: Plug,
       },
-      // Your own account, including the change-password card. Once you are in
-      // Settings you expect everything you can change to be here — hunting for
-      // your password back in the account menu is a dead end you only find by
-      // leaving.
+    ],
+  },
+  {
+    // The lists everything else is chosen FROM. Geo is here rather than under
+    // Platform despite carrying the per-country tax rate: an admin opens it to
+    // add a city far more often than to change a rate.
+    label: "Reference data",
+    items: [
+      { href: "/admin/catalog", label: "Catalog", icon: Library },
+      { href: "/admin/geo", label: "Geo", icon: MapPin },
+    ],
+  },
+  {
+    // Your own account, including the change-password card. Once you are in
+    // Settings you expect everything you can change to be here — hunting for
+    // your password back in the account menu is a dead end you only find by
+    // leaving.
+    label: "You",
+    items: [
       { href: "/admin/profile", label: "Your account", icon: UserCircle },
     ],
   },
 ];
+
+/**
+ * Paths that keep the Settings sidebar up even though they do not live under
+ * `/admin/settings`. Without this the rail would swap back to the main console
+ * the moment you clicked one of them — the navigation changing under your hand
+ * as a result of using it.
+ */
+const SETTINGS_PATHS = [
+  "/admin/profile",
+  "/admin/contracts",
+  "/admin/catalog",
+  "/admin/geo",
+] as const;
 
 /** /admin route group — platform admins only. */
 export default function AdminLayout({
@@ -139,16 +178,14 @@ export default function AdminLayout({
     return <>{children}</>;
   }
 
-  // In the Settings section the sidebar SWAPS to the settings sub-nav.
-  //
-  // `/admin/profile` counts as part of it even though it does not live under
-  // that path: it is listed in the sub-nav, and without this the sidebar would
-  // swap back to the main one the moment you clicked it — the navigation
-  // changing under your hand as a result of using it.
+  // In the Settings section the sidebar SWAPS to the settings sub-nav — see
+  // SETTINGS_PATHS for the destinations that belong to it without living
+  // under `/admin/settings`.
   const inSettings =
     pathname.startsWith("/admin/settings") ||
-    pathname === "/admin/profile" ||
-    pathname.startsWith("/admin/profile/");
+    SETTINGS_PATHS.some(
+      (p) => pathname === p || pathname.startsWith(p + "/"),
+    );
   const groups = inSettings ? SETTINGS_NAV : NAV;
 
   return (
