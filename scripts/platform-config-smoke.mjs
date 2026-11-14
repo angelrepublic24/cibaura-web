@@ -338,6 +338,8 @@ await test("The console renders an input for every one of the twenty-four", () =
       .join(" ");
   const ui = (file) =>
     load(`src/shared/components/ui/${file}.tsx`, { "@/lib/utils": { cn } }, true);
+  const shared = (file) =>
+    load(`src/shared/components/${file}.tsx`, { "@/lib/utils": { cn } }, true);
   const { PlatformConfigForm } = load(
     "src/modules/admin/components/platform-config-form.tsx",
     {
@@ -366,10 +368,10 @@ await test("The console renders an input for every one of the twenty-four", () =
         useMutation: () => ({ isPending: false, error: null, mutate: () => {}, reset: () => {} }),
       },
       "@/shared/components/ui/button": ui("button"),
-      "@/shared/components/ui/card": ui("card"),
       "@/shared/components/ui/input": ui("input"),
-      "@/shared/components/ui/label": ui("label"),
       "@/shared/components/ui/select": ui("select"),
+      "@/shared/components/ui/switch": ui("switch"),
+      "@/shared/components/setting-row": shared("setting-row"),
     },
     true,
   );
@@ -381,6 +383,20 @@ await test("The console renders an input for every one of the twenty-four", () =
   );
   const fields = Object.keys(contract.platformConfigFormSchema.shape);
   assert.equal(fields.length, 24);
+  // Every section is in the markup even though only one tab is visible: the
+  // save is atomic across all seven, so an input may not be unmounted just
+  // because its tab is not the active one.
+  for (const tab of [
+    "Commission &amp; tax",
+    "Cancellations",
+    "Agency failures",
+    "Claims",
+    "Deposits",
+    "Inspections",
+    "Payouts",
+  ]) {
+    assert.ok(html.includes(tab), `the ${tab} tab is missing`);
+  }
   for (const field of fields) {
     assert.ok(rendered.has(field), `${field} has no input in the console`);
   }
