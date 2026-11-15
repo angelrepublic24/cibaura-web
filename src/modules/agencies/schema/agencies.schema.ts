@@ -39,8 +39,8 @@ export const agencyPublicProfileWireSchema = z.object({
   id: z.string(),
   slug: z.string(),
   name: z.string(),
-  description: z.string().optional(),
-  logoUrl: z.string().optional(),
+  description: z.string().nullable(),
+  logoUrl: z.string().nullable(),
   /** Storefront cover image; null/absent = gradient. */
   bannerUrl: z.string().nullish(),
   verificationStatus: agencyVerificationStatusSchema,
@@ -73,6 +73,10 @@ export const cityWireSchema = z.object({
   name: z.string(),
   slug: z.string(),
 });
+
+/** Storefront facets expose only cities with inventory, without region data. */
+export const availableAgencyCityWireSchema = cityWireSchema.omit({ regionId: true });
+export const availableAgencyCityListWireSchema = z.array(availableAgencyCityWireSchema);
 
 // ── Application & KYC (ADR-0004 / ADR-0009) ─────────────────────────────────
 
@@ -131,14 +135,15 @@ export const agencyApplicationWireSchema = z.object({
 // ------------------------------------------------------------ input schemas
 
 export const applyAgencyInputSchema = z.object({
-  name: z.string(),
-  description: z.string().optional(),
-  legalName: z.string(),
-  taxId: z.string(),
-  ownerName: z.string(),
-  ownerIdNumber: z.string(),
-  phone: z.string(),
-  address: z.string(),
+  name: z.string().trim().min(2).max(160),
+  description: z.string().trim().max(2000).optional(),
+  legalName: z.string().trim().min(2).max(200),
+  taxId: z.string().trim().min(3).max(40),
+  ownerName: z.string().trim().min(2).max(200),
+  ownerIdNumber: z.string().trim().min(3).max(40),
+  phone: z.string().trim().min(5).max(32),
+  address: z.string().trim().min(5).max(300),
+  cityId: z.uuid(),
 });
 
 /**

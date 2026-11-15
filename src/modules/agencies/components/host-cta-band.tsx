@@ -32,7 +32,7 @@ import {
  */
 export function HostCtaBand() {
   return (
-    <section className="mx-auto max-w-6xl px-4 pb-4">
+    <section className="marketplace-shell pb-4">
       <div className="flex flex-col gap-8 rounded-[var(--radius-lg)] bg-navy px-6 py-10 md:flex-row md:items-center md:justify-between md:gap-12 md:px-10">
         <div className="max-w-xl">
           <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-neon">

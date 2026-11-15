@@ -66,7 +66,8 @@ export function InspectionMediaGrid({
 }
 
 function MediaThumb({ item }: { item: InspectionMediaDto }) {
-  const [broken, setBroken] = useState(false);
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const broken = item.url !== null && failedUrl === item.url;
 
   if (!item.url || broken) {
     return (
@@ -88,7 +89,7 @@ function MediaThumb({ item }: { item: InspectionMediaDto }) {
           muted
           playsInline
           className="absolute inset-0 h-full w-full object-cover"
-          onError={() => setBroken(true)}
+          onError={() => setFailedUrl(item.url)}
         />
         <span className="relative flex h-8 w-8 items-center justify-center rounded-full bg-navy/70 text-cream">
           <Play className="h-4 w-4" />
@@ -104,7 +105,7 @@ function MediaThumb({ item }: { item: InspectionMediaDto }) {
       alt={mediaLabelText(item.label)}
       loading="lazy"
       className="absolute inset-0 h-full w-full object-cover transition-transform group-hover:scale-[1.03]"
-      onError={() => setBroken(true)}
+      onError={() => setFailedUrl(item.url)}
     />
   );
 }

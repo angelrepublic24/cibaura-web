@@ -72,7 +72,7 @@ export function ResetPasswordForm({ token }: { token?: string }) {
             Password updated
           </CardTitle>
           <CardDescription>
-            Your new password is active and every other session has been
+            Your new password is active and every session has been
             signed out. Log in to continue.
           </CardDescription>
         </CardHeader>

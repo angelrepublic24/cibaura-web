@@ -137,6 +137,46 @@ body {
   letter-spacing: -0.006em;
 }
 
+/* One public-page alignment: mobile gutters, then a fluid desktop canvas. */
+.marketplace-shell {
+  width: calc(100% - 2rem);
+  min-width: 0;
+  margin-inline: auto;
+}
+
+.marketplace-sidebar-layout {
+  display: grid;
+  min-width: 0;
+  gap: 1.5rem;
+}
+
+.marketplace-sidebar-layout > * {
+  min-width: 0;
+}
+
+/* Empty tracks remain, so a short result set does not stretch its cards. */
+.marketplace-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  gap: 1.25rem;
+}
+
+.marketplace-card-grid > * {
+  width: 100%;
+  min-width: 0;
+  max-width: 24rem;
+}
+
+@media (min-width: 64rem) {
+  .marketplace-shell {
+    width: 85%;
+  }
+
+  .marketplace-sidebar-layout {
+    grid-template-columns: 260px minmax(0, 1fr);
+  }
+}
+
 /* Display headings. The 2025 design paired an editorial serif against the
    body sans; the 2026 brief asks for ONE sans across navigation, titles,
    cards and forms, and the wordmark has no serifs either. The utility stays

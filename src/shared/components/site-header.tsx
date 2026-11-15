@@ -68,8 +68,8 @@ export function SiteHeader() {
     <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-md">
       <div
         className={cn(
-          "flex h-16 items-center justify-between gap-4 px-4",
-          inConsole ? "w-full px-6" : "mx-auto max-w-6xl",
+          "flex h-16 items-center justify-between gap-4",
+          inConsole ? "w-full px-6" : "marketplace-shell",
         )}
       >
         {/*

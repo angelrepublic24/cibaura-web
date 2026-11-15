@@ -68,7 +68,7 @@ export default async function AgencyProfilePage({
   ]);
   if (reviews) client.setQueryData(agencyProfileKeys.reviews(slug, 1), reviews);
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
+    <div className="marketplace-shell py-8">
       <AgencyJsonLd agency={agency} reviews={reviews?.items ?? []} />
       <BreadcrumbJsonLd
         items={[

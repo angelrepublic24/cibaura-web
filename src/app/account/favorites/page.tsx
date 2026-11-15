@@ -21,9 +21,9 @@ export default function FavoritesPage() {
     <div>
       <div className="mb-5 flex items-center gap-2">
         <Heart className="h-5 w-5 fill-red-500 text-red-500" />
-        <h2 className="text-xl font-semibold text-foreground">
+        <h1 className="text-xl font-semibold text-foreground">
           Favorite agencies
-        </h2>
+        </h1>
       </div>
 
       {query.isLoading ? (
@@ -46,7 +46,7 @@ export default function FavoritesPage() {
           }
         />
       ) : (
-        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="marketplace-card-grid">
           {favorites.map((a) => (
             <AgencyPublicCard key={a.id} agency={a} />
           ))}

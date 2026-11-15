@@ -437,7 +437,7 @@ function RetryDepositForm({
           <p className="text-sm text-muted-foreground">
             You have no saved card.{" "}
             <Link
-              href="/account/payment-methods"
+              href="/account/settings/payment-methods"
               className="font-medium text-primary underline underline-offset-2"
             >
               Add a card
@@ -481,7 +481,7 @@ function RetryDepositForm({
           {retry.isPending ? "Placing the hold…" : "Place the deposit hold"}
         </Button>
         <Link
-          href="/account/payment-methods"
+          href="/account/settings/payment-methods"
           className="text-xs text-primary underline underline-offset-2"
         >
           Manage cards

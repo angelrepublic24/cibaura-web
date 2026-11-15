@@ -99,7 +99,7 @@ export default function SupportPage() {
         <p>
           Every booking has its own page, under{" "}
           <Link href="/account" className={linkCls}>
-            My rentals
+            Rentals
           </Link>{" "}
           on the web and in the{" "}
           <span className="font-medium text-foreground">Bookings</span> tab of
@@ -187,7 +187,7 @@ export default function SupportPage() {
           </strong>{" "}
           Finish or cancel it from{" "}
           <Link href="/account" className={linkCls}>
-            My rentals
+            Rentals
           </Link>{" "}
           first — the agency is holding a car for you — then delete the
           account.

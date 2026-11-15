@@ -160,7 +160,7 @@ export function AgencyAccessRevoked({
           href="/account"
           className={buttonVariants({ variant: "outline" })}
         >
-          My rentals
+          Rentals
         </Link>
       </div>
     </div>

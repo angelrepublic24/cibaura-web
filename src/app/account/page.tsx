@@ -15,6 +15,10 @@ import { Card, CardContent } from "@/shared/components/ui/card";
 
 /** /account — the customer's bookings list. */
 export default function AccountBookingsPage() {
+  return <div><h1 className="mb-6 font-display text-3xl text-foreground">Rentals</h1><RentalsList /></div>;
+}
+
+function RentalsList() {
   const query = useMyBookings();
 
   if (query.isLoading) return <LoadingState label="Loading your bookings…" />;

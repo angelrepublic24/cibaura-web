@@ -58,7 +58,7 @@ export default function RootLayout({
           <SiteHeader />
           <main className="min-h-[calc(100vh-4rem)]">{children}</main>
           <footer className="mt-20 bg-navy text-navy-foreground">
-            <div className="mx-auto max-w-6xl px-4 py-12">
+            <div className="marketplace-shell py-12">
               <div className="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
                 <div className="max-w-sm space-y-3">
                   <Logo onDark />

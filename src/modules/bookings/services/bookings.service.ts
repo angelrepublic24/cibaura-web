@@ -5,17 +5,20 @@ import type {
   BookingWithPayment,
   CancellationQuoteDto,
   ClaimDto,
-  ContractTemplatePublicDto,
   DepositDto,
   InspectionDto,
   Message,
   Quote,
   SignedUrlDto,
 } from "@/shared/types/domain";
-import { contractTemplatePublicWireSchema } from "@/modules/legal/schema/legal.schema";
+import { getApiErrorStatus } from "@/shared/api/errors";
+import { BookingOutcomeUnknownError } from "@/modules/bookings/helpers/checkout-consent";
+import { agreementPreviewInputSchema, rentalAgreementPreviewWireSchema } from "@/modules/bookings/schema/bookings.schema";
 import { bookingDetailWireSchema, bookingListWireSchema, bookingWireSchema, bookingWithPaymentWireSchema, cancellationQuoteWireSchema, claimWireSchema, depositWireSchema, inspectionListWireSchema, inspectionWireSchema, messageThreadWithMessagesWireSchema, messageWireSchema, quoteInputSchema, quoteWireSchema, requestBookingInputSchema, respondClaimInputSchema, signedUrlWireSchema } from "@/modules/bookings/schema/bookings.schema";
 import type {
   QuoteInput,
+  AgreementPreviewInput,
+  RentalAgreementPreview,
   RequestBookingInput,
   RespondClaimInput,
 } from "@/modules/bookings/types/bookings.types";
@@ -74,11 +77,11 @@ class BookingsService {
    * "Review and sign" step before the request is sent.
    */
   async agreementPreview(
-    input: QuoteInput,
-  ): Promise<ContractTemplatePublicDto> {
-    const body = quoteInputSchema.parse(input);
+    input: AgreementPreviewInput,
+  ): Promise<RentalAgreementPreview> {
+    const body = agreementPreviewInputSchema.parse(input);
     const res = await Api.post<unknown>("/bookings/agreement-preview", body);
-    return contractTemplatePublicWireSchema.parse(res.data);
+    return rentalAgreementPreviewWireSchema.parse(res.data);
   }
 
   /**
@@ -89,13 +92,25 @@ class BookingsService {
   async request(input: RequestBookingInput): Promise<BookingWithPayment> {
     const { termsVersion, signature, ...rest } =
       requestBookingInputSchema.parse(input);
-    const res = await Api.post<unknown>("/bookings", {
-      ...rest,
-      acceptTerms: true,
-      termsVersion,
-      signature,
-    });
-    return bookingWithPaymentWireSchema.parse(res.data);
+    let data: unknown;
+    try {
+      const res = await Api.post<unknown>("/bookings", {
+        ...rest,
+        acceptTerms: true,
+        termsVersion,
+        signature,
+      });
+      data = res.data;
+    } catch (error) {
+      const status = getApiErrorStatus(error);
+      if (status !== undefined && status >= 400 && status < 500) throw error;
+      throw new BookingOutcomeUnknownError();
+    }
+    const parsed = bookingWithPaymentWireSchema.safeParse(data);
+    if (!parsed.success) {
+      throw new BookingOutcomeUnknownError(data && typeof data === "object" && "id" in data ? data.id : null);
+    }
+    return parsed.data;
   }
 
   async findMine(): Promise<Booking[]> {

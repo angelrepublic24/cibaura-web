@@ -2,10 +2,10 @@ import "server-only";
 import { QueryClient } from "@tanstack/react-query";
 import { publicGet } from "./public-api";
 import { agencyProfileKeys } from "@/modules/agencies/hooks/agencies.hook";
-import type { AgencyCarsFilters, AgencyDirectoryFilters, AgencyPublicProfile, Review } from "@/modules/agencies/types/agencies.types";
+import type { AgencyCarsFilters, AgencyDirectoryFilters, AgencyPublicProfile, AvailableAgencyCity, Review } from "@/modules/agencies/types/agencies.types";
 import type { CarSearchFilters } from "@/modules/cars/types/cars.types";
 import { agencyCarsParams, carCatalogParams, carSearchParams } from "@/modules/cars/helpers/cars.helper";
-import type { Car, City, Paginated } from "@/shared/types/domain";
+import type { Car, Paginated } from "@/shared/types/domain";
 
 export function publicQueryClient() {
   // One instance per request; never share sessions or dehydrated data globally.
@@ -64,7 +64,7 @@ export async function prefetchCities(client: QueryClient) {
   // Optional controls: their failure must not discard a successfully loaded listing.
   await client.prefetchQuery({
     queryKey: agencyProfileKeys.availableCities(),
-    queryFn: () => requiredGet<City[]>("/agencies/available-cities"),
+    queryFn: () => requiredGet<AvailableAgencyCity[]>("/agencies/available-cities"),
   });
 }
 

@@ -1,5 +1,5 @@
 import { Api } from "@/shared/api/client";
-import type { Car, City, Paginated } from "@/shared/types/domain";
+import type { Car, Paginated } from "@/shared/types/domain";
 import { agencyCarsParams } from "@/modules/cars/helpers/cars.helper";
 import {
   agencyApplicationWireSchema,
@@ -8,7 +8,7 @@ import {
   agencyPublicProfileWireSchema,
   applyAgencyInputSchema,
   applyIndividualHostInputSchema,
-  cityListWireSchema,
+  availableAgencyCityListWireSchema,
   createReviewInputSchema,
   paginatedAgencyProfileWireSchema,
   paginatedCarWireSchema,
@@ -24,6 +24,7 @@ import type {
   AgencyPublicProfile,
   ApplyAgencyInput,
   ApplyIndividualHostInput,
+  AvailableAgencyCity,
   CreateReviewInput,
   Review,
 } from "@/modules/agencies/types/agencies.types";
@@ -138,9 +139,9 @@ class AgenciesService {
   }
 
   /** Cities that actually have available cars (drives the search dropdown). */
-  async availableCities(): Promise<City[]> {
+  async availableCities(): Promise<AvailableAgencyCity[]> {
     const res = await Api.get<unknown>("/agencies/available-cities");
-    return cityListWireSchema.parse(res.data);
+    return availableAgencyCityListWireSchema.parse(res.data);
   }
 
   async reviews(slug: string, page = 1): Promise<Paginated<Review>> {

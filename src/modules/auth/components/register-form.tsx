@@ -8,7 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useRegister } from "@/modules/auth/hooks/auth.hook";
 import { registerSchema } from "@/modules/auth/schema/auth.schema";
 import type { RegisterFormValues } from "@/modules/auth/types/auth.types";
-import { safeInternalPath } from "@/modules/auth/helpers/auth.helper";
+import { roleHome, safeInternalPath } from "@/modules/auth/helpers/auth.helper";
 import { TermsCheckbox } from "@/modules/auth/components/terms-checkbox";
 import { useLegalCurrent } from "@/modules/legal/hooks/legal.hook";
 import { useAuthStore } from "@/shared/auth/store";
@@ -82,8 +82,8 @@ export function RegisterForm({ next }: { next?: string }) {
                   signIn(user);
                   // Honour the destination a guard preserved when the guest
                   // switched from login to register; otherwise land in their
-                  // account. `safeInternalPath` rejects off-site redirects.
-                  router.push(safeInternalPath(next, "/account"));
+                  // marketplace. `safeInternalPath` rejects off-site redirects.
+                  router.push(safeInternalPath(next, roleHome(user)));
                 },
                 onError: async (error) => {
                   if (isApiErrorCode(error, API_ERROR_CODES.TERMS_OUTDATED)) {

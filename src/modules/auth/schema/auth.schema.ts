@@ -38,7 +38,7 @@ export const acceptTermsSchema = z.boolean().refine((v) => v === true, {
 
 export const loginSchema = z.object({
   email: z.email("Enter a valid email"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  password: z.string().min(1, "Enter your password"),
 });
 
 export const registerSchema = z
@@ -167,6 +167,16 @@ export const authUserWireSchema = z.object({
   createdAt: z.string().optional(),
 });
 
+/** GET/PATCH users/me extends the auth user without changing login/register. */
+export const customerProfileWireSchema = authUserWireSchema.extend({
+  dateOfBirth: z.string().nullable(),
+  countryId: z.string().nullable(),
+  cityId: z.string().nullable(),
+  residenceCountryCode: z.string().nullable(),
+  residenceCity: z.string().nullable(),
+  marketingOptIn: z.boolean(),
+});
+
 /**
  * Wire shape of login/register. The token fields exist for the Expo app; the
  * web deliberately never reads them (httpOnly cookies carry the session).
@@ -202,8 +212,24 @@ export const changePasswordInputSchema = z.object({
   newPassword: z.string(),
 });
 
+/** Optional residence city: a single line in any language. */
+export const residenceCityField = z
+  .string()
+  .trim()
+  .max(160, "At most 160 characters")
+  .refine(
+    (value) => Array.from(value).every((character) => character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127),
+    "Enter your city on one line",
+  );
+
 /** `PATCH /users/me` input — the SAFE profile fields only. */
 export const updateMeInputSchema = z.object({
-  fullName: z.string(),
+  fullName: z.string().optional(),
   phone: z.string().nullish(),
+  dateOfBirth: z.string().optional(),
+  countryId: z.string().nullable().optional(),
+  cityId: z.string().nullable().optional(),
+  residenceCountryCode: z.string().regex(/^[A-Z]{2}$/).nullable().optional(),
+  residenceCity: residenceCityField.nullable().optional(),
+  marketingOptIn: z.boolean().optional(),
 });

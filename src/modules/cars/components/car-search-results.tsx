@@ -142,7 +142,7 @@ export function CarSearchResults({
           whole window, so we ask for dates up front. */}
       <DateRangeBar filters={filters} onApply={applyTrip} city={city} />
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]">
+      <div className="marketplace-sidebar-layout mt-6">
         <aside className="space-y-4">
           {/* Search agencies instead — reachable from the filter, not the nav. */}
           <SearchModeToggle mode="cars" city={city} />
@@ -185,7 +185,7 @@ export function CarSearchResults({
               }
             />
           ) : query.isLoading ? (
-            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="marketplace-card-grid">
               {Array.from({ length: 6 }).map((_, i) => (
                 <CarCardSkeleton key={i} />
               ))}
@@ -229,7 +229,7 @@ export function CarSearchResults({
                   skeletons under the reader. */}
               <div
                 className={cn(
-                  "grid gap-5 sm:grid-cols-2 xl:grid-cols-3",
+                  "marketplace-card-grid",
                   query.isPlaceholderData && "opacity-60 transition-opacity",
                 )}
                 aria-busy={query.isPlaceholderData}

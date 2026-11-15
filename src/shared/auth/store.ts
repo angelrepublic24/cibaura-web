@@ -9,7 +9,7 @@ import { clearQueryCache } from "@/shared/providers/query-client-registry";
  * Client-side session store (zustand). Hydrated by the `useMe` query in
  * `src/modules/auth/hooks/auth.hook.ts`; the guard components read from here.
  *
- * Holds ONLY the non-sensitive user snapshot — the credentials themselves
+ * Holds the signed-in user's profile snapshot in memory — credentials themselves
  * live in httpOnly cookies the backend manages (see `shared/api/client.ts`),
  * so nothing here (or anywhere in JS) can leak a token.
  *

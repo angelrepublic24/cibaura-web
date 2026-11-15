@@ -56,8 +56,8 @@ export const agencyWireSchema = z.object({
   id: z.string(),
   name: z.string(),
   slug: z.string(),
-  description: z.string().optional(),
-  logoUrl: z.string().optional(),
+  description: z.string().nullable(),
+  logoUrl: z.string().nullable(),
   bannerUrl: z.string().nullish(),
   verificationStatus: agencyVerificationStatusSchema,
   verificationReason: z.string().nullish(),
@@ -516,7 +516,11 @@ export const updateStaffInputSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
-export const createCarInputSchema = z.object({
+/** Canonical engine bounds (backend fleet/domain/engine-spec.ts). */
+export const ENGINE_DISPLACEMENT_CC = { min: 600, max: 9_000 } as const;
+export const ENGINE_POWER_HP = { min: 20, max: 2_000 } as const;
+
+const createCarFieldsSchema = z.object({
   branchId: z.string(),
   /** From the catalog — never free text. */
   makeId: z.string(),
@@ -535,6 +539,10 @@ export const createCarInputSchema = z.object({
    * derived server-side and comes back as `renterDailyRateCents`.
    */
   pricePerDayCents: z.number(),
+  engineDisplacementCc: z.number().int()
+    .min(ENGINE_DISPLACEMENT_CC.min).max(ENGINE_DISPLACEMENT_CC.max).nullish(),
+  enginePowerHp: z.number().int()
+    .min(ENGINE_POWER_HP.min).max(ENGINE_POWER_HP.max).nullish(),
   /**
    * The car's stored deposit decision, integer cents — read back as
    * `depositOverrideCents`. Omitted / `null` = inherit (agency default, then
@@ -545,13 +553,23 @@ export const createCarInputSchema = z.object({
   photos: z.array(z.string()).optional(),
 });
 
+export const createCarInputSchema = createCarFieldsSchema.superRefine((values, ctx) => {
+  if ((values.engineDisplacementCc != null) !== (values.enginePowerHp != null)) {
+    ctx.addIssue({
+      code: "custom",
+      path: [values.engineDisplacementCc == null ? "engineDisplacementCc" : "enginePowerHp"],
+      message: "Declare both engine displacement and horsepower, or leave both blank",
+    });
+  }
+});
+
 /**
  * `PATCH /agency/fleet/:carId` body (backend `UpdateCarDto` = partial
  * `CreateCarDto` minus `branchId`, plus `status`). Activation
  * (`status: "active"`) is gated server-side: agency verified ∧ host
  * agreement signed ∧ (business ∨ verified registration document).
  */
-export const updateCarInputSchema = createCarInputSchema
+export const updateCarInputSchema = createCarFieldsSchema
   .omit({ branchId: true })
   .partial()
   .extend({ status: carStatusSchema.optional() });

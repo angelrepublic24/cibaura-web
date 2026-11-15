@@ -1,14 +1,22 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FilePenLine } from "lucide-react";
-import type { QuoteInput, SignatureInput } from "@/modules/bookings/types/bookings.types";
+import type {
+  RentalAgreementPreview,
+  SignatureInput,
+  SignRentalAgreementFormValues,
+} from "@/modules/bookings/types/bookings.types";
+import type { CheckoutSnapshot } from "@/modules/bookings/helpers/checkout-consent";
+import { unexpired } from "@/modules/bookings/helpers/checkout-consent";
 import { useAgreementPreview } from "@/modules/bookings/hooks/bookings.hook";
-import { TYPED_NAME_MAX, signRentalAgreementSchema } from "@/modules/bookings/schema/bookings.schema";
-import type { SignRentalAgreementFormValues } from "@/modules/bookings/types/bookings.types";
+import {
+  TYPED_NAME_MAX,
+  signRentalAgreementSchema,
+} from "@/modules/bookings/schema/bookings.schema";
 import { ContractHtml } from "@/modules/legal/components/contract-html";
 import { useAuthStore } from "@/shared/auth/store";
 import {
@@ -16,95 +24,245 @@ import {
   getApiErrorCode,
   getErrorMessage,
 } from "@/shared/api/errors";
+import { PriceBreakdown } from "@/shared/components/price-breakdown";
 import { Button } from "@/shared/components/ui/button";
 import { Dialog } from "@/shared/components/ui/dialog";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 
-/** What the caller's request mutation reported, already mapped to copy. */
 export interface SignStepError {
   message: string;
   action?: { label: string; href: string };
 }
 
-/** Copy for the preview-time codes (spec §0.2); anything else → server message. */
-function describePreviewError(error: unknown): string {
-  switch (getApiErrorCode(error)) {
-    case API_ERROR_CODES.TEMPLATE_NOT_PUBLISHED:
-      return "The rental agreement is not available right now, so new requests are paused. Please try again later.";
-    case API_ERROR_CODES.CUSTOMER_NOT_VERIFIED:
-      return "Your identity is not verified yet — complete the one-time verification to book.";
-    default:
-      return getErrorMessage(
-        error,
-        "The agreement could not be prepared. Please try again.",
-      );
-  }
+/** Form lifetime is one exact preview receipt; replacement unmounts all consent. */
+function AgreementConsentForm({
+  preview,
+  isCurrent,
+  onInvalidated,
+  onSign,
+  signing,
+  error,
+}: {
+  preview: RentalAgreementPreview;
+  isCurrent: () => boolean;
+  onInvalidated: (message: string) => void;
+  onSign: (signature: SignatureInput, preview: RentalAgreementPreview) => void;
+  signing: boolean;
+  error: SignStepError | null;
+}) {
+  const fullName = useAuthStore((state) => state.user?.fullName ?? "");
+  const form = useForm<SignRentalAgreementFormValues>({
+    resolver: zodResolver(signRentalAgreementSchema),
+    defaultValues: { typedName: "", acceptAgreement: false },
+  });
+  const errors = form.formState.errors;
+  return (
+    <form
+      noValidate
+      onSubmit={form.handleSubmit((values) => {
+        if (!isCurrent()) {
+          onInvalidated(
+            "Your agreement changed or expired. Review a fresh quote and agreement before signing again.",
+          );
+          return;
+        }
+        onSign({ typedName: values.typedName }, preview);
+      })}
+      className="space-y-4 rounded-[var(--radius-sm)] border border-border p-4"
+    >
+      <div className="space-y-1.5">
+        <Label htmlFor="ra-typed-name">Type your full legal name</Label>
+        <Input
+          id="ra-typed-name"
+          placeholder={fullName || "Your full legal name"}
+          autoComplete="name"
+          maxLength={TYPED_NAME_MAX}
+          aria-invalid={!!errors.typedName}
+          disabled={signing || !isCurrent()}
+          {...form.register("typedName")}
+        />
+        {errors.typedName ? (
+          <p className="text-sm text-destructive">{errors.typedName.message}</p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Your typed name is your electronic signature. We also record the
+            date, time, IP address and browser used to sign.
+          </p>
+        )}
+      </div>
+      <label className="flex items-start gap-2.5 text-sm text-foreground">
+        <input
+          type="checkbox"
+          className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+          aria-invalid={!!errors.acceptAgreement}
+          disabled={signing || !isCurrent()}
+          {...form.register("acceptAgreement")}
+        />
+        <span>
+          I have read the rental agreement above and agree to be bound by it,
+          together with the{" "}
+          <Link
+            href="/legal/terms"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary underline underline-offset-2"
+          >
+            Terms of Service
+          </Link>
+          .
+        </span>
+      </label>
+      {errors.acceptAgreement && (
+        <p className="text-sm text-destructive">
+          {errors.acceptAgreement.message}
+        </p>
+      )}
+      {error && (
+        <div
+          className="space-y-1 rounded-[var(--radius-sm)] border border-red-200 bg-red-50 p-3"
+          role="alert"
+        >
+          <p className="text-sm text-red-700">{error.message}</p>
+          {error.action && (
+            <Link
+              href={error.action.href}
+              className="inline-flex text-sm font-medium text-red-800 underline underline-offset-2"
+            >
+              {error.action.label}
+            </Link>
+          )}
+        </div>
+      )}
+      <div className="flex justify-end">
+        <Button type="submit" disabled={signing || !isCurrent()}>
+          <FilePenLine className="h-4 w-4" />
+          {signing ? "Signing and sending…" : "Sign and send request"}
+        </Button>
+      </div>
+    </form>
+  );
 }
 
-/**
- * "Review and sign the rental agreement" — the step between the server
- * quote and `POST /bookings` (ADR-0010). Fetches the agreement rendered
- * with the REAL quote/customer/car/host variables
- * (`POST /bookings/agreement-preview`), shows it verbatim, and collects the
- * click-to-sign evidence: typed full name + explicit checkbox (the server
- * adds IP, user agent and time). The caller owns the request mutation:
- * `onSign` receives the signature and the dialog shows `error` while
- * `signing` is false again.
- */
 export function RentalAgreementSignDialog({
-  open,
+  snapshot,
   onClose,
-  quoteInput,
+  onInvalidated,
+  isCheckoutCurrent,
   agencyName,
   carLabel,
   onSign,
   signing,
   error,
 }: {
-  open: boolean;
+  snapshot: CheckoutSnapshot;
   onClose: () => void;
-  quoteInput: QuoteInput;
+  onInvalidated: (message: string) => void;
+  isCheckoutCurrent: () => boolean;
   agencyName: string;
   carLabel: string;
-  onSign: (signature: SignatureInput) => void;
+  onSign: (signature: SignatureInput, preview: RentalAgreementPreview) => void;
   signing: boolean;
   error: SignStepError | null;
 }) {
-  const fullName = useAuthStore((s) => s.user?.fullName ?? "");
-  const preview = useAgreementPreview(quoteInput, open);
-
-  const form = useForm<SignRentalAgreementFormValues>({
-    resolver: zodResolver(signRentalAgreementSchema),
-    defaultValues: { typedName: fullName, acceptAgreement: false },
-  });
-  const errors = form.formState.errors;
-  const typedNameTouched = !!form.formState.dirtyFields.typedName;
-
-  // The session store may hydrate after this form mounted — seed the name
-  // once it lands, unless the customer already typed something.
+  const preview = useAgreementPreview(
+    {
+      ...snapshot.input,
+      quoteToken: snapshot.quote.token,
+      termsVersion: snapshot.termsVersion,
+    },
+    snapshot.userId,
+    true,
+  );
+  const template = preview.isSuccess ? preview.data : undefined;
+  const identity = template
+    ? JSON.stringify([
+        template.kind,
+        template.version,
+        template.title,
+        template.html,
+        template.agreementConsentToken,
+        template.consentExpiresAt,
+      ])
+    : null;
+  const [reviewedIdentity, setReviewedIdentity] = useState<string | null>(null);
+  const currentIdentity = useRef(identity);
+  currentIdentity.current = identity;
+  const invalidateRef = useRef(onInvalidated);
+  invalidateRef.current = onInvalidated;
   useEffect(() => {
-    if (!typedNameTouched) form.setValue("typedName", fullName);
-  }, [fullName, typedNameTouched, form]);
-
-  function close() {
-    if (signing) return;
-    form.reset({ typedName: fullName, acceptAgreement: false });
-    onClose();
-  }
-
-  const template = preview.data;
-
+    if (!identity) return;
+    if (reviewedIdentity && reviewedIdentity !== identity) {
+      invalidateRef.current(
+        "The agreement changed. Review a fresh quote and agreement, then sign again.",
+      );
+      return;
+    }
+    if (!reviewedIdentity) setReviewedIdentity(identity);
+  }, [identity, reviewedIdentity]);
+  useEffect(() => {
+    if (!template) return;
+    const expiry = Math.min(
+      Date.parse(template.consentExpiresAt),
+      Date.parse(snapshot.quote.expiresAt),
+    );
+    const timer = setTimeout(
+      () =>
+        invalidateRef.current(
+          "Your agreement expired. Review a fresh quote and agreement before signing again.",
+        ),
+      Math.max(0, expiry - Date.now()),
+    );
+    return () => clearTimeout(timer);
+  }, [template, snapshot]);
+  useEffect(() => {
+    if (!preview.isError) return;
+    const code = getApiErrorCode(preview.error);
+    if (
+      [
+        API_ERROR_CODES.QUOTE_CONFIRMATION_REQUIRED,
+        API_ERROR_CODES.AGREEMENT_CONFIRMATION_REQUIRED,
+        API_ERROR_CODES.TERMS_OUTDATED,
+      ].some((value) => value === code)
+    ) {
+      invalidateRef.current(
+        "The quote, terms or agreement changed. Review the refreshed quote and accept again.",
+      );
+    }
+  }, [preview.isError, preview.error]);
+  const ready = Boolean(
+    template &&
+      identity &&
+      reviewedIdentity === identity &&
+      unexpired(template.consentExpiresAt) &&
+      unexpired(snapshot.quote.expiresAt),
+  );
   return (
     <Dialog
-      open={open}
-      onClose={close}
+      open
+      onClose={() => {
+        if (!signing) onClose();
+      }}
       title="Review and sign the rental agreement"
       description={`${carLabel} · ${agencyName}`}
       className="max-w-2xl"
     >
       <div className="space-y-4">
+        <div className="rounded-lg border border-border bg-muted/40 p-4">
+          <PriceBreakdown
+            pricing={snapshot.quote.pricing}
+            viewer="renter"
+            deposit={{
+              cents: snapshot.quote.depositCents,
+              required: snapshot.quote.depositRequired,
+            }}
+          />
+          <p className="mt-2 text-xs text-muted-foreground">
+            Selected card: {snapshot.card.brand} •••• {snapshot.card.last4}.
+            Terms version: {snapshot.termsVersion}.
+          </p>
+        </div>
         {preview.isLoading ? (
           <div className="space-y-2" aria-busy="true">
             <Skeleton className="h-5 w-1/2" />
@@ -112,11 +270,14 @@ export function RentalAgreementSignDialog({
           </div>
         ) : preview.isError ? (
           <div
-            className="space-y-2 rounded-[var(--radius-sm)] border border-red-200 bg-red-50 p-4"
+            className="space-y-2 rounded-lg border border-red-200 bg-red-50 p-4"
             role="alert"
           >
             <p className="text-sm text-red-700">
-              {describePreviewError(preview.error)}
+              {getErrorMessage(
+                preview.error,
+                "The agreement could not be prepared. Please try again.",
+              )}
             </p>
             <Button
               type="button"
@@ -130,112 +291,45 @@ export function RentalAgreementSignDialog({
         ) : template ? (
           <div>
             <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-              <h3 className="font-semibold text-foreground">{template.title}</h3>
+              <h3 className="font-semibold">{template.title}</h3>
               <span className="text-xs text-muted-foreground">
                 Version {template.version}
               </span>
             </div>
-            {/* Rendered by the server from the published template with your
-                quote, identity, the car and the host filled in — this exact
-                text is what gets signed and stored as HTML + PDF. */}
             <ContractHtml html={template.html} className="max-h-[22rem]" />
             <p className="mt-2 text-xs text-muted-foreground">
-              This is the exact text you are signing. A copy (HTML and PDF)
-              is stored with your booking; {agencyName} countersigns it when
-              they accept your request.
+              This agreement and its quoted amounts are the ones you are
+              reviewing. A signed copy is stored with your booking; {agencyName}{" "}
+              countersigns when they accept.
             </p>
           </div>
         ) : null}
-
-        <form
-          noValidate
-          onSubmit={form.handleSubmit((values) =>
-            onSign({ typedName: values.typedName }),
-          )}
-          className="space-y-4 rounded-[var(--radius-sm)] border border-border p-4"
-        >
-          <div className="space-y-1.5">
-            <Label htmlFor="ra-typed-name">Type your full legal name</Label>
-            <Input
-              id="ra-typed-name"
-              autoComplete="name"
-              maxLength={TYPED_NAME_MAX}
-              aria-invalid={!!errors.typedName}
-              disabled={signing || !template}
-              {...form.register("typedName")}
-            />
-            {errors.typedName ? (
-              <p className="text-sm text-destructive">
-                {errors.typedName.message}
-              </p>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                Your typed name is your electronic signature. We also record
-                the date, time, IP address and browser used to sign.
-              </p>
-            )}
-          </div>
-
-          <label className="flex items-start gap-2.5 text-sm text-foreground">
-            <input
-              type="checkbox"
-              className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
-              aria-invalid={!!errors.acceptAgreement}
-              disabled={signing || !template}
-              {...form.register("acceptAgreement")}
-            />
-            <span>
-              I have read the rental agreement above and agree to be bound by
-              it, together with the{" "}
-              <Link
-                href="/legal/terms"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary underline underline-offset-2"
-              >
-                Terms of Service
-              </Link>
-              .
-            </span>
-          </label>
-          {errors.acceptAgreement ? (
-            <p className="text-sm text-destructive">
-              {errors.acceptAgreement.message}
-            </p>
-          ) : null}
-
-          {error ? (
-            <div
-              className="space-y-1 rounded-[var(--radius-sm)] border border-red-200 bg-red-50 p-3"
-              role="alert"
-            >
-              <p className="text-sm text-red-700">{error.message}</p>
-              {error.action ? (
-                <Link
-                  href={error.action.href}
-                  className="inline-flex text-sm font-medium text-red-800 underline underline-offset-2"
-                >
-                  {error.action.label}
-                </Link>
-              ) : null}
-            </div>
-          ) : null}
-
-          <div className="flex flex-wrap justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={close}
-              disabled={signing}
-            >
-              Back
-            </Button>
-            <Button type="submit" disabled={signing || !template}>
-              <FilePenLine className="h-4 w-4" />
-              {signing ? "Signing and sending…" : "Sign and send request"}
-            </Button>
-          </div>
-        </form>
+        {ready && template && (
+          <AgreementConsentForm
+            key={reviewedIdentity}
+            preview={template}
+            isCurrent={() =>
+              isCheckoutCurrent() &&
+              currentIdentity.current === reviewedIdentity &&
+              unexpired(template.consentExpiresAt) &&
+              unexpired(snapshot.quote.expiresAt)
+            }
+            onInvalidated={onInvalidated}
+            onSign={onSign}
+            signing={signing || preview.isFetching}
+            error={error}
+          />
+        )}
+        <div className="flex justify-start">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={signing}
+            onClick={onClose}
+          >
+            Back
+          </Button>
+        </div>
       </div>
     </Dialog>
   );

@@ -30,7 +30,7 @@ export default async function RegisterPage({ searchParams }: Props) {
           Reservations and rentals, all in one place.
         </p>
       </div>
-      <RedirectIfAuthenticated>
+      <RedirectIfAuthenticated next={next}>
         <RegisterForm next={next} />
       </RedirectIfAuthenticated>
     </div>

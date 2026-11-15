@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,6 +14,7 @@ import {
   useUpdateCar,
 } from "@/modules/agency/hooks/agency.hook";
 import type { CreateCarInput } from "@/modules/agency/types/agency.types";
+import { ENGINE_DISPLACEMENT_CC, ENGINE_POWER_HP } from "@/modules/agency/schema/agency.schema";
 import {
   MAX_PHOTOS_PER_CAR,
   validateCarPhotoFile,
@@ -56,6 +58,13 @@ const MAX_SEATS = 15;
  */
 const DEPOSIT_MODES = ["inherit", "none", "custom"] as const;
 
+function optionalEngineInteger(bounds: { min: number; max: number }) {
+  return z.string().trim().refine(
+    (value) => value === "" || (/^\d+$/.test(value) && Number(value) >= bounds.min && Number(value) <= bounds.max),
+    `Enter a whole number between ${bounds.min} and ${bounds.max}, or leave blank`,
+  );
+}
+
 /**
  * Numeric fields are kept as validated strings in the form and converted
  * once on submit — keeps react-hook-form + zod typing simple and the
@@ -84,6 +93,8 @@ const carSchema = z.object({
       `Between ${MIN_SEATS} and ${MAX_SEATS} seats`,
     ),
   category: z.enum(CAR_CATEGORIES),
+  engineDisplacementCc: optionalEngineInteger(ENGINE_DISPLACEMENT_CC),
+  enginePowerHp: optionalEngineInteger(ENGINE_POWER_HP),
   plate: z.string().min(3, "Enter the plate (kept private)"),
   pricePerDay: z
     .string()
@@ -99,6 +110,13 @@ const carSchema = z.object({
  * switching back to `inherit` must not block the save.
  */
 const carFormSchema = carSchema.superRefine((values, ctx) => {
+  if ((values.engineDisplacementCc !== "") !== (values.enginePowerHp !== "")) {
+    ctx.addIssue({
+      code: "custom",
+      path: [values.engineDisplacementCc === "" ? "engineDisplacementCc" : "enginePowerHp"],
+      message: "Enter both engine figures, or leave both blank to save a draft",
+    });
+  }
   if (values.depositMode !== "custom") return;
   const typed = values.depositAmount;
   if (!AMOUNT_REGEX.test(typed) || Number(typed) <= 0) {
@@ -125,6 +143,8 @@ function defaultsFor(
     fuel: car?.fuel ?? "gasoline",
     seats: car ? String(car.seats) : "5",
     category: car?.category ?? "sedan",
+    engineDisplacementCc: car?.engine ? String(car.engine.displacementCc) : "",
+    enginePowerHp: car?.engine ? String(car.engine.powerHp) : "",
     plate: car?.plate ?? "",
     pricePerDay: car ? centsToWholeUnitsInput(car.hostDailyRateCents) : "",
     depositMode: depositModeOf(car),
@@ -136,7 +156,9 @@ function defaultsFor(
 }
 
 /** Which of the three states the stored override represents. */
-function depositModeOf(car: AgencyCar | undefined): CarFormValues["depositMode"] {
+function depositModeOf(
+  car: AgencyCar | undefined,
+): CarFormValues["depositMode"] {
   if (!car || car.depositOverrideCents === null) return "inherit";
   return car.depositOverrideCents === 0 ? "none" : "custom";
 }
@@ -165,6 +187,9 @@ function toCarFields(
     fuel: values.fuel,
     seats: Number(values.seats),
     category: values.category,
+    // Explicit null clears a previously declared pair; absence would retain it.
+    engineDisplacementCc: values.engineDisplacementCc === "" ? null : Number(values.engineDisplacementCc),
+    enginePowerHp: values.enginePowerHp === "" ? null : Number(values.enginePowerHp),
     plate: values.plate,
     // Unit conversion at the input boundary (agency-entered price). This is
     // the HOST's own rate; what a renter is quoted is the server's business.
@@ -313,6 +338,8 @@ export function CarForm(props: CarFormProps) {
   const mutation = editing ? update : create;
   const errors = form.formState.errors;
   const showBranch = !editing && !fixedBranchId;
+  const category = form.watch("category");
+  const engineRequired = category === "luxury" || category === "exotic";
 
   // Warn whenever this car ends up with NO hold to claim damage against:
   // either the host picked "none", or it inherits and the chain currently
@@ -353,8 +380,29 @@ export function CarForm(props: CarFormProps) {
               </option>
             ))}
           </Select>
+          {branchesQuery.isSuccess && branchesQuery.data.length === 0 ? (
+            <p role="status" className="text-sm text-muted-foreground">
+              Create a pickup branch before adding your first car.{" "}
+              <Link className="text-primary underline" href="/agency/branches">
+                Go to Branches
+              </Link>{" "}
+              to add its address and city. If you cannot manage branches, ask
+              your agency owner.
+            </p>
+          ) : null}
+          {branchesQuery.isError ? (
+            <button
+              type="button"
+              className="text-sm text-primary underline"
+              onClick={() => branchesQuery.refetch()}
+            >
+              Could not load branches  -  try again
+            </button>
+          ) : null}
           {errors.branchId ? (
-            <p className="text-sm text-destructive">{errors.branchId.message}</p>
+            <p className="text-sm text-destructive">
+              {errors.branchId.message}
+            </p>
           ) : null}
         </div>
       ) : null}
@@ -408,7 +456,12 @@ export function CarForm(props: CarFormProps) {
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="space-y-1.5">
           <Label htmlFor="car-year">Year</Label>
-          <Input id="car-year" inputMode="numeric" placeholder="2024" {...form.register("year")} />
+          <Input
+            id="car-year"
+            inputMode="numeric"
+            placeholder="2024"
+            {...form.register("year")}
+          />
           {errors.year ? (
             <p className="text-sm text-destructive">{errors.year.message}</p>
           ) : null}
@@ -437,6 +490,51 @@ export function CarForm(props: CarFormProps) {
         </div>
       </div>
 
+      <fieldset className="space-y-3 rounded-[var(--radius-sm)] border border-border p-4">
+        <legend className="px-1 text-sm font-medium">Engine</legend>
+        <p id="car-engine-hint" className="text-sm text-muted-foreground">
+          {engineRequired
+            ? editing && car?.status === "active"
+              ? "Both figures are required while this car is published. Pause it before clearing them."
+              : "Add both figures before publishing a luxury or exotic car. You can save a draft with both fields blank."
+            : "Optional. Enter both figures if you know them, or leave both blank."}
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="car-engine-cc">Engine displacement (cc)</Label>
+            <Input
+              id="car-engine-cc"
+              inputMode="numeric"
+              placeholder="e.g. 1998"
+              aria-invalid={!!errors.engineDisplacementCc}
+              aria-describedby={errors.engineDisplacementCc ? "car-engine-hint car-engine-cc-error" : "car-engine-hint"}
+              {...form.register("engineDisplacementCc")}
+            />
+            {errors.engineDisplacementCc ? (
+              <p id="car-engine-cc-error" role="alert" className="text-sm text-destructive">
+                {errors.engineDisplacementCc.message}
+              </p>
+            ) : null}
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="car-engine-hp">Power (hp)</Label>
+            <Input
+              id="car-engine-hp"
+              inputMode="numeric"
+              placeholder="e.g. 150"
+              aria-invalid={!!errors.enginePowerHp}
+              aria-describedby={errors.enginePowerHp ? "car-engine-hint car-engine-hp-error" : "car-engine-hint"}
+              {...form.register("enginePowerHp")}
+            />
+            {errors.enginePowerHp ? (
+              <p id="car-engine-hp-error" role="alert" className="text-sm text-destructive">
+                {errors.enginePowerHp.message}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </fieldset>
+
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="space-y-1.5">
           <Label htmlFor="car-transmission">Transmission</Label>
@@ -462,7 +560,11 @@ export function CarForm(props: CarFormProps) {
 
         <div className="space-y-1.5">
           <Label htmlFor="car-seats">Seats</Label>
-          <Input id="car-seats" inputMode="numeric" {...form.register("seats")} />
+          <Input
+            id="car-seats"
+            inputMode="numeric"
+            {...form.register("seats")}
+          />
           {errors.seats ? (
             <p className="text-sm text-destructive">{errors.seats.message}</p>
           ) : null}
@@ -472,7 +574,11 @@ export function CarForm(props: CarFormProps) {
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="car-plate">Plate (private)</Label>
-          <Input id="car-plate" placeholder="A123456" {...form.register("plate")} />
+          <Input
+            id="car-plate"
+            placeholder="A123456"
+            {...form.register("plate")}
+          />
           {errors.plate ? (
             <p className="text-sm text-destructive">{errors.plate.message}</p>
           ) : null}
@@ -490,7 +596,9 @@ export function CarForm(props: CarFormProps) {
             {...form.register("pricePerDay")}
           />
           {errors.pricePerDay ? (
-            <p className="text-sm text-destructive">{errors.pricePerDay.message}</p>
+            <p className="text-sm text-destructive">
+              {errors.pricePerDay.message}
+            </p>
           ) : (
             <p className="text-xs text-muted-foreground">
               What you are paid per day. Customers see this plus the Cibaura
@@ -535,8 +643,8 @@ export function CarForm(props: CarFormProps) {
               </p>
             ) : (
               <p className="text-xs text-muted-foreground">
-                Held on the renter&apos;s card at check-in — never charged —
-                and released after the return.
+                Held on the renter&apos;s card at check-in — never charged — and
+                released after the return.
               </p>
             )}
           </div>
@@ -606,7 +714,9 @@ export function CarForm(props: CarFormProps) {
           <button
             type="button"
             onClick={() => photoInputRef.current?.click()}
-            disabled={mutation.isPending || photoFiles.length >= MAX_PHOTOS_PER_CAR}
+            disabled={
+              mutation.isPending || photoFiles.length >= MAX_PHOTOS_PER_CAR
+            }
             className="flex w-full flex-col items-center gap-1 rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground transition-colors hover:border-border-strong hover:text-foreground disabled:opacity-60"
           >
             <ImagePlus className="h-5 w-5" />

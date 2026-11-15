@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useState } from "react";
 
 import { Search, UserCircle } from "lucide-react";
@@ -300,6 +302,7 @@ function UserRow({ user: u }: { user: AdminUser }) {
         {fmtDate(u.createdAt)}
       </td>
       <td className="whitespace-nowrap px-4 py-3 text-right">
+        {u.roles.includes("customer") && <Link className="mr-3 inline-flex min-h-10 items-center text-sm text-primary underline" href={`/admin/verification?customerId=${encodeURIComponent(u.id)}`}>Review documents</Link>}
         {canSuspend ? (
           <Button
             size="sm"

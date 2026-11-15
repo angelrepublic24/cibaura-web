@@ -1,4 +1,5 @@
 import type { z } from "zod";
+import type { agreementPreviewInputSchema, rentalAgreementPreviewWireSchema } from "@/modules/bookings/schema/bookings.schema";
 import type { cancelBookingSchema, disputeInspectionSchema, quoteInputSchema, requestBookingInputSchema, respondClaimInputSchema, respondClaimSchema, retryDepositSchema, signRentalAgreementSchema, signatureInputSchema } from "@/modules/bookings/schema/bookings.schema";
 
 /**
@@ -10,6 +11,8 @@ import type { cancelBookingSchema, disputeInspectionSchema, quoteInputSchema, re
 // -------------------------------------------------------------- service input
 
 export type QuoteInput = z.infer<typeof quoteInputSchema>;
+export type AgreementPreviewInput = z.infer<typeof agreementPreviewInputSchema>;
+export type RentalAgreementPreview = z.infer<typeof rentalAgreementPreviewWireSchema>;
 export type SignatureInput = z.infer<typeof signatureInputSchema>;
 export type RequestBookingInput = z.infer<typeof requestBookingInputSchema>;
 export type RespondClaimInput = z.infer<typeof respondClaimInputSchema>;

@@ -263,7 +263,7 @@ export function AgencyApplicationReview({ agency }: { agency: Agency }) {
               className={buttonVariants({ variant: "outline" })}
             >
               <CalendarRange className="mr-2 h-4 w-4" />
-              My rentals
+              Rentals
             </Link>
           </div>
         </CardContent>

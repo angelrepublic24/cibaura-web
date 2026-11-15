@@ -35,7 +35,7 @@ export function toUser(u: AuthUserWire): User {
 /**
  * The home surface for a signed-in user: agency owners/staff land in the
  * agency workspace, platform admins in the admin console, everyone else in
- * their customer account. Shared by the login flow and the
+ * the public marketplace. Shared by the login flow and the
  * redirect-if-authenticated guard on the public auth screens so the routing
  * lives in exactly one place.
  */
@@ -49,7 +49,7 @@ export function roleHome(user: User): string {
   if (user.roles.includes("platform_admin")) {
     return "/admin";
   }
-  return "/account";
+  return "/";
 }
 
 /**
@@ -57,13 +57,24 @@ export function roleHome(user: User): string {
  * internal path passes; protocol-relative (`//evil.com`) and backslash
  * (`/\evil.com`, which browsers normalise to `//`) forms are rejected so a
  * crafted `?next=` can never open-redirect off-site after login/register.
- * Anything unsafe (or absent) falls back to the caller's `fallback`.
+ * Parse with the browser's URL rules too: embedded tabs/newlines are removed
+ * during normalization, so `/\n/evil.com` becomes an external URL even though
+ * its first two characters pass the path check. Anything unsafe (or absent)
+ * falls back to the caller's `fallback`.
  */
 export function safeInternalPath(
   next: string | undefined,
   fallback: string,
 ): string {
-  return next && /^\/(?![/\\])/.test(next) ? next : fallback;
+  if (!next || !/^\/(?![/\\])/.test(next)) return fallback;
+  const internalOrigin = "https://cibaura.invalid";
+  try {
+    return new URL(next, internalOrigin).origin === internalOrigin
+      ? next
+      : fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 // ------------------------------------- agency-closure obligations (409 body)
