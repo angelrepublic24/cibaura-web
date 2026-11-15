@@ -24,6 +24,12 @@ export const countryWireSchema = z.object({
   taxRatePct: z.number().nullable(),
 });
 
+/** Global ISO country catalog for a customer's residence, independent of rental markets. */
+export const residenceCountryWireSchema = z.object({
+  code: z.string().regex(/^[A-Z]{2}$/),
+  name: z.string(),
+});
+
 /** `GET /geo/regions?country=xx` — provinces in the DR, states in the US. */
 export const regionWireSchema = z.object({
   id: z.string(),
@@ -59,6 +65,7 @@ export const catalogModelWireSchema = z.object({
 });
 
 export const countryListWireSchema = z.array(countryWireSchema);
+export const residenceCountryListWireSchema = z.array(residenceCountryWireSchema);
 export const regionListWireSchema = z.array(regionWireSchema);
 export const cityListWireSchema = z.array(cityWireSchema);
 export const catalogMakeListWireSchema = z.array(catalogMakeWireSchema);

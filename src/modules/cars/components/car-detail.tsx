@@ -984,6 +984,7 @@ function BookingPanel({
                 <Label htmlFor="bp-address">Delivery address</Label>
                 <AddressAutocomplete
                   id="bp-address"
+                  countryCode={car.location.countryCode}
                   onSelect={setDeliveryAddr}
                   onClear={() => setDeliveryAddr(null)}
                 />

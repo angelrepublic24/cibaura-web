@@ -108,7 +108,9 @@ await check("Payment outer Close cannot unmount busy card form, including a clic
       "@/modules/payments/hooks/payments.hook": { useAddPaymentMethod: () => ({ isPending: false, reset() {}, async mutateAsync() { saves++; if (fail) throw new Error("save failed"); } }) },
       "@/shared/api/errors": { getErrorMessage: error => error.message },
     }, "\nexport { CardForm };").CardForm;
-    const childTree = child.render(card, childProps);
+    let childTree = child.render(card, childProps);
+    find(childTree, n => n.type === "CardElement").props.onReady();
+    childTree = child.render(card, childProps);
     const pending = childTree.props.onSubmit({ preventDefault() {} });
     staleClose.props.onClick();
     tree = parent.render(panel);

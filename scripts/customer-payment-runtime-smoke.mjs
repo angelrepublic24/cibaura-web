@@ -59,7 +59,7 @@ function walk(tree, predicate) {
   for (const child of children) { const found = walk(child, predicate); if (found) return found; }
 }
 const event = { preventDefault() {} };
-function cardHarness({ tokenize = async () => ({ paymentMethod: { id: "pm_local_test" } }), saveCard = async () => {}, stripeAvailable = true, elementsAvailable = true, cardAvailable = true, loader = Promise.resolve({}) } = {}) {
+function cardHarness({ tokenize = async () => ({ paymentMethod: { id: "pm_local_test" } }), saveCard = async () => {}, stripeAvailable = true, elementsAvailable = true, cardAvailable = true, autoReady = true, loader = Promise.resolve({}) } = {}) {
   const h = hooks();
   let done = 0, tokenCalls = 0, saveCalls = 0;
   const save = { isPending: false, reset() {}, async mutateAsync(id) { saveCalls++; return saveCard(id); } };
@@ -71,11 +71,32 @@ function cardHarness({ tokenize = async () => ({ paymentMethod: { id: "pm_local_
     "@/shared/components/ui/button": { Button: "button" },
     "@/shared/api/errors": { getErrorMessage: (error, fallback) => error instanceof Error && error.message ? error.message : fallback },
   }, "\nexport { CardForm };\n");
-  const render = () => h.render(cardExports.CardForm, { onDone: () => done++ });
+  let ready = false;
+  const render = () => {
+    let tree = h.render(cardExports.CardForm, { onDone: () => done++ });
+    if (autoReady && !ready) {
+      ready = true;
+      walk(tree, (node) => node.type === "card-element").props.onReady();
+      tree = h.render(cardExports.CardForm, { onDone: () => done++ });
+    }
+    return tree;
+  };
   return { render, outer: () => h.render(cardExports.AddCardForm, { onDone: () => done++ }), stats: () => ({ done, tokenCalls, saveCalls }) };
 }
 const submitButton = (tree) => walk(tree, (node) => node.type === "button" && node.props?.type === "submit");
 const alert = (tree) => walk(tree, (node) => node.props?.role === "alert")?.props.children;
+
+await check("Card submission waits for the native Stripe Element ready event", async () => {
+  const h = cardHarness({ autoReady: false });
+  const initial = h.render();
+  assert.equal(submitButton(initial).props.disabled, true);
+  await initial.props.onSubmit(event);
+  assert.deepEqual(h.stats(), { done: 0, tokenCalls: 0, saveCalls: 0 });
+  walk(initial, (node) => node.type === "card-element").props.onReady();
+  assert.equal(submitButton(h.render()).props.disabled, false);
+  await h.render().props.onSubmit(event);
+  assert.equal(h.stats().done, 1);
+});
 
 await check("Card tokenization rejection releases loading state and supports retry", async () => {
   let failed = true;

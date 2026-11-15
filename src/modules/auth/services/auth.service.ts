@@ -114,7 +114,15 @@ class AuthService {
     // termsVersion/createdAt); mapped to the web `User` shape.
     const res = await Api.get<unknown>("/users/me", { signal });
     const profile = customerProfileWireSchema.parse(res.data);
-    return { ...toUser(profile), dateOfBirth: profile.dateOfBirth, countryId: profile.countryId, cityId: profile.cityId, marketingOptIn: profile.marketingOptIn };
+    return {
+      ...toUser(profile),
+      dateOfBirth: profile.dateOfBirth,
+      countryId: profile.countryId,
+      cityId: profile.cityId,
+      residenceCountryCode: profile.residenceCountryCode,
+      residenceCity: profile.residenceCity,
+      marketingOptIn: profile.marketingOptIn,
+    };
   }
 
   /**
@@ -129,7 +137,15 @@ class AuthService {
       ...(fullName === undefined ? {} : { name: fullName }),
     });
     const profile = customerProfileWireSchema.parse(res.data);
-    return { ...toUser(profile), dateOfBirth: profile.dateOfBirth, countryId: profile.countryId, cityId: profile.cityId, marketingOptIn: profile.marketingOptIn };
+    return {
+      ...toUser(profile),
+      dateOfBirth: profile.dateOfBirth,
+      countryId: profile.countryId,
+      cityId: profile.cityId,
+      residenceCountryCode: profile.residenceCountryCode,
+      residenceCity: profile.residenceCity,
+      marketingOptIn: profile.marketingOptIn,
+    };
   }
 
   async exportMyData(): Promise<Blob> {
