@@ -32,6 +32,7 @@ function CardForm({ onDone, onBusyChange }: AddCardFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const [cardError, setCardError] = useState<string | null>(null);
+  const [cardReady, setCardReady] = useState(false);
   const [tokenizing, setTokenizing] = useState(false);
   const submitting = useRef(false);
 
@@ -40,7 +41,7 @@ function CardForm({ onDone, onBusyChange }: AddCardFormProps) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (submitting.current || !stripe || !elements) return;
+    if (submitting.current || !stripe || !elements || !cardReady) return;
     const card = elements.getElement(CardElement);
     if (!card) return;
 
@@ -78,6 +79,7 @@ function CardForm({ onDone, onBusyChange }: AddCardFormProps) {
     >
       <div className="rounded-[var(--radius-sm)] border border-border bg-background px-3 py-3">
         <CardElement
+          onReady={() => setCardReady(true)}
           options={{
             style: {
               base: {
@@ -96,8 +98,8 @@ function CardForm({ onDone, onBusyChange }: AddCardFormProps) {
       ) : null}
 
       <div className="flex items-center gap-2">
-        <Button type="submit" disabled={!stripe || !elements || busy}>
-          {busy ? "Saving…" : "Save card"}
+        <Button type="submit" disabled={!stripe || !elements || !cardReady || busy}>
+          {busy ? "Saving…" : cardReady ? "Save card" : "Loading card field…"}
         </Button>
         <Button type="button" variant="outline" onClick={onDone} disabled={busy}>
           Cancel

@@ -8,8 +8,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { authKeys, useMe, useUpdateMe } from "@/modules/auth/hooks/auth.hook";
-import { PHONE_MESSAGE, PHONE_REGEX } from "@/modules/auth/schema/auth.schema";
-import { useCities, useCountries } from "@/modules/catalog/hooks/catalog.hook";
+import { PHONE_MESSAGE, PHONE_REGEX, residenceCityField } from "@/modules/auth/schema/auth.schema";
+import { useResidenceCountries } from "@/modules/catalog/hooks/catalog.hook";
 import { verificationKeys } from "@/modules/verification/hooks/verification.hook";
 import { dateOfBirthField } from "@/modules/verification/schema/verification.schema";
 import { maxDateOfBirthIso } from "@/modules/verification/helpers/verification.helper";
@@ -25,16 +25,16 @@ const profileSchema = z.object({
   fullName: z.string().trim().min(2, "Enter your full name"),
   phone: z.string().regex(PHONE_REGEX, PHONE_MESSAGE).or(z.literal("")),
   dateOfBirth: dateOfBirthField.or(z.literal("")),
-  countryId: z.string(),
-  cityId: z.string(),
+  residenceCountryCode: z.string(),
+  residenceCity: residenceCityField,
 });
 type Values = z.infer<typeof profileSchema>;
 const defaults = (user: User): Values => ({
   fullName: user.fullName,
   phone: user.phone ?? "",
   dateOfBirth: user.dateOfBirth ?? "",
-  countryId: user.countryId ?? "",
-  cityId: user.cityId ?? "",
+  residenceCountryCode: user.residenceCountryCode ?? "",
+  residenceCity: user.residenceCity ?? "",
 });
 
 export function ProfilePanel() {
@@ -48,8 +48,8 @@ export function ProfilePanel() {
       fullName: "",
       phone: "",
       dateOfBirth: "",
-      countryId: "",
-      cityId: "",
+      residenceCountryCode: "",
+      residenceCity: "",
     },
   });
   const seededFor = useRef<string | null>(null);
@@ -60,14 +60,8 @@ export function ProfilePanel() {
     seededFor.current = user.id;
   }, [user, form]);
   const mutation = useUpdateMe();
-  const countries = useCountries();
-  const countryId = form.watch("countryId");
-  const selectedCountry = countries.data?.find(
-    (country) => country.id === countryId,
-  );
-  const cities = useCities(selectedCountry?.code);
-  const availableCities =
-    cities.data?.filter((city) => city.countryId === countryId) ?? [];
+  const countries = useResidenceCountries();
+  const residenceCountryCode = form.watch("residenceCountryCode");
 
   if (profile.isError)
     return (
@@ -84,8 +78,8 @@ export function ProfilePanel() {
       {
         fullName: values.fullName.trim(),
         phone: values.phone.trim() || null,
-        countryId: values.countryId || null,
-        cityId: values.cityId || null,
+        residenceCountryCode: values.residenceCountryCode || null,
+        residenceCity: values.residenceCountryCode ? values.residenceCity.trim() || null : null,
         ...(!onFile && values.dateOfBirth
           ? { dateOfBirth: values.dateOfBirth }
           : {}),
@@ -217,19 +211,20 @@ export function ProfilePanel() {
               Country of residence
               <select
                 id="profile-country"
-                {...form.register("countryId", {
+                {...form.register("residenceCountryCode", {
                   onChange: () =>
-                    form.setValue("cityId", "", { shouldDirty: true }),
+                    form.setValue("residenceCity", "", { shouldDirty: true }),
                 })}
                 disabled={countries.isPending || countries.isError}
               >
                 <option value="">Not specified</option>
                 {countries.data?.map((country) => (
-                  <option key={country.id} value={country.id}>
+                  <option key={country.code} value={country.code}>
                     {country.name}
                   </option>
                 ))}
               </select>
+              <small>Choose the country where you live, even if you rent somewhere else.</small>
               {countries.isError && (
                 <Button
                   type="button"
@@ -242,28 +237,18 @@ export function ProfilePanel() {
             </label>
             <label className="settings-field" htmlFor="profile-city">
               City
-              <select
+              <input
                 id="profile-city"
-                {...form.register("cityId")}
-                disabled={
-                  !selectedCountry || cities.isPending || cities.isError
-                }
-              >
-                <option value="">Not specified</option>
-                {availableCities.map((city) => (
-                  <option key={city.id} value={city.id}>
-                    {city.name}
-                  </option>
-                ))}
-              </select>
-              {cities.isError && selectedCountry && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => cities.refetch()}
-                >
-                  Retry cities
-                </Button>
+                autoComplete="address-level2"
+                placeholder="Your city or town"
+                maxLength={160}
+                {...form.register("residenceCity")}
+                disabled={!residenceCountryCode}
+                aria-invalid={!!errors.residenceCity}
+              />
+              <small>Optional. Enter your city or town in the selected country.</small>
+              {errors.residenceCity && (
+                <span className="text-destructive">{errors.residenceCity.message}</span>
               )}
             </label>
           </div>

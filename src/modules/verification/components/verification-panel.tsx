@@ -279,10 +279,26 @@ function LicenseDetailsCard({
           )}
         </div>
         <div className="settings-action-bar">
-          <p>We&apos;ll notify you when your license has been reviewed.</p>
+          {!verification.dateOfBirth ? (
+            <p id="license-submit-requirement" role="status">
+              Add your date of birth in{" "}
+              <Link
+                href="/account/settings/profile"
+                className="font-medium text-primary underline"
+              >
+                Profile
+              </Link>{" "}
+              to enable license submission. Save your profile, then return here.
+            </p>
+          ) : (
+            <p>We&apos;ll notify you when your license has been reviewed.</p>
+          )}
           <Button
             type="submit"
             disabled={submit.isPending || !verification.dateOfBirth}
+            aria-describedby={
+              !verification.dateOfBirth ? "license-submit-requirement" : undefined
+            }
           >
             {submit.isPending ? "Submitting…" : "Submit license details"}
           </Button>

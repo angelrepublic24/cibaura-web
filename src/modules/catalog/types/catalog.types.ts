@@ -5,6 +5,7 @@ import type {
   cityWireSchema,
   countryWireSchema,
   regionWireSchema,
+  residenceCountryWireSchema,
 } from "@/modules/catalog/schema/catalog.schema";
 
 /**
@@ -18,6 +19,7 @@ import type {
  * and its shared interface ever drift, `catalog.service.ts` stops building.
  */
 export type CountryWire = z.infer<typeof countryWireSchema>;
+export type ResidenceCountry = z.infer<typeof residenceCountryWireSchema>;
 export type RegionWire = z.infer<typeof regionWireSchema>;
 export type CityWire = z.infer<typeof cityWireSchema>;
 export type CatalogMakeWire = z.infer<typeof catalogMakeWireSchema>;

@@ -19,6 +19,8 @@ export interface User {
   dateOfBirth?: string | null;
   countryId?: string | null;
   cityId?: string | null;
+  residenceCountryCode?: string | null;
+  residenceCity?: string | null;
   marketingOptIn?: boolean;
   roles: Role[];
   /** Present when the user owns/works for an agency. */

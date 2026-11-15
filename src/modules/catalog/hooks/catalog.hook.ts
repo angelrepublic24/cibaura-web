@@ -7,6 +7,7 @@ export const catalogKeys = {
   cities: (countryCode?: string) =>
     ["catalog", "cities", countryCode ?? "all"] as const,
   countries: () => ["catalog", "countries"] as const,
+  residenceCountries: () => ["catalog", "residence-countries"] as const,
   regions: (countryCode: string) =>
     ["catalog", "regions", countryCode] as const,
   makes: () => ["catalog", "makes"] as const,
@@ -18,6 +19,14 @@ export function useCountries() {
   return useQuery({
     queryKey: catalogKeys.countries(),
     queryFn: () => catalogService.listCountries(),
+  });
+}
+
+/** Global countries where a customer lives, rather than operating rental markets. */
+export function useResidenceCountries() {
+  return useQuery({
+    queryKey: catalogKeys.residenceCountries(),
+    queryFn: () => catalogService.listResidenceCountries(),
   });
 }
 

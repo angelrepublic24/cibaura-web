@@ -12,7 +12,9 @@ import {
   cityListWireSchema,
   countryListWireSchema,
   regionListWireSchema,
+  residenceCountryListWireSchema,
 } from "@/modules/catalog/schema/catalog.schema";
+import type { ResidenceCountry } from "@/modules/catalog/types/catalog.types";
 
 /**
  * Catalog & geo API client — the ONLY thing in the module that talks to the
@@ -51,6 +53,12 @@ class CatalogService {
   async listCountries(): Promise<Country[]> {
     const res = await Api.get<unknown>("/geo/countries");
     return countryListWireSchema.parse(res.data);
+  }
+
+  /** Residence can be anywhere; this catalog does not add rental destinations. */
+  async listResidenceCountries(): Promise<ResidenceCountry[]> {
+    const res = await Api.get<unknown>("/geo/residence-countries");
+    return residenceCountryListWireSchema.parse(res.data);
   }
 
   /**

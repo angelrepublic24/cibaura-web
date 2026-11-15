@@ -77,6 +77,8 @@ const profile = {
   dateOfBirth: "1990-01-01",
   countryId: null,
   cityId: null,
+  residenceCountryCode: null,
+  residenceCity: null,
   marketingOptIn: false,
 };
 const requests = [];
