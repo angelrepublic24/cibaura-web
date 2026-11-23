@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useId, useState } from "react";
 import { useForm, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { TriangleAlert } from "lucide-react";
@@ -352,21 +352,42 @@ export function PlatformConfigForm({ config }: { config: PlatformConfig }) {
   const { dirtyFields, errors, isDirty } = form.formState;
   const dirty = dirtyFields as FieldFlags;
 
-  const changedCount = useMemo(
-    () => Object.values(dirty).filter(Boolean).length,
-    [dirty],
+  // Counted INLINE on every render, deliberately. react-hook-form mutates
+  // `dirtyFields` in place and re-emits the SAME object reference, so a
+  // `useMemo` keyed on it never recomputes: the footer sat frozen at zero
+  // while eight settings across four tabs were waiting to be written.
+  const changedCount = Object.values(dirty).filter(Boolean).length;
+
+  /** The first tab holding an invalid value, so a failed save can point at it. */
+  const firstInvalidSection = SECTIONS.find((s) =>
+    s.owns.some((f) => errors[f]),
   );
 
   return (
     <form
       noValidate
       onChange={() => setSaved(false)}
-      onSubmit={form.handleSubmit((values) => {
-        setSaved(false);
-        const patch = formValuesToPatch(values, form.formState.dirtyFields);
-        if (Object.keys(patch).length === 0) return;
-        submit(patch);
-      })}
+      onSubmit={form.handleSubmit(
+        (values) => {
+          setSaved(false);
+          const patch = formValuesToPatch(values, form.formState.dirtyFields);
+          if (Object.keys(patch).length === 0) return;
+          submit(patch);
+        },
+        // A value can be invalid on a tab you are NOT looking at, and the save
+        // is atomic across all seven — so refusing silently left the admin
+        // pressing a button that did nothing. react-hook-form's own
+        // `shouldFocusError` cannot help either: focusing an input inside a
+        // panel with the `hidden` attribute is a no-op. Switch to the offending
+        // tab, which both reveals the field and lets the footer explain itself.
+        (invalid) => {
+          setSaved(false);
+          const target = SECTIONS.find((section) =>
+            section.owns.some((field) => invalid[field]),
+          );
+          if (target) setActive(target.id);
+        },
+      )}
     >
       <fieldset disabled={mutation.isPending}>
         <SectionTabs
@@ -419,6 +440,11 @@ export function PlatformConfigForm({ config }: { config: PlatformConfig }) {
           {mutation.error ? (
             <p className="text-sm text-destructive" role="alert">
               {getErrorMessage(mutation.error, "Could not save the settings.")}
+            </p>
+          ) : firstInvalidSection ? (
+            <p className="text-sm text-destructive" role="alert">
+              Nothing was saved — check the highlighted value under{" "}
+              <span className="font-semibold">{firstInvalidSection.tab}</span>.
             </p>
           ) : saved && !isDirty ? (
             <p className="text-sm text-success" role="status">
