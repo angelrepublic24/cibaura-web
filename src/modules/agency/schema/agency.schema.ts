@@ -173,7 +173,16 @@ export const carDocumentWireSchema = z.object({
 
 /** The agency's own view of a car: the private plate + the catalog ids. */
 export const agencyCarWireSchema = carWireSchema.extend({
-  plate: z.string().optional(),
+  /**
+   * `string | null`, NOT optional. The backend always emits the key and a car
+   * without a plate is a supported state on purpose (`normalizePlate` sends
+   * null, undefined, "" and "   " all to NULL — "several unplated drafts are
+   * fine"). This was `.optional()`, which accepts an ABSENT key but rejects
+   * `null`, and because the parse covers the whole page payload ONE unplated
+   * car took down the host's entire fleet screen — and the admin's document
+   * review for that agency with it.
+   */
+  plate: z.string().nullable().optional(),
   makeId: z.string().optional(),
   modelId: z.string().optional(),
   /**

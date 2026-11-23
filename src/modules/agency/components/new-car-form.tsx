@@ -95,7 +95,10 @@ const carSchema = z.object({
   category: z.enum(CAR_CATEGORIES),
   engineDisplacementCc: optionalEngineInteger(ENGINE_DISPLACEMENT_CC),
   enginePowerHp: optionalEngineInteger(ENGINE_POWER_HP),
-  plate: z.string().min(3, "Enter the plate (kept private)"),
+  // `.trim()` BEFORE the length check: without it "   " passed, the backend
+  // normalized it to NULL, the car was created — and from then on neither the
+  // fleet list nor the edit screen loaded again.
+  plate: z.string().trim().min(3, "Enter the plate (kept private)"),
   pricePerDay: z
     .string()
     .regex(AMOUNT_REGEX, "Enter the per-day price, e.g. 45 or 45.50"),
