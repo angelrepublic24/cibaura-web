@@ -128,6 +128,10 @@ const PAYOUT_RAIL_STATUS_META: Record<
   posted: { label: "Posted to bank", variant: "success" },
   failed: { label: "Failed at Stripe", variant: "destructive" },
   returned: { label: "Returned by bank", variant: "destructive" },
+  // The rail gave up without telling us whether the money moved. It is not a
+  // failure (the funds may be gone) and not a success — it is the one state
+  // that needs a person, so it reads as an instruction rather than a verdict.
+  needs_reconciliation: { label: "Needs reconciliation", variant: "warning" },
   canceled: { label: "Canceled", variant: "destructive" },
 };
 

@@ -435,7 +435,14 @@ export interface CarDetail extends Car {
  * these extra fields; the public contract never does.
  */
 export interface AgencyCar extends Car {
-  plate?: string;
+  /**
+   * `string | null` on the wire, and the key is always present. A car with no
+   * plate is a supported state (`normalizePlate` collapses null, undefined and
+   * whitespace to NULL), so this cannot be `string | undefined` — declaring it
+   * that way is what let the schema use `.optional()` and take down the whole
+   * fleet screen on the first unplated car.
+   */
+  plate?: string | null;
   makeId?: string;
   modelId?: string;
   /**
@@ -1049,6 +1056,14 @@ export const PAYOUT_RAIL_STATUSES = [
   "failed",
   "returned",
   "canceled",
+  /**
+   * The rail gave up with an UNKNOWN result: the money may or may not have
+   * left. The backend parks the payout here and alerts an admin to "retry it
+   * from the payouts queue" — so leaving it out of this list made the missing
+   * value throw inside the very screen that exists to resolve it, taking the
+   * whole Processing tab and the host's wallet panel down with it.
+   */
+  "needs_reconciliation",
 ] as const;
 export type PayoutRailStatus = (typeof PAYOUT_RAIL_STATUSES)[number];
 
