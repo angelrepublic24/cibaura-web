@@ -38,7 +38,8 @@ for (const schema of [agency.agencyPublicProfileWireSchema, host.agencyWireSchem
   const identity = schema.pick({ description: true, logoUrl: true });
   assert.equal(identity.safeParse({ description: null, logoUrl: null }).success, true);
   assert.equal(identity.safeParse({ description: "Host", logoUrl: "https://media.invalid/logo.png" }).success, true);
-  assert.equal(identity.safeParse({}).success, false);
+  assert.equal(identity.safeParse({}).success, true);
+  assert.equal(identity.safeParse({ description: 123 }).success, false);
 }
 const city = { id: "city", countryId: "country", name: "Santiago", slug: "santiago" };
 assert.equal(agency.availableAgencyCityListWireSchema.safeParse([city]).success, true);
@@ -46,4 +47,4 @@ assert.equal(agency.availableAgencyCityListWireSchema.safeParse([{ ...city, coun
 assert.equal(bookings.bookingPickupWireSchema.safeParse({ type: "branch_pickup", hostDeliveryFeeCents: 0 }).success, true);
 assert.equal(bookings.bookingPickupWireSchema.safeParse({ type: "delivery", hostDeliveryFeeCents: 1000 }).success, true);
 assert.equal(bookings.bookingPickupWireSchema.safeParse({ type: "branch_pickup", deliveryFeeCents: 0 }).success, true);
-console.log("Wire nullability: 11 canonical response cases passed (public/host identities, compact city facets, pickup fee snapshots).");
+console.log("Wire nullability: 13 canonical response cases passed (public/host identities, compact city facets, pickup fee snapshots).");

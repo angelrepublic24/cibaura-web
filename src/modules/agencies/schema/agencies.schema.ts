@@ -39,8 +39,8 @@ export const agencyPublicProfileWireSchema = z.object({
   id: z.string(),
   slug: z.string(),
   name: z.string(),
-  description: z.string().nullable(),
-  logoUrl: z.string().nullable(),
+  description: z.string().nullable().default(null),
+  logoUrl: z.string().nullable().default(null),
   /** Storefront cover image; null/absent = gradient. */
   bannerUrl: z.string().nullish(),
   verificationStatus: agencyVerificationStatusSchema,
@@ -114,7 +114,7 @@ export const agencyApplicationWireSchema = z.object({
   id: z.string(),
   name: z.string(),
   slug: z.string(),
-  description: z.string().nullable(),
+  description: z.string().nullable().default(null),
   verificationStatus: agencyVerificationStatusSchema,
   verificationReason: z.string().nullable(),
   /**
