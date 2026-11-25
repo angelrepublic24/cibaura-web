@@ -374,7 +374,7 @@ export interface Car {
   seats: number;
   category: CarCategory;
   /** The host's own per-day rate, integer cents. HOST/ADMIN screens only. */
-  hostDailyRateCents: number;
+  hostDailyRateCents?: number;
   /** The per-day rate a renter is shown, integer cents (commission included). */
   renterDailyRateCents: number;
   /** Both declared engine figures, or null when the host has not supplied them. */
@@ -435,6 +435,7 @@ export interface CarDetail extends Car {
  * these extra fields; the public contract never does.
  */
 export interface AgencyCar extends Car {
+  hostDailyRateCents: number;
   /**
    * `string | null` on the wire, and the key is always present. A car with no
    * plate is a supported state (`normalizePlate` collapses null, undefined and
@@ -506,7 +507,7 @@ export interface BookingPickup {
   deliveryReference?: string;
   deliveryDistanceKm?: number;
   /** 0 for branch pickup. */
-  hostDeliveryFeeCents: number;
+  hostDeliveryFeeCents?: number;
   /** Branch's exact address — present only once paid AND branch pickup. */
   branchAddress?: string;
   /** Same gate as `branchAddress` (paid + branch pickup). */
@@ -546,24 +547,24 @@ export interface BookingCustomerDto {
 export interface Pricing {
   days: number;
   /** The host's own per-day rate. HOST/ADMIN only. */
-  hostDailyRateCents: number;
+  hostDailyRateCents?: number;
   /** The per-day rate the renter is charged (commission included). */
   renterDailyRateCents: number;
   /** The host's own delivery fee. HOST/ADMIN only. */
-  hostDeliveryFeeCents: number;
+  hostDeliveryFeeCents?: number;
   /** The delivery fee the renter is charged (commission included). */
   renterDeliveryFeeCents: number;
   /** EXACTLY hostRate×days + hostDeliveryFee — what the agency is credited. */
-  hostSubtotalCents: number;
+  hostSubtotalCents?: number;
   /** renterRate×days + renterDeliveryFee — what the renter's subtotal reads. */
   renterSubtotalCents: number;
   /** Snapshot % on a Booking; current % on a Quote. */
-  commissionPct: number;
+  commissionPct?: number;
   /**
    * renterSubtotal − hostSubtotal, so the rounding remainder lands on the
    * platform and the host is credited to the cent. HOST/ADMIN only.
    */
-  commissionCents: number;
+  commissionCents?: number;
   /** Server-computed tax amount and the rate used (the CAR's country). */
   taxCents: number;
   taxRatePct: number;

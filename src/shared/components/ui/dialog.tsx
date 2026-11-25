@@ -28,6 +28,11 @@ export function Dialog({
   const titleId = useId();
   const descId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+
+  useEffect(() => {
+    closeRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -41,7 +46,7 @@ export function Dialog({
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        onClose();
+        closeRef.current();
         return;
       }
       if (e.key !== "Tab") return;
@@ -77,7 +82,7 @@ export function Dialog({
       document.body.style.overflow = previousOverflow;
       if (previouslyFocused instanceof HTMLElement) previouslyFocused.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

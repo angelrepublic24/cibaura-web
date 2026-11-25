@@ -104,6 +104,8 @@ export const agencyKycWireSchema = z.object({
   taxId: z.string().nullable(),
   ownerName: z.string().nullable(),
   ownerIdNumber: z.string().nullable(),
+  ownerIdType: z.string().nullable().default(null),
+  ownerIdIssuer: z.string().nullable().default(null),
   phone: z.string().nullable(),
   address: z.string().nullable(),
 });

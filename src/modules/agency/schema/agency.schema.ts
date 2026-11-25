@@ -173,6 +173,7 @@ export const carDocumentWireSchema = z.object({
 
 /** The agency's own view of a car: the private plate + the catalog ids. */
 export const agencyCarWireSchema = carWireSchema.extend({
+  hostDailyRateCents: z.number(),
   /**
    * `string | null`, NOT optional. The backend always emits the key and a car
    * without a plate is a supported state on purpose (`normalizePlate` sends

@@ -48,7 +48,7 @@ assert.throws(
 checks++;
 for (const env of [
   { NODE_ENV: "development" },
-  { NODE_ENV: "production", NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY: "true" },
+  { NODE_ENV: "production", NEXT_PUBLIC_ALLOW_MISSING_SENTRY: "true" },
 ]) {
   const warnings = [];
   const options = sentryBuildOptions(env, true, (message) =>

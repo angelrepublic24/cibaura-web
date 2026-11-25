@@ -1,7 +1,7 @@
 /**
  * Legal identity of the platform operator, rendered on /legal/terms and
  * /legal/privacy. Every value is a public build-time constant
- * (`NEXT_PUBLIC_LEGAL_*`); production builds require all four values. These
+ * (`NEXT_PUBLIC_LEGAL_*`); production builds require the complete identity. These
  * legacy fallbacks apply only to development or an explicit staging exception.
  *
  * The TERMS VERSION is owned by the backend (`GET /legal/current`); the
@@ -18,14 +18,16 @@ function readEnv(value: string | undefined): string | undefined {
 export const LEGAL = {
   /** Legal entity operating the platform (data controller + contracting party). */
   companyName: readEnv(process.env.NEXT_PUBLIC_LEGAL_COMPANY_NAME) ?? "Cibaura",
-  /** Dominican tax id (RNC). Undefined when not configured → the line is omitted. */
-  rnc: readEnv(process.env.NEXT_PUBLIC_LEGAL_RNC),
+  countryCode: readEnv(process.env.NEXT_PUBLIC_LEGAL_COUNTRY_CODE),
+  taxIdLabel: readEnv(process.env.NEXT_PUBLIC_LEGAL_TAX_ID_LABEL) ?? "Tax ID",
+  taxId: readEnv(process.env.NEXT_PUBLIC_LEGAL_TAX_ID),
   address:
     readEnv(process.env.NEXT_PUBLIC_LEGAL_ADDRESS) ??
-    "Santo Domingo, Dominican Republic",
+    "Registered address not configured",
   contactEmail:
     readEnv(process.env.NEXT_PUBLIC_LEGAL_CONTACT_EMAIL) ?? "legal@cibaura.com",
-  jurisdiction: "Dominican Republic",
+  jurisdiction: readEnv(process.env.NEXT_PUBLIC_LEGAL_JURISDICTION) ?? "Jurisdiction not configured",
+  disputeForum: readEnv(process.env.NEXT_PUBLIC_LEGAL_DISPUTE_FORUM) ?? "Dispute forum not configured",
   /** Mirrors backend `CURRENT_TERMS_VERSION`; display fallback only. */
   termsVersionFallback: "2026-09-08",
 } as const;

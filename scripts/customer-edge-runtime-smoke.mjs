@@ -187,14 +187,14 @@ await check("Password change/reset clear local auth only on success; change retu
   assert.equal(change.onError, undefined);
   change.onSuccess();
   assert.equal(signedOut, 1);
-  assert.deepEqual(navigated, ["/auth/login"]);
+  assert.deepEqual(navigated, ["/auth/login?passwordChanged=1"]);
   const reset = auth.useResetPassword();
   await reset.mutationFn({ token: "synthetic", password: "new", termsVersion: "current" });
   assert.equal(resets, 1);
   assert.equal(signedOut, 1);
   reset.onSuccess();
   assert.equal(signedOut, 2);
-  assert.deepEqual(navigated, ["/auth/login"]);
+  assert.deepEqual(navigated, ["/auth/login?passwordChanged=1"]);
 });
 await check("Late /me results cannot rehydrate a signed-out or replacement session and receive cancellation signal", async () => {
   let generation = 0, marker = true, resolveMe, captured, receivedSignal;

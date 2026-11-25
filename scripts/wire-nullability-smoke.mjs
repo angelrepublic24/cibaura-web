@@ -45,5 +45,5 @@ assert.equal(agency.availableAgencyCityListWireSchema.safeParse([city]).success,
 assert.equal(agency.availableAgencyCityListWireSchema.safeParse([{ ...city, countryId: undefined }]).success, false);
 assert.equal(bookings.bookingPickupWireSchema.safeParse({ type: "branch_pickup", hostDeliveryFeeCents: 0 }).success, true);
 assert.equal(bookings.bookingPickupWireSchema.safeParse({ type: "delivery", hostDeliveryFeeCents: 1000 }).success, true);
-assert.equal(bookings.bookingPickupWireSchema.safeParse({ type: "branch_pickup", deliveryFeeCents: 0 }).success, false);
+assert.equal(bookings.bookingPickupWireSchema.safeParse({ type: "branch_pickup", deliveryFeeCents: 0 }).success, true);
 console.log("Wire nullability: 11 canonical response cases passed (public/host identities, compact city facets, pickup fee snapshots).");

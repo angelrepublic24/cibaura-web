@@ -40,6 +40,8 @@ import {
 
 /** One row of `GET /admin/payouts` (wire `AdminPayoutDto`). */
 export const adminPayoutWireSchema = payoutWireSchema.extend({
+  railRef: z.string().nullable().default(null),
+  agencyHasOpenDispute: z.boolean().default(false),
   agencyName: z.string(),
   agencySlug: z.string(),
   /** Where to wire the money — null when the agency removed its account. */
@@ -433,4 +435,5 @@ export const acceptInviteInputSchema = z.object({
  */
 export const adminBookingDetailWireSchema = bookingDetailWireSchema.extend({
   paymentStatus: z.string().nullable(),
+  paymentDisputed: z.boolean().default(false),
 });

@@ -132,6 +132,7 @@ function OrderDetail({ booking }: { booking: AdminBookingDetail }) {
                     : `Delivery: ${booking.pickup.deliveryZoneName ?? "zone"}`
                   : "Branch pickup"}
               </span>
+              {booking.paymentDisputed ? <p role="alert" className="text-destructive">This payment is disputed.</p> : null}
               <span className="inline-flex items-center gap-1.5">
                 <CreditCard className="h-4 w-4 text-primary" />
                 {booking.paymentStatus
@@ -240,7 +241,7 @@ function OrderDetail({ booking }: { booking: AdminBookingDetail }) {
                 {booking.pickup.branchPhone ? ` · ${booking.pickup.branchPhone}` : ""}
               </p>
             ) : null}
-            {booking.pickup.type === "delivery" && booking.pickup.hostDeliveryFeeCents > 0 ? (
+            {booking.pickup.type === "delivery" && (booking.pickup.hostDeliveryFeeCents ?? 0) > 0 ? (
               <p className="mt-1 text-xs text-muted-foreground">
                 <Badge variant="secondary">Delivery</Badge>{" "}
                 {booking.pickup.deliveryDistanceKm

@@ -299,6 +299,8 @@ function PayoutRow({ payout: p }: { payout: AdminPayout }) {
       <td className="px-4 py-3">
         <div className="space-y-1">
           <PayoutStatusBadge status={p.status} />
+          {p.agencyHasOpenDispute ? <p role="alert" className="text-xs text-destructive">Agency has an open payment dispute</p> : null}
+          {p.railRef ? <p className="font-mono text-xs">Stripe reference: {p.railRef}</p> : null}
           {p.railStatus ? <PayoutRailStatusBadge status={p.railStatus} /> : null}
           {p.status === "paid" && p.reference ? (
             <p className="font-mono text-xs text-foreground">{p.reference}</p>

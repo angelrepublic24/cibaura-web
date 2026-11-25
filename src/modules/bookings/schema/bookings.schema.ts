@@ -66,14 +66,14 @@ export const settlementCaseSchema = z.enum(SETTLEMENT_CASES);
  */
 export const pricingWireSchema = z.object({
   days: z.number(),
-  hostDailyRateCents: z.number(),
+  hostDailyRateCents: z.number().optional(),
   renterDailyRateCents: z.number(),
-  hostDeliveryFeeCents: z.number(),
+  hostDeliveryFeeCents: z.number().optional(),
   renterDeliveryFeeCents: z.number(),
-  hostSubtotalCents: z.number(),
+  hostSubtotalCents: z.number().optional(),
   renterSubtotalCents: z.number(),
-  commissionPct: z.number(),
-  commissionCents: z.number(),
+  commissionPct: z.number().optional(),
+  commissionCents: z.number().optional(),
   taxCents: z.number(),
   taxRatePct: z.number(),
   totalCents: z.number(),
@@ -88,7 +88,7 @@ export const bookingPickupWireSchema = z.object({
   deliveryAddress: z.string().optional(),
   deliveryReference: z.string().optional(),
   deliveryDistanceKm: z.number().optional(),
-  hostDeliveryFeeCents: z.number(),
+  hostDeliveryFeeCents: z.number().optional(),
   /** Branch's exact address — present only once paid AND branch pickup. */
   branchAddress: z.string().optional(),
   branchPhone: z.string().optional(),

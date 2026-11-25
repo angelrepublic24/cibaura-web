@@ -17,7 +17,7 @@ export function sentryBuildOptions(
   const required =
     isBuild &&
     env.NODE_ENV === "production" &&
-    env.NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY !== "true";
+    env.NEXT_PUBLIC_ALLOW_MISSING_SENTRY !== "true";
   if (required && missing.length)
     throw new Error(
       `[sentry-build] Production source maps require ${missing.join(", ")}.`,
