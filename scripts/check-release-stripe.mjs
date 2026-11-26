@@ -7,6 +7,9 @@ export function assertReleaseStripe(env) {
       "Production release forbids NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY; remove it entirely (even false is rejected).",
     );
   }
+  for (const flag of ["ALLOW_DEFAULT_LEGAL", "ALLOW_MISSING_MAPS", "NEXT_PUBLIC_ALLOW_MISSING_SENTRY"]) {
+    if (env[flag]?.trim()) throw new Error(`Production release forbids ${flag}.`);
+  }
   const key = env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.trim() ?? "";
   if (
     !/^pk_live_[A-Za-z0-9]+$/.test(key) ||

@@ -119,7 +119,7 @@ const helpers = load(
 );
 
 await check(
-  "Login retains existing auth DTO; profile separately requires canonical settings fields",
+  "Profile additions do not block an existing session; identity remains required",
   async () => {
     response = { accessToken: "test", refreshToken: "test", user: authWire };
     assert.equal(
@@ -128,6 +128,10 @@ await check(
       authWire.name,
     );
     response = authWire;
+    const legacy = await auth.me();
+    assert.equal(legacy.dateOfBirth, null);
+    assert.equal(legacy.marketingOptIn, false);
+    response = { ...authWire, id: undefined };
     await assert.rejects(auth.me());
     response = profile;
     const user = await auth.me();

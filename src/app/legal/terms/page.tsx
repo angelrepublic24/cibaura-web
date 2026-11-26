@@ -39,8 +39,8 @@ export default function TermsPage() {
           The Cibaura platform (&ldquo;Cibaura&rdquo;, &ldquo;we&rdquo;,
           &ldquo;us&rdquo;) is a rent-a-car marketplace operated by{" "}
           <strong className="text-foreground">{company}</strong>
-          {LEGAL.rnc ? <>, RNC {LEGAL.rnc}</> : null}, with registered
-          address at {LEGAL.address}, {LEGAL.jurisdiction}. These Terms of
+          {LEGAL.taxId ? <>, {LEGAL.taxIdLabel} {LEGAL.taxId}</> : null}, with registered
+          address at {LEGAL.address}. These Terms of
           Service (the &ldquo;Terms&rdquo;) govern your access to and use of
           the Cibaura website, applications and services (together, the
           &ldquo;Platform&rdquo;).
@@ -283,7 +283,7 @@ export default function TermsPage() {
           These Terms are governed by the laws of the {LEGAL.jurisdiction}.
           Any dispute arising from these Terms or from the use of the
           Platform is subject to the exclusive jurisdiction of the courts of
-          Santo Domingo, {LEGAL.jurisdiction}, without prejudice to any
+          {LEGAL.disputeForum}, without prejudice to any
           mandatory consumer-protection rules that apply to you.
         </p>
         <p>

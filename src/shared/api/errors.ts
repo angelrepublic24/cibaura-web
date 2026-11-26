@@ -1,4 +1,5 @@
 import { AxiosError } from "axios";
+import { ZodError } from "zod";
 
 /**
  * Stable backend error codes the web keys off (never the message). The
@@ -149,5 +150,6 @@ export function isApiErrorCode(error: unknown, code: ApiErrorCode): boolean {
 
 /** The backend message (already lifted onto `error.message` by the client). */
 export function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ZodError) return fallback;
   return error instanceof Error && error.message ? error.message : fallback;
 }

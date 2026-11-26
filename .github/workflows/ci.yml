@@ -38,3 +38,32 @@ jobs:
       - run: npm run build:ci
       - run: npm run smoke
       - run: node scripts/standalone-smoke.mjs
+
+  contracts:
+    name: Backend response contracts
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: frontend
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: angelrepublic24/cibaura-server
+          ref: ${{ vars.CONTRACT_BACKEND_REF || 'main' }}
+          path: backend
+          ssh-key: ${{ secrets.BACKEND_CONTRACT_READ_KEY }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            backend/package-lock.json
+      - run: npm ci --prefix backend
+      - run: npm ci --prefix frontend
+      - run: npm run check:contract
+        working-directory: frontend

@@ -28,7 +28,11 @@ const base = {
   NEXT_PUBLIC_SENTRY_DSN:
     "https://0123456789abcdef0123456789abcdef@o123.ingest.sentry.io/123",
   NEXT_PUBLIC_LEGAL_COMPANY_NAME: "Fixture Operator",
-  NEXT_PUBLIC_LEGAL_RNC: "fixture-rnc",
+  NEXT_PUBLIC_LEGAL_COUNTRY_CODE: "US",
+  NEXT_PUBLIC_LEGAL_TAX_ID_LABEL: "EIN",
+  NEXT_PUBLIC_LEGAL_TAX_ID: "00-0000000",
+  NEXT_PUBLIC_LEGAL_JURISDICTION: "Synthetic jurisdiction",
+  NEXT_PUBLIC_LEGAL_DISPUTE_FORUM: "Synthetic forum",
   NEXT_PUBLIC_LEGAL_ADDRESS: "Fixture address",
   NEXT_PUBLIC_LEGAL_CONTACT_EMAIL: "fixture@operator.invalid",
   NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: "fixture-maps",
@@ -66,6 +70,8 @@ assert.equal(
     ...base,
     NEXT_PUBLIC_SENTRY_DSN: "",
     NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY: "true",
+    NEXT_PUBLIC_ALLOW_MISSING_SENTRY: "true",
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_StagingOnly",
   }).SENTRY_CONFIGURED,
   false,
 );
@@ -162,6 +168,7 @@ assert.equal(
     ...base,
     NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_SyntheticValidationOnly",
     NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY: "true",
+    NEXT_PUBLIC_ALLOW_MISSING_SENTRY: "true",
   }).STRIPE_PUBLISHABLE_KEY,
   "pk_test_SyntheticValidationOnly",
 );
@@ -211,7 +218,11 @@ assert(policy(false, false).includes("https://hooks.stripe.com"));
 checks++;
 for (const field of [
   "NEXT_PUBLIC_LEGAL_COMPANY_NAME",
-  "NEXT_PUBLIC_LEGAL_RNC",
+  "NEXT_PUBLIC_LEGAL_COUNTRY_CODE",
+  "NEXT_PUBLIC_LEGAL_TAX_ID_LABEL",
+  "NEXT_PUBLIC_LEGAL_TAX_ID",
+  "NEXT_PUBLIC_LEGAL_JURISDICTION",
+  "NEXT_PUBLIC_LEGAL_DISPUTE_FORUM",
   "NEXT_PUBLIC_LEGAL_ADDRESS",
   "NEXT_PUBLIC_LEGAL_CONTACT_EMAIL",
   "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY",
@@ -223,7 +234,7 @@ for (const field of [
     assert.throws(() => config({ ...base, [field]: value }), /required/);
     checks++;
     assert.doesNotThrow(() =>
-      config({ ...base, [field]: value, [flag]: "true" }),
+      config({ ...base, NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_StagingOnly", NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY: "true", [field]: value, [flag]: "true" }),
     );
     checks++;
     assert.throws(

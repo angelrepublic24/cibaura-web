@@ -17,7 +17,7 @@ export const SITE_TITLE = "Cibaura — rent a car near you";
 export const OG_IMAGE = "/brand/og-2026-10.png";
 
 export const SITE_DESCRIPTION =
-  "Find rental cars from local agencies and private hosts in the Dominican Republic and the United States. Compare cars and request your booking on Cibaura.";
+  "Find rental cars from local agencies and private hosts in available destinations. Compare cars and request your booking on Cibaura.";
 
 export function absoluteUrl(path: string): string {
   return new URL(path, SITE_URL).href;

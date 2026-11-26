@@ -179,7 +179,7 @@ export function useChangePassword() {
     onSuccess: () => {
       // The 204 revokes this session too; never refresh or reuse it.
       signOut();
-      window.location.replace("/auth/login");
+      window.location.replace("/auth/login?passwordChanged=1");
     },
   });
 }

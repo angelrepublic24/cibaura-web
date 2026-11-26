@@ -52,6 +52,7 @@ function text(tree) {
 let values = { licenseNumber: "QA-12345", licenseExpiry: "2099-12-31" };
 let mutation = { isPending: false, isError: false, isSuccess: false, mutate(value) { submitted.push(value); }, reset() {} };
 const submitted = [];
+let queryData;
 const load = loadWith({
   "next/link": { default: "Link" },
   "react-hook-form": { useForm: options => ({
@@ -66,13 +67,13 @@ const load = loadWith({
   }) },
   "../hooks/verification.hook": {
     useSubmitVerification: () => mutation,
-    useMyVerification: () => ({ data: undefined }),
+    useMyVerification: () => ({ data: queryData }),
     useUploadVerificationDocument: () => ({ isPending: false }),
   },
   "@/shared/components/ui/button": { Button: "Button" },
   "./additional-documents-panel": { AdditionalDocumentsPanel: "AdditionalDocumentsPanel" },
 });
-const Card = load("src/modules/verification/components/verification-panel.tsx").LicenseDetailsCard;
+const { LicenseDetailsCard: Card, VerificationPanel } = load("src/modules/verification/components/verification-panel.tsx");
 const verification = { status: "unverified", licenseNumber: null, licenseExpiry: null, dateOfBirth: null, rejectionReason: null, licenseExpired: false, licenseExpiresSoon: false, daysUntilExpiry: null };
 const render = record => Card({ verification: record, documents: [] });
 const button = tree => find(tree, node => node.type === "Button" && node.props.type === "submit");
@@ -114,5 +115,19 @@ await check("Invalid or expired dates do not send a request through the actual l
     await submit(render({ ...verification, dateOfBirth: "1990-01-01" }));
   }
   assert.equal(submitted.length, before);
+});
+await check("First submission keeps its confirmation when refreshed license details arrive", () => {
+  queryData = { verification: { ...verification, dateOfBirth: "1990-01-01" }, documents: [] };
+  const before = find(VerificationPanel(), node => node.type === Card);
+  const saved = { ...queryData.verification, status: "pending", licenseNumber: "QA-12345", licenseExpiry: "2099-12-31" };
+  queryData = { verification: saved, documents: [] };
+  const after = find(VerificationPanel(), node => node.type === Card);
+  assert.equal(after.type, before.type);
+  assert.equal(after.key, before.key, "Refetch must preserve the form's mutation state");
+  mutation = { ...mutation, isSuccess: true, data: saved };
+  const confirmation = find(render(saved), node => node.props?.role === "status" && /License details saved/.test(text(node)));
+  assert.ok(confirmation, "A successful first submission must confirm it was saved");
+  mutation = { ...mutation, data: { ...saved, status: "rejected", rejectionReason: "License is expired" } };
+  assert.match(text(find(render(saved), node => node.props?.role === "alert")), /License is expired/);
 });
 console.log(`${checks} license submission runtime checks passed.`);

@@ -77,7 +77,6 @@ export const carWireSchema = z.object({
   seats: z.number(),
   category: z.enum(CAR_CATEGORIES),
   /** The host's own per-day rate, integer cents. HOST/ADMIN screens only. */
-  hostDailyRateCents: z.number(),
   /** The per-day rate a renter is shown, integer cents (commission included). */
   renterDailyRateCents: z.number(),
   engine: z.object({

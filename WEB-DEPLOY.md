@@ -341,7 +341,11 @@ la imagen por entorno. No pasar claves secretas de Stripe ni credenciales de bac
 | NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY  | src/lib/config.ts                   | No                                                | Solo `true` habilita clave test en staging. No usar en producción comercial. Documentada.                                |
 | NEXT_PUBLIC_GOOGLE_MAPS_API_KEY    | src/shared/hooks/use-google-maps.ts; src/lib/config.ts | Si, salvo ALLOW_MISSING_MAPS en staging nativo | Ausente: UI declara Maps no configurado. Configurar Places/Maps y restricción de referrer al dominio final. Documentada. |
 | NEXT_PUBLIC_LEGAL_COMPANY_NAME     | src/shared/config/legal.ts          | Si, salvo ALLOW_DEFAULT_LEGAL en staging nativo | Publica/build; tambien leida en src/lib/config.ts para baked y guard. Documentada. |
-| NEXT_PUBLIC_LEGAL_RNC              | src/shared/config/legal.ts          | Si, salvo ALLOW_DEFAULT_LEGAL en staging nativo | Publica/build; tambien leida en src/lib/config.ts para baked y guard. Documentada. |
+| NEXT_PUBLIC_LEGAL_COUNTRY_CODE              | src/shared/config/legal.ts          | Si, salvo ALLOW_DEFAULT_LEGAL en staging nativo | Publica/build; tambien leida en src/lib/config.ts para baked y guard. Documentada. |
+| NEXT_PUBLIC_LEGAL_TAX_ID_LABEL              | src/shared/config/legal.ts          | Si, salvo ALLOW_DEFAULT_LEGAL en staging nativo | Publica/build; tambien leida en src/lib/config.ts para baked y guard. Documentada. |
+| NEXT_PUBLIC_LEGAL_TAX_ID              | src/shared/config/legal.ts          | Si, salvo ALLOW_DEFAULT_LEGAL en staging nativo | Publica/build; tambien leida en src/lib/config.ts para baked y guard. Documentada. |
+| NEXT_PUBLIC_LEGAL_JURISDICTION              | src/shared/config/legal.ts          | Si, salvo ALLOW_DEFAULT_LEGAL en staging nativo | Publica/build; tambien leida en src/lib/config.ts para baked y guard. Documentada. |
+| NEXT_PUBLIC_LEGAL_DISPUTE_FORUM              | src/shared/config/legal.ts          | Si, salvo ALLOW_DEFAULT_LEGAL en staging nativo | Publica/build; tambien leida en src/lib/config.ts para baked y guard. Documentada. |
 | NEXT_PUBLIC_LEGAL_ADDRESS          | src/shared/config/legal.ts          | Si, salvo ALLOW_DEFAULT_LEGAL en staging nativo | Publica/build; tambien leida en src/lib/config.ts para baked y guard. Documentada. |
 | NEXT_PUBLIC_LEGAL_CONTACT_EMAIL    | src/shared/config/legal.ts          | Si, salvo ALLOW_DEFAULT_LEGAL en staging nativo | Publica/build; tambien leida en src/lib/config.ts para baked y guard. Documentada. |
 
@@ -403,7 +407,11 @@ docker build --pull -t cibaura-web:release \
   --build-arg NEXT_PUBLIC_API_URL --build-arg NEXT_PUBLIC_SITE_URL --build-arg NEXT_PUBLIC_BUILD_SHA --build-arg NEXT_PUBLIC_SENTRY_DSN --build-arg BUILD_ENV_PROBE_API \
   --build-arg NEXT_PUBLIC_MEDIA_URL --build-arg NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY \
   --build-arg NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY --build-arg NEXT_PUBLIC_GOOGLE_MAPS_API_KEY \
-  --build-arg NEXT_PUBLIC_LEGAL_COMPANY_NAME --build-arg NEXT_PUBLIC_LEGAL_RNC \
+  --build-arg NEXT_PUBLIC_LEGAL_COMPANY_NAME --build-arg NEXT_PUBLIC_LEGAL_COUNTRY_CODE \
+  --build-arg NEXT_PUBLIC_LEGAL_COMPANY_NAME --build-arg NEXT_PUBLIC_LEGAL_TAX_ID_LABEL \
+  --build-arg NEXT_PUBLIC_LEGAL_COMPANY_NAME --build-arg NEXT_PUBLIC_LEGAL_TAX_ID \
+  --build-arg NEXT_PUBLIC_LEGAL_COMPANY_NAME --build-arg NEXT_PUBLIC_LEGAL_JURISDICTION \
+  --build-arg NEXT_PUBLIC_LEGAL_COMPANY_NAME --build-arg NEXT_PUBLIC_LEGAL_DISPUTE_FORUM \
   --build-arg NEXT_PUBLIC_LEGAL_ADDRESS --build-arg NEXT_PUBLIC_LEGAL_CONTACT_EMAIL .
 docker run -d --name cibaura-web --restart unless-stopped --init \
   --security-opt no-new-privileges:true -e PORT=3000 -p 127.0.0.1:3000:3000 cibaura-web:release

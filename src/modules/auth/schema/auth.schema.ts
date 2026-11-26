@@ -169,12 +169,12 @@ export const authUserWireSchema = z.object({
 
 /** GET/PATCH users/me extends the auth user without changing login/register. */
 export const customerProfileWireSchema = authUserWireSchema.extend({
-  dateOfBirth: z.string().nullable(),
-  countryId: z.string().nullable(),
-  cityId: z.string().nullable(),
-  residenceCountryCode: z.string().nullable(),
-  residenceCity: z.string().nullable(),
-  marketingOptIn: z.boolean(),
+  dateOfBirth: z.string().nullable().default(null),
+  countryId: z.string().nullable().default(null),
+  cityId: z.string().nullable().default(null),
+  residenceCountryCode: z.string().nullable().default(null),
+  residenceCity: z.string().nullable().default(null),
+  marketingOptIn: z.boolean().default(false),
 });
 
 /**

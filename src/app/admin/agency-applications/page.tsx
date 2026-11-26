@@ -339,6 +339,8 @@ function ApplicationDetail({ id }: { id: string }) {
       label: individual ? "Cédula" : "Owner ID number",
       value: app.kyc.ownerIdNumber,
     },
+    { label: "Identity document type", value: app.kyc.ownerIdType },
+    { label: "Issuing country / region", value: app.kyc.ownerIdIssuer },
     { label: "Phone", value: app.kyc.phone },
     { label: individual ? "Home address (pickup)" : "Address", value: app.kyc.address },
   ];

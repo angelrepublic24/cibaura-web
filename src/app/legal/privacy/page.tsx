@@ -36,8 +36,8 @@ export default function PrivacyPage() {
         <p>
           The data controller for the Cibaura platform is{" "}
           <strong className="text-foreground">{company}</strong>
-          {LEGAL.rnc ? <>, RNC {LEGAL.rnc}</> : null}, {LEGAL.address},{" "}
-          {LEGAL.jurisdiction}. Privacy questions and data-subject requests:{" "}
+          {LEGAL.taxId ? <>, {LEGAL.taxIdLabel} {LEGAL.taxId}</> : null}, {LEGAL.address}.
+          Privacy questions and data-subject requests:{" "}
           <a
             href={`mailto:${LEGAL.contactEmail}`}
             className="text-primary underline underline-offset-2"
@@ -195,8 +195,7 @@ export default function PrivacyPage() {
 
       <ContentSection id="rights" title="7. Your rights">
         <p>
-          Subject to the laws of the {LEGAL.jurisdiction} (including Law
-          172-13 on the protection of personal data), you may request access
+          Subject to applicable data-protection laws, you may request access
           to, correction of, or deletion of your personal data; object to or
           restrict certain processing; and receive a portable copy. You can
           update your name and phone, change your password and delete your

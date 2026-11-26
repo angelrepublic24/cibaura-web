@@ -326,11 +326,7 @@ export function VerificationPanel() {
   return (
     <div>
       <StatusBanner v={verification} />
-      <LicenseDetailsCard
-        key={`${verification.licenseNumber}:${verification.licenseExpiry}`}
-        verification={verification}
-        documents={documents}
-      />
+      <LicenseDetailsCard verification={verification} documents={documents} />
       <AdditionalDocumentsPanel />
       {legacy.length > 0 && (
         <details className="mt-6 rounded-lg border border-border p-4">

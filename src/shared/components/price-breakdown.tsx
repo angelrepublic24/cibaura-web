@@ -59,6 +59,10 @@ export function PriceBreakdown({
    * the lines up got the fee twice — and a reader who did not was left
    * reading one opaque figure for two different things.
    */
+  if (rateCents === undefined || subtotalCents === undefined || deliveryCents === undefined ||
+      (!renter && (p.commissionPct === undefined || p.commissionCents === undefined))) {
+    return <p role="alert">The price breakdown is unavailable. Please refresh.</p>;
+  }
   const rentalCents = subtotalCents - deliveryCents;
 
   /*
@@ -96,8 +100,8 @@ export function PriceBreakdown({
       ) : null}
       {renter ? null : (
         <div className="flex justify-between gap-4 text-muted-foreground">
-          <dt>Platform service fee ({formatPct(p.commissionPct)})</dt>
-          <dd>{money(p.commissionCents)}</dd>
+          <dt>Platform service fee ({formatPct(p.commissionPct ?? 0)})</dt>
+          <dd>{money(p.commissionCents ?? 0)}</dd>
         </div>
       )}
       <div className="flex justify-between gap-4">

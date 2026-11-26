@@ -103,7 +103,11 @@ export const STRIPE_PUBLISHABLE_KEY = resolveStripePublishableKey();
 
 const legalValues = [
   process.env.NEXT_PUBLIC_LEGAL_COMPANY_NAME,
-  process.env.NEXT_PUBLIC_LEGAL_RNC,
+  process.env.NEXT_PUBLIC_LEGAL_COUNTRY_CODE,
+  process.env.NEXT_PUBLIC_LEGAL_TAX_ID_LABEL,
+  process.env.NEXT_PUBLIC_LEGAL_TAX_ID,
+  process.env.NEXT_PUBLIC_LEGAL_JURISDICTION,
+  process.env.NEXT_PUBLIC_LEGAL_DISPUTE_FORUM,
   process.env.NEXT_PUBLIC_LEGAL_ADDRESS,
   process.env.NEXT_PUBLIC_LEGAL_CONTACT_EMAIL,
 ];
@@ -119,9 +123,9 @@ export const BUILD_SHA = process.env.NEXT_PUBLIC_BUILD_SHA?.trim() || null;
 function resolveSentryDsn(): string | undefined {
   const raw = process.env.NEXT_PUBLIC_SENTRY_DSN?.trim();
   if (!raw) {
-    if (production && process.env.NEXT_PUBLIC_STRIPE_ALLOW_TEST_KEY !== "true")
+    if (production && process.env.NEXT_PUBLIC_ALLOW_MISSING_SENTRY !== "true")
       throw new Error(
-        "[config] NEXT_PUBLIC_SENTRY_DSN is required for production. Only explicit test-key staging may omit error reporting.",
+        "[config] NEXT_PUBLIC_SENTRY_DSN is required for production. Only explicit monitoring-disabled staging may omit error reporting.",
       );
     return undefined;
   }
@@ -151,9 +155,13 @@ export function assertRequiredFeatures(
   allowDefaultLegal: boolean,
   allowMissingMaps: boolean,
 ): void {
+  if (STRIPE_PUBLISHABLE_KEY?.startsWith("pk_live_") &&
+      (allowDefaultLegal || allowMissingMaps || process.env.NEXT_PUBLIC_ALLOW_MISSING_SENTRY === "true")) {
+    throw new Error("[config] Live payments forbid missing legal identity, Maps or monitoring exceptions.");
+  }
   if (!LEGAL_CONFIGURED && !allowDefaultLegal)
     throw new Error(
-      "[config] All four NEXT_PUBLIC_LEGAL_* values are required; ALLOW_DEFAULT_LEGAL=true is an explicit non-release exception.",
+      "[config] All NEXT_PUBLIC_LEGAL_* values are required; ALLOW_DEFAULT_LEGAL=true is an explicit non-release exception.",
     );
   if (!MAPS_CONFIGURED && !allowMissingMaps)
     throw new Error(

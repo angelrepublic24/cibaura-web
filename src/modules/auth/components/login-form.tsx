@@ -25,7 +25,7 @@ import {
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 
-export function LoginForm({ next }: { next?: string }) {
+export function LoginForm({ next, passwordChanged = false }: { next?: string; passwordChanged?: boolean }) {
   const router = useRouter();
   const signIn = useAuthStore((s) => s.signIn);
   const mutation = useLogin();
@@ -48,6 +48,7 @@ export function LoginForm({ next }: { next?: string }) {
         <CardDescription>Log in to manage your bookings.</CardDescription>
       </CardHeader>
       <CardContent>
+        {passwordChanged ? <p role="status" className="mb-4 text-sm text-success">Your password was changed. Log in with your new password.</p> : null}
         <form
           className="space-y-4"
           onSubmit={form.handleSubmit((values) =>

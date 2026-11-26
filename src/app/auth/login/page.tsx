@@ -31,7 +31,7 @@ export default async function LoginPage({ searchParams }: Props) {
         </p>
       </div>
       <RedirectIfAuthenticated next={next}>
-        <LoginForm next={next} />
+        <LoginForm next={next} passwordChanged={sp.passwordChanged === "1"} />
       </RedirectIfAuthenticated>
     </div>
   );
